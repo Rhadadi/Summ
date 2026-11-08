@@ -1,0 +1,32 @@
+{
+  "name": "summ",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "tsc --noEmit && vite build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@mui/material": "latest",
+    "@mui/icons-material": "latest",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fontsource/roboto": "latest",
+    "@fontsource-variable/roboto-serif": "latest",
+    "@fontsource-variable/vazirmatn": "latest",
+    "pdfjs-dist": "5.6.205",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.6",
+    "typescript": "latest",
+    "@vitejs/plugin-react": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/node": "latest"
+  }
+}

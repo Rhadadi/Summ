@@ -1,0 +1,13 @@
+{$SUMM_DOMAIN:booksumm.duckdns.org} {
+  encode zstd gzip
+  request_body {
+    max_size 2MB
+  }
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+  reverse_proxy app:9000
+}
