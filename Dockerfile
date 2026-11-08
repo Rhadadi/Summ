@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS frontend
 WORKDIR /build
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY index.html tsconfig.json vite.config.ts ./
 COPY public ./public
 COPY src ./src

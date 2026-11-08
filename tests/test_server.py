@@ -15,7 +15,7 @@ class PipelineTests(unittest.TestCase):
     def test_invented_quote_is_rejected(self):
         with self.assertRaises(HTTPException):valid_paragraphs([{'text':'The author says “This is a fabricated quotation with many words”.','evidence_ids':['a']}],[SourceBlock(id='a',text='The actual source says something else.')])
     def test_private_addresses_are_rejected(self):
-        for address in ['127.0.0.1','192.168.1.51','169.254.169.254','::1','10.0.0.1','224.0.0.1']:
+        for address in ['127.0.0.1','192.168.1.10','169.254.169.254','::1','10.0.0.1','224.0.0.1']:
             with self.subTest(address=address),patch('socket.getaddrinfo',return_value=[(2,1,6,'',(address,443))]):
                 with self.assertRaises(HTTPException):public_target('https://untrusted.example/source')
     def test_mixed_dns_answers_are_rejected(self):
