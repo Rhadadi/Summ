@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import{chaptersFromText}from './core';import type{Block,Book,Chapter}from './types';
+import{chaptersFromText}from './core.ts';import type{Block,Book,Chapter}from './types';
 const MAX=12*1024*1024;
 async function digest(bytes:ArrayBuffer){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function textBook(text:string,title:string,author='',format='TEXT'):Promise<Book>{
@@ -58,7 +58,9 @@ async function epubBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):P
  return b;
 }
 async function pdfBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Promise<Book>{
- const pdfjs=await import('pdfjs-dist');const worker=await import('pdfjs-dist/build/pdf.worker.min.mjs?url');pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
+ // PDF.js's modern build targets Chrome/Firefox. Safari needs the polyfilled
+ // build in both contexts; a compatible main module alone cannot fix a worker.
+ const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');const worker=await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
  const task=pdfjs.getDocument({data:bytes.slice(0)});const pdf=await task.promise;
  try{
   if(pdf.numPages>2000)throw Error('Please split PDFs longer than 2,000 pages.');
