@@ -1,5 +1,16 @@
 # Validation
 
+## Safari original-file storage fix — November 9, 2026
+
+Automated WebKit testing exposed a second failure after successful PDF parsing: writing a browser `File` directly to IndexedDB failed, and the request wrapper rejected with `null` before the transaction error was available. The file-import error handler then failed while reading `error.message`.
+
+Originals now persist as an ArrayBuffer plus MIME type, and are reconstructed as a Blob when opened. Previously saved Blob records remain readable. Storage errors use the request's error or a meaningful fallback, and the import handler accepts unknown error values safely.
+
+- Five source/import tests and the production build passed.
+- `tests/browser_pdf_import.py` passed in WebKit and Chromium using the supplied 366-page PDF. It verifies import, persistence after a full page reload, opening the original from a passage, and a SHA-256 match of the original file bytes. Neither browser reported a page error.
+- The earlier Chromium error at `127.0.0.1:3910` was from a stopped temporary preview. Use the public `https://booksumm.duckdns.org` address.
+- The PDF.js compatibility build and security patch remain in place. The earlier native-Safari limitation below is superseded by these automated WebKit results.
+
 ## Safari PDF import compatibility fix — November 9, 2026
 
 The PDF importer and its worker now both use PDF.js's `legacy` compatibility build. The modern build assumes recent browser APIs; the new regression test reproduces `getOrInsertComputed is not a function` without them and passes after the switch. The patched PDF.js version remains 6.2.108.
