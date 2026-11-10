@@ -1,27 +1,20 @@
 """Public book metadata: ratings, description, and covers from Google Books, Open Library, and Wikipedia.
 Goodreads has no public API and forbids scraping, so it is linked rather than queried."""
 from __future__ import annotations
-import asyncio,html,os,re
+import asyncio,re
 from urllib.parse import quote,urlsplit
 import httpx
+from . import google_books
 COVER_HOSTS={'covers.openlibrary.org','books.google.com','books.googleusercontent.com','upload.wikimedia.org'}
 HEADERS={'User-Agent':'SummReader/0.3 (https://booksumm.duckdns.org)'}
 def _words(text:str)->set[str]:return {w for w in re.findall(r'\w+',text.lower()) if len(w)>2}
 def _matches(wanted:str,found:str)->bool:
     # Accept a result only if it shares most of the requested title's words.
+    if wanted.strip().casefold() == found.strip().casefold():return bool(wanted.strip())
     want=_words(wanted);return bool(want) and len(want&_words(found))>=max(1,round(len(want)*.6))
-def _plain(text:str)->str:return re.sub(r'\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',text or ''))).strip()
 async def _google(client:httpx.AsyncClient,title:str,author:str)->dict|None:
     q='intitle:'+title+(' inauthor:'+author if author else '')
-    params={'q':q,'maxResults':'5','printType':'books'}
-    if os.getenv('GOOGLE_BOOKS_API_KEY'):params['key']=os.environ['GOOGLE_BOOKS_API_KEY']
-    r=await client.get('https://www.googleapis.com/books/v1/volumes',params=params)
-    for item in (r.json().get('items') or []) if r.status_code==200 else []:
-        v=item.get('volumeInfo') or {}
-        if not _matches(title,v.get('title','')+' '+v.get('subtitle','')):continue
-        cover=(v.get('imageLinks') or {}).get('thumbnail','').replace('http://','https://').replace('&edge=curl','')
-        return {'source':'Google Books','title':v.get('title',''),'authors':v.get('authors') or [],'year':(v.get('publishedDate') or '')[:4],'pages':v.get('pageCount'),'categories':v.get('categories') or [],'description':_plain(v.get('description',''))[:3000],'rating':v.get('averageRating'),'ratings':v.get('ratingsCount'),'url':v.get('infoLink') or v.get('canonicalVolumeLink'),'cover':cover.replace('zoom=1','zoom=2') if cover else None}
-    return None
+    return next((edition for edition in await google_books.search(client,q,5) if _matches(title,edition['title']+' '+edition['subtitle'])),None)
 async def _openlibrary(client:httpx.AsyncClient,title:str,author:str)->dict|None:
     # Relevance search finds the main work even when its title differs ("1984" → "Nineteen Eighty-Four").
     params={'q':(title+' '+author).strip(),'limit':'5','fields':'key,title,author_name,first_publish_year,cover_i,ratings_average,ratings_count,want_to_read_count,already_read_count,subject,number_of_pages_median'}
@@ -44,25 +37,36 @@ async def _wikipedia(client:httpx.AsyncClient,title:str,author:str)->dict|None:
         if d.get('type')=='disambiguation':continue
         return {'source':'Wikipedia','title':d.get('title',''),'extract':d.get('extract','')[:2000],'url':(d.get('content_urls') or {}).get('desktop',{}).get('page'),'cover':(d.get('originalimage') or {}).get('source'),'license':'CC BY-SA 4.0'}
     return None
-async def lookup(title:str,author:str)->dict:
+async def lookup(title:str,author:str,google_volume_id:str|None=None)->dict:
     async with httpx.AsyncClient(timeout=10,headers=HEADERS,follow_redirects=True) as client:
         async def safe(task):
             try:return await task
-            except (httpx.HTTPError,ValueError,KeyError,TypeError):return None
-        google,openlib,wiki=await asyncio.gather(safe(_google(client,title,author)),safe(_openlibrary(client,title,author)),safe(_wikipedia(client,title,author)))
+            except (httpx.HTTPError,ValueError,KeyError,TypeError,google_books.BooksError):return None
+        if google_volume_id:
+            google = await google_books.volume(client, google_volume_id)
+            title, author = google['title'], ' '.join(google['authors'])
+            openlib, wiki = await asyncio.gather(
+                safe(_openlibrary(client, title, author)), safe(_wikipedia(client, title, author))
+            )
+        else:
+            google,openlib,wiki=await asyncio.gather(safe(_google(client,title,author)),safe(_openlibrary(client,title,author)),safe(_wikipedia(client,title,author)))
     found=[x for x in (google,openlib) if x]
     q=quote(title+' '+author)
+    google_cover = google and google['cover']
+    other_covers = [openlib and openlib['cover'], wiki and wiki['cover']]
+    covers = [google_cover, *other_covers] if google_volume_id else [other_covers[0], google_cover, other_covers[1]]
     return {
         'title':(found[0]['title'] if found else title),
         'authors':next((x['authors'] for x in found if x['authors']),[]),
-        'year':next((x['year'] for x in found if x.get('year')),''),
-        'pages':next((x['pages'] for x in found if x.get('pages')),None),
+        'year':google['year'] if google_volume_id else next((x['year'] for x in found if x.get('year')),''),
+        'pages':google['pages'] if google_volume_id else next((x['pages'] for x in found if x.get('pages')),None),
         'categories':list(dict.fromkeys(c for x in found for c in x['categories']))[:8],
         'description':google['description'] if google else '',
         'ratings':[{'source':x['source'],'rating':x['rating'],'count':x['ratings'],'url':x['url']} for x in found if x.get('rating')],
         'readers':openlib.get('readers') if openlib else None,
         'wikipedia':{k:wiki[k] for k in ('title','extract','url','license')} if wiki else None,
-        'covers':[c for c in (openlib and openlib['cover'],google and google['cover'],wiki and wiki['cover']) if c],
+        'covers':[c for c in covers if c],
+        'google_edition':google,
         'links':[{'name':'Goodreads','url':'https://www.goodreads.com/search?q='+q},{'name':'StoryGraph','url':'https://app.thestorygraph.com/browse?search_term='+q}]+[{'name':x['source'],'url':x['url']} for x in found if x.get('url')],
     }
 def _cover_host(url:str)->bool:

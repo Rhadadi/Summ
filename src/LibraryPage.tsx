@@ -1,20 +1,24 @@
-import{AddRounded,DeleteOutlineRounded}from'@mui/icons-material';
+import{useState}from'react';
+import{AddRounded,DeleteOutlineRounded,SearchRounded}from'@mui/icons-material';
 import{Button,IconButton}from'@mui/material';
 import type{Book}from'./types';
 import{bodyChapter,bookWords,displayName,minutes}from'./core';
 import Cover from'./Cover';
 import{Logo}from'./Header';
+import GoogleBooksDialog from'./GoogleBooksDialog';
 
 const words=(b:Book)=>bookWords({...b,chapters:b.chapters.map(bodyChapter)});
 const hours=(m:number)=>m<90?m+' min':Math.round(m/60)+' hours';
 const filters=[{id:'all',label:'All'},{id:'book',label:'Books'},{id:'article',label:'Articles'},{id:'video',label:'Transcripts'},{id:'text',label:'Notes'}];
-interface Props{books:Book[];covers:Record<string,string>;filter:string;query:string;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onAdd:()=>void;onRemove:(book:Book)=>void;onClear:()=>void}
-export default function LibraryPage({books,covers,filter,query,onFilter,onOpen,onAdd,onRemove,onClear}:Props){
+interface Props{books:Book[];covers:Record<string,string>;filter:string;query:string;canSearchBooks:boolean;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onAdd:()=>void;onRemove:(book:Book)=>void;onClear:()=>void}
+export default function LibraryPage({books,covers,filter,query,canSearchBooks,onFilter,onOpen,onAdd,onRemove,onClear}:Props){
+ const[searchOpen,setSearchOpen]=useState(false);
  const shown=books.filter(b=>(filter==='all'||b.category===filter)&&(b.title+' '+b.author).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt));
  const present=filters.filter(f=>f.id==='all'||books.some(b=>b.category===f.id));
  return <div className="library">
   <h1 className="library-title">Your library</h1>
   <p className="library-sub">{books.length} {books.length===1?'book':'books'} · {hours(books.reduce((n,b)=>n+minutes(words(b)),0))} of reading</p>
+  {canSearchBooks&&<Button variant="outlined" sx={{mb:3}} startIcon={<SearchRounded/>} onClick={()=>setSearchOpen(true)}>Find books</Button>}
   <div className="pills" role="group" aria-label="Filter">{present.map(f=><button key={f.id} className={'pill'+(filter===f.id?' on':'')} aria-pressed={filter===f.id} onClick={()=>onFilter(f.id)}>{f.label}</button>)}</div>
   <div className="cards">
    {shown.map(b=><article className="card" key={b.id}>
@@ -29,5 +33,6 @@ export default function LibraryPage({books,covers,filter,query,onFilter,onOpen,o
    <button className="card card-add" onClick={onAdd}><AddRounded/><strong>Add a book</strong><span>PDF, EPUB, link or text</span></button>
   </div>
   {!shown.length&&books.length>0&&<p className="library-empty">Nothing matches. <Button onClick={onClear}>Show everything</Button></p>}
+  {searchOpen&&<GoogleBooksDialog onClose={()=>setSearchOpen(false)}/>}
  </div>;
 }

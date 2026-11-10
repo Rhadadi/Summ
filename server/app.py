@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,audio,bookinfo,pdf
+from . import accounts,audio,bookinfo,google_books,google_identity,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -42,6 +42,9 @@ async def body_limit(request:Request,call_next):
     return response
 @app.exception_handler(accounts.AccountError)
 async def account_error(_:Request,error:accounts.AccountError):return JSONResponse({'detail':error.detail},status_code=error.status)
+@app.exception_handler(google_books.BooksError)
+async def books_error(_:Request,error:google_books.BooksError):
+    return JSONResponse({'detail':error.detail},status_code=error.status,headers={'Cache-Control':'no-store'})
 def throttle(bucket:str,limit:int):
     now=time.monotonic()
     for name in list(hits):
@@ -73,7 +76,7 @@ def signed_in(user_id:str)->JSONResponse:
 @app.get('/api/health')
 async def health():return {'version':'0.3.0','accounts':True}
 @app.get('/api/config')
-async def config():return {'google_client_id':os.getenv('GOOGLE_CLIENT_ID',''),'signup':signup_open()}
+async def config():return {'google_client_id':os.getenv('GOOGLE_CLIENT_ID','').strip(),'signup':signup_open()}
 class StrictModel(BaseModel):model_config=ConfigDict(extra='forbid')
 class Credentials(StrictModel):
     username:str=Field(min_length=1,max_length=64)
@@ -96,14 +99,11 @@ async def login(body:Credentials,request:Request):
 @app.post('/api/auth/google')
 async def google_login(body:GoogleCredential,request:Request):
     throttle('auth:'+client_ip(request),10)
-    client_id=os.getenv('GOOGLE_CLIENT_ID','')
-    if not client_id:raise HTTPException(404,'Google sign-in is not configured on this server.')
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:r=await client.get('https://oauth2.googleapis.com/tokeninfo',params={'id_token':body.credential})
-        info=r.json() if r.status_code==200 else {}
-    except (httpx.HTTPError,ValueError):raise HTTPException(502,'Google could not be reached. Try again.') from None
-    if info.get('aud')!=client_id or info.get('iss') not in ('accounts.google.com','https://accounts.google.com') or info.get('email_verified') not in (True,'true') or not info.get('sub'):raise HTTPException(401,'Google sign-in could not be verified.')
-    return signed_in(accounts.google_user(str(info['sub']),str(info.get('email','')),signup_open()))
+    client_id = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+    if not client_id:
+        raise HTTPException(404, 'Google sign-in is not configured on this server.')
+    subject, email = await asyncio.to_thread(google_identity.verify_credential, body.credential, client_id)
+    return signed_in(accounts.google_user(subject, email, signup_open()))
 @app.post('/api/auth/logout')
 async def logout(request:Request):
     accounts.end_session(request.cookies.get(COOKIE,''));response=JSONResponse({'ok':True});response.delete_cookie(COOKIE,path='/');return response
@@ -319,10 +319,18 @@ async def guide(payload:GuideRequest,request:Request,user:dict=Depends(ai_user))
         if check.get('supported') is not True or check.get('checked_paragraphs')!=len(items):raise HTTPException(502,'The study guide did not pass its support check. Retry to finish it.')
         return {'type':kind,'type_label':GUIDE_TYPES[kind][0],'sections':sections,'model':creds[1],'usage':usage}
 @app.get('/api/book-info')
-async def book_info(request:Request,title:str,author:str=''):
+async def book_info(request:Request,title:str='',author:str='',google_volume_id:str|None=None):
     throttle('info:'+client_ip(request),30)
-    if not 1<=len(title.strip())<=300 or len(author)>300:raise HTTPException(422,'Enter a title of up to 300 characters.')
-    return await bookinfo.lookup(title.strip(),author.strip())
+    if not google_volume_id and (not 1<=len(title.strip())<=300 or len(author)>300):raise HTTPException(422,'Enter a title of up to 300 characters.')
+    return await bookinfo.lookup(title.strip(),author.strip(),google_volume_id)
+@app.get('/api/books/search')
+async def search_books(request:Request,q:str):
+    throttle('info:'+client_ip(request),30)
+    query = q.strip()
+    if not 1 <= len(query) <= 300:
+        raise HTTPException(422, 'Enter a title, author, or ISBN of up to 300 characters.')
+    async with httpx.AsyncClient(timeout=12, headers=bookinfo.HEADERS) as client:
+        return {'items': await google_books.search(client, query)}
 @app.get('/api/cover')
 async def cover_image(request:Request,src:str):
     throttle('cover:'+client_ip(request),30)

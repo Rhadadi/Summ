@@ -1,4 +1,4 @@
-import type{Account,AppConfig,BookInfo,Chapter,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{Account,AppConfig,BookInfo,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
@@ -20,7 +20,8 @@ export const importUrl=(url:string)=>call<{text:string;title:string;url:string;w
 export const summarize=(s:Settings,chapter:Chapter,signal?:AbortSignal)=>call<Summary>('summarize',{body:{chapter,depth:s.depth,purpose:s.purpose,language:s.language,review:s.review},signal});
 export const composeSummary=(s:Settings,title:string,sections:SummarySection[],kind:'chapter'|'book',signal?:AbortSignal)=>call<Overview>('compose',{body:{title,sections,language:s.language,kind},signal});
 export const guide=(s:Settings,title:string,author:string,sections:SummarySection[],signal?:AbortSignal)=>call<Guide>('guide',{body:{title,author,sections,language:s.language},signal});
-export const bookInfo=(title:string,author:string)=>call<BookInfo>('book-info?'+new URLSearchParams({title,author}),{signal:AbortSignal.timeout(30000)});
+export const bookInfo=(title:string,author:string,volumeId?:string)=>call<BookInfo>('book-info?'+new URLSearchParams({title,author,...(volumeId?{google_volume_id:volumeId}:{})}),{signal:AbortSignal.timeout(30000)});
+export const searchGoogleBooks=(q:string,signal:AbortSignal)=>call<{items:GoogleBookEdition[]}>('books/search?'+new URLSearchParams({q}),{signal});
 export const saveVoiceKey=(key:{api_key?:string;voice:string})=>call<Account>('me/voice-key',{method:'PUT',body:key});
 export const removeVoiceKey=()=>call<Account>('me/voice-key',{method:'DELETE'});
 // Binary endpoints return the bytes on success and JSON details on failure.

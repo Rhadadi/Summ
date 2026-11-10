@@ -16,9 +16,35 @@ export const store={
  report:(id:string)=>request<BookReport|undefined>('summaries','get',id),saveReport:(id:string,r:BookReport)=>request('summaries','put',id,r),
  // The study guide page opens the most recent whole-book report for a book.
  latestReport:(bookId:string)=>request<string|undefined>('summaries','get',bookId+':latest-report'),setLatestReport:(bookId:string,key:string)=>request('summaries','put',bookId+':latest-report',key),
- info:(bookId:string)=>request<BookInfo|undefined>('summaries','get',bookId+':info'),saveInfo:(bookId:string,info:BookInfo)=>request('summaries','put',bookId+':info',info),
+ info:(bookId:string)=>request<BookInfo|undefined>('summaries','get',bookId+':info'),
+ async saveInfo(bookId:string,info:BookInfo,replace=false){
+  const db=await database;
+  return new Promise<BookInfo>((resolve,reject)=>{
+   const tx=db.transaction('summaries','readwrite'),summaries=tx.objectStore('summaries'),key=bookId+':info';
+   let result=info;
+   const current=summaries.get(key);
+   // A delayed automatic lookup must preserve a user's edition selection.
+   current.onsuccess=()=>{if(current.result&&!replace)result=current.result;else summaries.put(info,key);};
+   tx.oncomplete=()=>resolve(result);tx.onabort=()=>reject(tx.error);
+  });
+ },
  async cover(id:string){const value=await request<StoredFile&{source:string}|undefined>('covers','get',id);return value?{blob:new Blob([value.data],{type:value.type}),source:value.source}:undefined;},
- async saveCover(id:string,blob:Blob,source:'file'|'online'){await request('covers','put',id,{version:1,data:await blob.arrayBuffer(),type:blob.type,source});},
+ async saveCover(id:string,blob:Blob,source:'file'|'online',expectedUrl?:string){
+  const value={version:1,data:await blob.arrayBuffer(),type:blob.type,source};
+  if(source==='file'){await request('covers','put',id,value);return true;}
+  const db=await database;
+  return new Promise<boolean>((resolve,reject)=>{
+   const tx=db.transaction(['covers','summaries'],'readwrite'),covers=tx.objectStore('covers');
+   let saved=false;
+   const info=tx.objectStore('summaries').get(id+':info');
+   info.onsuccess=()=>{
+    if(info.result?.covers[0]!==expectedUrl)return;
+    const cover=covers.get(id);
+    cover.onsuccess=()=>{if(cover.result?.source!=='file'){covers.put(value,id);saved=true;}};
+   };
+   tx.oncomplete=()=>resolve(saved);tx.onabort=()=>reject(tx.error);
+  });
+ },
  async audio(id:string){const value=await request<StoredFile|undefined>('audio','get',id);return value?new Blob([value.data],{type:value.type}):undefined;},
  async saveAudio(id:string,blob:Blob){await request('audio','put',id,{version:1,data:await blob.arrayBuffer(),type:blob.type});},
  async deleteBook(id:string){

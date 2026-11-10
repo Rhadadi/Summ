@@ -13,7 +13,8 @@ export interface GuideSection{kind:string;title:string;items:SummaryParagraph[]}
 export interface Guide{type:string;type_label:string;sections:GuideSection[];model:string;usage?:Usage}
 export interface BookReport{model:string;language:string;createdAt:number;updatedAt:number;parts:Record<string,Summary>;chapters:Record<string,Summary>;overview?:Overview;guide?:Guide}
 export interface Rating{source:string;rating:number;count:number|null;url:string|null}
-export interface BookInfo{title:string;authors:string[];year:string;pages:number|null;categories:string[];description:string;ratings:Rating[];readers:number|null;wikipedia:{title:string;extract:string;url:string;license:string}|null;covers:string[];links:{name:string;url:string}[]}
+export interface GoogleBookEdition{id:string;title:string;subtitle:string;authors:string[];publisher:string;published_date:string;language:string;pages:number|null;isbns:string[];url:string;preview_url:string|null;cover:string|null}
+export interface BookInfo{title:string;authors:string[];year:string;pages:number|null;categories:string[];description:string;ratings:Rating[];readers:number|null;wikipedia:{title:string;extract:string;url:string;license:string}|null;covers:string[];links:{name:string;url:string}[];google_edition?:GoogleBookEdition|null}
 export interface KeyInfo{hint:string;model:string;price_in:number|null;price_out:number|null}
 export interface Account{user:{name:string};key:KeyInfo|null;voice:{hint:string;option:string}|null}
 export interface AppConfig{google_client_id:string;signup:boolean}
