@@ -7,6 +7,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     read_only: true
     tmpfs: ["/tmp:size=64m"]
+    volumes: ["summ_data:/data"]
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -19,5 +20,6 @@ services:
       - caddy_config:/config
     depends_on: [app]
 volumes:
+  summ_data:
   caddy_data:
   caddy_config:

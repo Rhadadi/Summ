@@ -1,5 +1,5 @@
 import assert from'node:assert/strict';import test from'node:test';
-import{chaptersFromText,cleanApiUrl,selectedPassages,sentenceSpans,wordCount}from'../src/core.ts';
+import{chaptersFromText,selectedPassages,sentenceSpans,wordCount}from'../src/core.ts';
 test('chapter boundaries preserve every paragraph and qualification',()=>{
  const c=chaptersFromText('# First\n\nCount fell from 40 to 25.\n\nThis does not establish causation.\n\n# Second\n\nOnly one team was studied.');
  assert.equal(c.length,2);assert.deepEqual(c.flatMap(x=>x.blocks).map(b=>b.text),['Count fell from 40 to 25.','This does not establish causation.','Only one team was studied.']);
@@ -14,9 +14,4 @@ test('Persian paragraphs and punctuation survive extraction',()=>{
  const text='این یک مثال است. آیا نتیجه قطعی است؟\n\nخیر، این داده‌ها کافی نیستند.';const[c]=chaptersFromText(text);
  assert.equal(c.blocks.length,2);assert.ok(wordCount(text)>5);assert.ok(sentenceSpans(text).length>=2);
  assert.equal(selectedPassages(c,'close')[1].text,'خیر، این داده‌ها کافی نیستند.');
-});
-test('processing URLs reject credentials and insecure remote transport',()=>{
- assert.equal(cleanApiUrl('https://booksumm.duckdns.org/'),'https://booksumm.duckdns.org');
- assert.equal(cleanApiUrl('http://localhost:9000'),'http://localhost:9000');
- for(const value of ['javascript:alert(1)','http://example.com','https://key:secret@example.com','https://example.com?token=x'])assert.throws(()=>cleanApiUrl(value));
 });

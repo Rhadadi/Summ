@@ -26,6 +26,34 @@ export async function importFile(file:File,notify:(s:string)=>void):Promise<Book
  if(['vtt','srt'].includes(ext)){b.category='video';b.format='TRANSCRIPT';b.warnings.push('Transcript text only. Visual content has not been reviewed. Timestamp lines remain as supplied.');}
  return b;
 }
+// Covers come from the file itself: an EPUB's declared cover image, or the first PDF page that is not blank.
+export async function extractCover(file:Blob,name:string):Promise<Blob|undefined>{
+ const ext=name.split('.').pop()?.toLowerCase();
+ try{
+  if(ext==='epub'){
+   const z=await JSZip.loadAsync(await file.arrayBuffer());const root=els(xml(await z.file('META-INF/container.xml')?.async('text')||'<x/>'),'rootfile')[0]?.getAttribute('full-path');
+   const opf=root&&xml(await z.file(root)?.async('text')||'<x/>');if(!root||!opf)return;
+   const items=els(opf,'item');const metaId=els(opf,'meta').find(m=>m.getAttribute('name')==='cover')?.getAttribute('content');
+   const item=items.find(i=>i.getAttribute('properties')?.split(/\s+/).includes('cover-image'))||items.find(i=>i.getAttribute('id')===metaId);
+   const href=item?.getAttribute('href');const entry=href&&z.file(path(root,href));
+   if(!entry||!/^image\//.test(item!.getAttribute('media-type')||''))return;
+   return new Blob([await entry.async('arraybuffer')],{type:item!.getAttribute('media-type')!});
+  }
+  if(ext!=='pdf'||typeof document==='undefined')return;
+  const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');const worker=await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
+  const task=pdfjs.getDocument({data:await file.arrayBuffer()});const pdf=await task.promise;
+  try{
+   for(let p=1;p<=Math.min(3,pdf.numPages);p++){
+    const page=await pdf.getPage(p);const base=page.getViewport({scale:1});const viewport=page.getViewport({scale:700/base.width});
+    const canvas=document.createElement('canvas');canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const context=canvas.getContext('2d')!;
+    await page.render({canvasContext:context,canvas,viewport}).promise;
+    const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let ink=0,seen=0;
+    for(let i=0;i<pixels.length;i+=4*97){seen++;if(pixels[i]+pixels[i+1]+pixels[i+2]<690)ink++;}
+    if(ink/seen>.04)return await new Promise<Blob|undefined>(resolve=>canvas.toBlob(blob=>resolve(blob||undefined),'image/jpeg',.86));
+   }
+  }finally{await task.destroy();}
+ }catch(e){console.warn('Summ could not extract a cover',e);}
+}
 async function epubBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Promise<Book>{
  const z=await JSZip.loadAsync(bytes);if(Object.keys(z.files).length>3000)throw Error('This EPUB contains too many files.');
  if(z.file('META-INF/encryption.xml'))throw Error('This EPUB declares encrypted resources. Please provide a DRM-free edition.');

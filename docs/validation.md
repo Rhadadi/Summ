@@ -1,5 +1,22 @@
 # Validation
 
+## Study guides, book facts, covers, narration, and typeset PDF — November 10, 2026
+
+- Study guides choose one of five book types (fiction, narrative nonfiction, ideas and argument, academic, poetry or drama) and fill that type's sections from the checked chapter summaries, followed by a separate support check. Unknown types, invented chapter references, and thin guides are rejected.
+- Book facts come from Open Library, Google Books, and Wikipedia (CC BY-SA, attributed). Live lookups matched *Nineteen Eighty-Four* (searched as "1984"), *Theo of Golden*, and *بوف کور*. Google Books needs `GOOGLE_BOOKS_API_KEY`: the shared anonymous quota returned HTTP 429. Goodreads is linked, not queried.
+- Covers come from the EPUB cover image or the first non-blank PDF page (pages 1–3 are checked), otherwise from Open Library or Google Books through an allowlisted proxy.
+- Piper ran on the production server's i5-2435M (AVX, no AVX2) at 7.6× real time for `fa_IR-gyro-medium` and 7.9× for `en_US-lessac-medium`. ElevenLabs uses each user's own key; it was tested only with mocked responses.
+- WeasyPrint PDFs (A5, cover page, contents with page numbers, running heads) were rendered in English and Persian; Persian uses Vazirmatn with correct shaping and right-to-left layout.
+- 32 backend and 15 frontend tests pass. A Chromium and WebKit end-to-end run with a stand-in model covered sign-up, a whole-book run, the study guide, PDF download, and real offline narration, with no page errors. No real Gemini or ElevenLabs call was made.
+
+## Accounts, per-user keys, cost estimates, and Apple-style refresh — November 10, 2026
+
+- Accounts: username/password (scrypt) or Google ID tokens verified against `GOOGLE_CLIENT_ID`. Sessions are HttpOnly SameSite=Lax cookies. Writes require an `X-Summ-Request` header that cross-site pages cannot send without a refused preflight.
+- Each user's Gemini key is checked with Google on save, encrypted with a key derived from `SUMM_SECRET_KEY`, and never returned to the browser. Rate limits apply per user, and sign-in attempts are limited per client address taken from Caddy.
+- No more duplicate sends: short chapters go to the draft once and the check sees only cited passages. Long chapters are drafted from the inventory instead of inventory plus full source. Composition sends each summary once instead of twice.
+- A cost sheet appears before every chapter and whole-book run. Actual token usage from Gemini is shown afterwards.
+- 27 backend tests and 15 frontend tests pass, and the production build succeeds. A local Chromium and WebKit run covered sign-up, the account sheet, adding a key, and both cost sheets with no page errors. A real Gemini call was not made: Google correctly rejected a fake key on save.
+
 ## Native Safari stream iteration fix — November 9, 2026
 
 The exact reported error was reproduced in the user's actual Safari session on the current public build. PDF.js's `getTextContent()` uses `for await` on a ReadableStream, but shipping Safari lacks that async iterator even when Playwright's newer WebKit supports it. This matches [Mozilla issue #21924](https://github.com/mozilla/pdf.js/issues/21924).

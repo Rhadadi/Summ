@@ -1,27 +1,33 @@
-"""Optional Summ service. Browser originals stay local; AI receives the selected chapter."""
+"""Optional Summ service. Browser originals stay local; AI receives the selected chapter and runs on each user's own Gemini key."""
 from __future__ import annotations
 import asyncio
 from collections import defaultdict,deque
-import hmac,http.client,io,ipaddress,json,os,re,socket,ssl,time
+import http.client,io,ipaddress,json,os,re,socket,ssl,time
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urljoin,urlsplit
 import httpx
-from fastapi import Depends,FastAPI,Header,HTTPException,Request
+from fastapi import Depends,FastAPI,HTTPException,Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-MAX_SOURCE=48_000
+from . import accounts,audio,bookinfo,pdf
+MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
-app=FastAPI(title='Summ processing',version='0.1.0',docs_url=None,redoc_url=None,openapi_url=None)
-app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://rhadadi.github.io,https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET','POST'],allow_headers=['Authorization','Content-Type'])
+GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
+MODEL_NAME=re.compile(r'[a-zA-Z0-9._-]{3,100}')
+COOKIE='summ_session'
+app=FastAPI(title='Summ processing',version='0.3.0',docs_url=None,redoc_url=None,openapi_url=None)
+app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
-requests_by_client:dict[str,deque]=defaultdict(deque)
+hits:dict[str,deque]=defaultdict(deque)
 @app.middleware('http')
 async def body_limit(request:Request,call_next):
-    if request.url.path.startswith('/api/') and request.method=='POST':
+    if request.url.path.startswith('/api/') and request.method!='GET':
+        # A custom header cannot be sent cross-site without a CORS preflight, which this server refuses.
+        if request.headers.get('x-summ-request')!='1':return JSONResponse({'detail':'Request blocked. Reload Summ and try again.'},status_code=403)
         size=0;chunks=[]
         async for chunk in request.stream():
             size+=len(chunk)
@@ -34,22 +40,95 @@ async def body_limit(request:Request,call_next):
     if request.url.path.startswith('/api/'):response.headers['Cache-Control']='no-store'
     elif response.headers.get('content-type','').startswith('text/html'):response.headers['Cache-Control']='no-cache'
     return response
-def ai_configured():
-    return bool(os.getenv('GEMINI_API_KEY') and os.getenv('SUMM_MODEL') and os.getenv('SUMM_ACCESS_TOKEN') and not os.getenv('SUMM_ACCESS_TOKEN','').startswith('replace-'))
-async def authorize(request:Request,authorization:str=Header(default='')):
-    token=os.getenv('SUMM_ACCESS_TOKEN','')
-    if not token or token.startswith('replace-'):raise HTTPException(503,'Set a private SUMM_ACCESS_TOKEN on the server first.')
-    if not hmac.compare_digest(authorization,'Bearer '+token):raise HTTPException(401,'Enter the server app access token in Settings. This is different from the Gemini key.')
+@app.exception_handler(accounts.AccountError)
+async def account_error(_:Request,error:accounts.AccountError):return JSONResponse({'detail':error.detail},status_code=error.status)
+def throttle(bucket:str,limit:int):
     now=time.monotonic()
-    for address in list(requests_by_client):
-        if not requests_by_client[address] or requests_by_client[address][-1]<now-60:del requests_by_client[address]
-    history=requests_by_client[request.client.host if request.client else 'unknown']
+    for name in list(hits):
+        if not hits[name] or hits[name][-1]<now-60:del hits[name]
+    history=hits[bucket]
     while history and history[0]<now-60:history.popleft()
-    if len(history)>=12:raise HTTPException(429,'Too many requests. Please wait one minute.')
+    if len(history)>=limit:raise HTTPException(429,'Too many requests. Please wait one minute.')
     history.append(now)
+def client_ip(request:Request)->str:
+    # Behind the host's Caddy every request comes from the proxy; Caddy appends the real client last.
+    forwarded=request.headers.get('x-forwarded-for','') if os.getenv('SUMM_TRUST_PROXY')=='true' else ''
+    return forwarded.split(',')[-1].strip() if forwarded else request.client.host if request.client else 'unknown'
+async def current_user(request:Request)->dict:
+    user=accounts.session_user(request.cookies.get(COOKIE,''))
+    if not user:raise HTTPException(401,'Sign in to use AI summaries and link import.')
+    return user
+async def ai_user(user:dict=Depends(current_user))->dict:
+    throttle('user:'+user['id'],12);return user
+def user_credentials(user:dict)->tuple[str,str]:
+    creds=accounts.credentials(user['id'])
+    if not creds:raise HTTPException(412,'Add your Gemini API key in Account first. Summaries are billed to your own key.')
+    return creds
+def signup_open():return os.getenv('SUMM_ALLOW_SIGNUP','true')!='false'
+def me_payload(user:dict)->dict:return {'user':{'name':user['name']},'key':accounts.key_info(user['id']),'voice':accounts.service_info(user['id'],'elevenlabs')}
+def signed_in(user_id:str)->JSONResponse:
+    token=accounts.create_session(user_id);response=JSONResponse(me_payload(accounts.session_user(token)))
+    response.set_cookie(COOKIE,token,max_age=accounts.SESSION_SECONDS,httponly=True,samesite='lax',secure=os.getenv('SUMM_INSECURE_COOKIES')!='true',path='/')
+    return response
 @app.get('/api/health')
-async def health():return {'version':'0.1.0','ai_configured':ai_configured(),'auth_required':True}
+async def health():return {'version':'0.3.0','accounts':True}
+@app.get('/api/config')
+async def config():return {'google_client_id':os.getenv('GOOGLE_CLIENT_ID',''),'signup':signup_open()}
 class StrictModel(BaseModel):model_config=ConfigDict(extra='forbid')
+class Credentials(StrictModel):
+    username:str=Field(min_length=1,max_length=64)
+    password:str=Field(min_length=1,max_length=200)
+class GoogleCredential(StrictModel):credential:str=Field(min_length=20,max_length=4096)
+class KeyRequest(StrictModel):
+    api_key:str|None=Field(default=None,min_length=20,max_length=200)
+    model:str=Field(min_length=3,max_length=100)
+    price_in:float|None=Field(default=None,ge=0,le=1000)
+    price_out:float|None=Field(default=None,ge=0,le=1000)
+@app.post('/api/auth/register')
+async def register(body:Credentials,request:Request):
+    throttle('auth:'+client_ip(request),10)
+    if not signup_open():raise HTTPException(403,'New accounts are closed on this server.')
+    return signed_in(await asyncio.to_thread(accounts.register,body.username.strip(),body.password))
+@app.post('/api/auth/login')
+async def login(body:Credentials,request:Request):
+    throttle('auth:'+client_ip(request),10)
+    return signed_in(await asyncio.to_thread(accounts.login,body.username.strip(),body.password))
+@app.post('/api/auth/google')
+async def google_login(body:GoogleCredential,request:Request):
+    throttle('auth:'+client_ip(request),10)
+    client_id=os.getenv('GOOGLE_CLIENT_ID','')
+    if not client_id:raise HTTPException(404,'Google sign-in is not configured on this server.')
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:r=await client.get('https://oauth2.googleapis.com/tokeninfo',params={'id_token':body.credential})
+        info=r.json() if r.status_code==200 else {}
+    except (httpx.HTTPError,ValueError):raise HTTPException(502,'Google could not be reached. Try again.') from None
+    if info.get('aud')!=client_id or info.get('iss') not in ('accounts.google.com','https://accounts.google.com') or info.get('email_verified') not in (True,'true') or not info.get('sub'):raise HTTPException(401,'Google sign-in could not be verified.')
+    return signed_in(accounts.google_user(str(info['sub']),str(info.get('email','')),signup_open()))
+@app.post('/api/auth/logout')
+async def logout(request:Request):
+    accounts.end_session(request.cookies.get(COOKIE,''));response=JSONResponse({'ok':True});response.delete_cookie(COOKIE,path='/');return response
+@app.get('/api/me')
+async def me(user:dict=Depends(current_user)):return me_payload(user)
+@app.delete('/api/me')
+async def delete_account(user:dict=Depends(current_user)):
+    accounts.delete_user(user['id']);response=JSONResponse({'ok':True});response.delete_cookie(COOKIE,path='/');return response
+async def check_key(api_key:str,model:str):
+    if not MODEL_NAME.fullmatch(model):raise HTTPException(422,'Enter a model name such as gemini-flash-latest.')
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:r=await client.get(GEMINI+model,headers={'x-goog-api-key':api_key})
+    except httpx.HTTPError:raise HTTPException(502,'Google could not be reached to check the key. Try again.') from None
+    if r.status_code in (400,401,403):raise HTTPException(422,'Google rejected this API key.')
+    if r.status_code==404:raise HTTPException(422,'This key cannot use '+model+'. Check the model name.')
+    if r.status_code!=200:raise HTTPException(502,'Google could not check the key right now (HTTP '+str(r.status_code)+').')
+@app.put('/api/me/key')
+async def save_key(body:KeyRequest,user:dict=Depends(current_user)):
+    throttle('key:'+user['id'],10)
+    api_key=body.api_key.strip() if body.api_key else None
+    await check_key(api_key or user_credentials(user)[0],body.model)
+    accounts.save_key(user['id'],api_key,body.model,body.price_in,body.price_out)
+    return me_payload(user)
+@app.delete('/api/me/key')
+async def remove_key(user:dict=Depends(current_user)):accounts.remove_key(user['id']);return me_payload(user)
 class SourceBlock(StrictModel):
     id:str=Field(min_length=1,max_length=200)
     text:str=Field(min_length=1,max_length=MAX_SOURCE)
@@ -66,7 +145,20 @@ class SummaryRequest(StrictModel):
     language:Literal['en','fa','de','ar','es','fr','tr','zh']
     review:Literal['off','internal']='off'
 class ImportRequest(StrictModel):url:str=Field(min_length=8,max_length=3000)
-def block_batches(blocks:list[SourceBlock],limit:int=9000)->list[list[dict]]:
+class InputParagraph(StrictModel):
+    text:str=Field(min_length=1,max_length=12000)
+    evidence_ids:list[str]=Field(min_length=1,max_length=80)
+    heading:str|None=Field(default=None,max_length=200)
+class SummarySection(StrictModel):
+    id:str=Field(min_length=1,max_length=200)
+    title:str=Field(min_length=1,max_length=1000)
+    paragraphs:list[InputParagraph]=Field(min_length=1,max_length=100)
+class CompositionRequest(StrictModel):
+    title:str=Field(min_length=1,max_length=1000)
+    sections:list[SummarySection]=Field(min_length=1,max_length=300)
+    language:Literal['en','fa','de','ar','es','fr','tr','zh']
+    kind:Literal['chapter','book']
+def block_batches(blocks:list[SourceBlock],limit:int=24000)->list[list[dict]]:
     batches=[];batch=[];size=0
     for block in blocks:
         remaining=block.text
@@ -89,16 +181,20 @@ Never invent quotations or references. Do not use direct quotations in generated
 Every substantive paragraph requires supporting evidence_ids from the supplied IDs.
 If the source does not establish an answer, say so. Never claim external fact-checking.
 Do not expose chain-of-thought; return only requested reading content, concise assessments, and references.'''
-async def model_json(prompt:str)->dict:
-    key=os.getenv('GEMINI_API_KEY','');model=os.getenv('SUMM_MODEL','')
-    if not key or not re.fullmatch(r'[a-zA-Z0-9._-]+',model):raise HTTPException(503,'Configure GEMINI_API_KEY and a valid SUMM_MODEL on the server.')
-    payload={'systemInstruction':{'parts':[{'text':SYSTEM}]},'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseMimeType':'application/json','temperature':0.1,'maxOutputTokens':8192}}
+async def model_json(prompt:str,creds:tuple[str,str],usage:dict|None=None)->dict:
+    key,model=creds
+    if not MODEL_NAME.fullmatch(model):raise HTTPException(412,'Choose a valid model in Account.')
+    payload={'systemInstruction':{'parts':[{'text':SYSTEM}]},'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseMimeType':'application/json','temperature':0.1,'maxOutputTokens':32768}}
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            response=await client.post('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
-        if response.status_code==429:raise HTTPException(429,'The AI provider is busy or its quota is exhausted.')
-        if response.status_code in (400,401,403,404):raise HTTPException(502,'The AI provider rejected the request. Check model availability and server credentials.')
-        response.raise_for_status();candidate=response.json()['candidates'][0]
+        async with httpx.AsyncClient(timeout=300) as client:
+            response=await client.post(GEMINI+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
+        if response.status_code==429:raise HTTPException(429,'Your Gemini quota is exhausted or the model is busy. Check your Google AI Studio plan.')
+        if response.status_code in (400,401,403,404):raise HTTPException(502,'Google rejected the request. Check your API key and model in Account.')
+        response.raise_for_status();data=response.json();candidate=data['candidates'][0]
+        if usage is not None:
+            meta=data.get('usageMetadata') or {}
+            usage['input']=usage.get('input',0)+int(meta.get('promptTokenCount') or 0)
+            usage['output']=usage.get('output',0)+int(meta.get('candidatesTokenCount') or 0)+int(meta.get('thoughtsTokenCount') or 0)
         if candidate.get('finishReason') not in (None,'STOP'):raise ValueError()
         result=json.loads(''.join(p.get('text','') for p in candidate['content']['parts'] if not p.get('thought')))
         if not isinstance(result,dict):raise ValueError()
@@ -117,37 +213,189 @@ def valid_paragraphs(value:object,blocks:list[SourceBlock],*,allow_empty:bool=Fa
         source='\n'.join(known[i] for i in ids)
         for quote in re.findall(r'[“"]([^”"\n]{20,})[”"]',text):
             if quote not in source:raise HTTPException(502,'Generated quotation wording did not match the source. Use original passages instead.')
-        result.append({'text':text.strip(),'evidence_ids':list(dict.fromkeys(ids))})
+        paragraph={'text':text.strip(),'evidence_ids':list(dict.fromkeys(ids))}
+        heading=p.get('heading')
+        if heading is not None:
+            if not isinstance(heading,str) or len(heading)>200:raise HTTPException(502,'Invalid summary heading.')
+            if heading.strip():paragraph['heading']=heading.strip()
+        result.append(paragraph)
     return result
-@app.post('/api/summarize',dependencies=[Depends(authorize)])
-async def summarize(payload:SummaryRequest,request:Request):
+@app.post('/api/summarize')
+async def summarize(payload:SummaryRequest,request:Request,user:dict=Depends(ai_user)):
     blocks=payload.chapter.blocks
     if len({b.id for b in blocks})!=len(blocks):raise HTTPException(422,'Source passage IDs must be unique.')
-    if sum(len(b.text) for b in blocks)>MAX_SOURCE:raise HTTPException(413,'Split this chapter into sections under 48,000 characters using Edit contents. No text was silently truncated.')
-    if not ai_configured():raise HTTPException(503,'AI processing is not configured. Original-passage reading still works.')
+    if sum(len(b.text) for b in blocks)>MAX_SOURCE:raise HTTPException(413,'This request exceeds 240,000 characters. Long chapters are split automatically; reload Summ if you see this. No text was truncated.')
+    creds=user_credentials(user);usage={'input':0,'output':0}
     async with semaphore:
-        inventory=[]
-        for batch in block_batches(blocks):
-            if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-            result=await model_json('Inspect EVERY supplied passage in order. Record important claims, argument steps, examples, names, numbers, definitions, counterarguments, and qualifications. Cover every supplied ID. Return {"items":[{"text":"source-grounded item","evidence_ids":["ID"]}]}.\nUNTRUSTED SOURCE:\n'+json.dumps(batch,ensure_ascii=False))
-            batch_ids={b['id'] for b in batch}
-            items=valid_paragraphs(result.get('items'),[b for b in blocks if b.id in batch_ids])
-            covered={i for item in items for i in item['evidence_ids']}
-            if not batch_ids.issubset(covered):raise HTTPException(502,'The inventory missed a source passage. Retry or split the chapter into smaller sections.')
-            inventory.extend(items)
-        depth={'glance':'Brief central claim and its material qualifications; aim for 1–3 paragraphs.','overview':'Coherent overview of the main argument, evidence, and qualifications; aim for 3–6 paragraphs.','detailed':'Detailed reconstruction with important examples, distinctions, names, dates, numbers, caveats, and counterarguments in source order.','close':'Represent every distinct substantive inventory item, including examples, notes, definitions, and caveats. Use sufficient space within the response limit.'}[payload.depth]
+        source=[{'id':b.id,'text':b.text} for b in blocks]
+        batches=block_batches(blocks)
+        if len(batches)==1:material='UNTRUSTED ORIGINAL SOURCE:\n'+json.dumps(source,ensure_ascii=False)
+        else:
+            # Long chapters: read the source once in batches, then write from the inventory alone.
+            inventory=[]
+            for batch in batches:
+                if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
+                result=await model_json('Inspect EVERY supplied passage in order. Record important claims, argument steps, examples, names, numbers, definitions, counterarguments, and qualifications. Cover every supplied ID. Return {"items":[{"text":"source-grounded item","evidence_ids":["ID"]}]}.\nUNTRUSTED SOURCE:\n'+json.dumps(batch,ensure_ascii=False),creds,usage)
+                batch_ids={b['id'] for b in batch}
+                items=valid_paragraphs(result.get('items'),[b for b in blocks if b.id in batch_ids])
+                covered={i for item in items for i in item['evidence_ids']}
+                if not batch_ids.issubset(covered):raise HTTPException(502,'The inventory missed a source passage. Retry or split the chapter into smaller sections.')
+                inventory.extend(items)
+            material='UNTRUSTED INVENTORY (complete, in source order, each item tied to its source IDs):\n'+json.dumps(inventory,ensure_ascii=False)
+        depth={'glance':'Brief central claim and its material qualifications; aim for 1–3 paragraphs.','overview':'Coherent overview of the main argument, evidence, and qualifications; aim for 3–6 paragraphs.','detailed':'Detailed reconstruction with important examples, distinctions, names, dates, numbers, caveats, and counterarguments in source order.','close':'Represent every distinct substantive item, including examples, notes, definitions, and caveats. Use sufficient space within the response limit.'}[payload.depth]
         purpose={'understand':'Explain for a general reader.','learn':'Explain difficult terms from context. Label pedagogical interpretation. Do not invent examples.','academic':'Identify thesis, method if supplied, argument, evidence, limitations, and open questions. Do not invent references.','apply':'Explain only source-supported applications and their conditions. Do not add imagined advice.'}[payload.purpose]
         review='Return review as an empty array.' if payload.review=='off' else 'In review, separately analyze assumptions, reasoning, and evidence AS PRESENTED. Label interpretation. Do not attribute objections to the author or claim external checking.'
-        source=[{'id':b.id,'text':b.text} for b in blocks]
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-        draft=await model_json('Write in language code '+payload.language+'. '+depth+' '+purpose+' '+review+'\nReturn {"paragraphs":[{"text":"...","evidence_ids":["ID"]}],"review":[{"text":"...","evidence_ids":["ID"]}]}. Every paragraph needs directly relevant source IDs. No direct quotations or outside facts.\nUNTRUSTED INVENTORY:\n'+json.dumps(inventory,ensure_ascii=False)+'\nUNTRUSTED ORIGINAL SOURCE:\n'+json.dumps(source,ensure_ascii=False))
+        draft=await model_json('Write a polished, coherent summary in language code '+payload.language+'. '+depth+' '+purpose+' '+review+' Use informative subsection headings where they help explain the argument. Preserve meaningful examples, qualifications, and the progression of reasoning; avoid a list of disconnected facts.\nReturn {"paragraphs":[{"heading":"Optional subsection heading","text":"...","evidence_ids":["ID"]}],"review":[{"text":"...","evidence_ids":["ID"]}]}. Every paragraph needs directly relevant source IDs. No direct quotations or outside facts.\n'+material,creds,usage)
         paragraphs=valid_paragraphs(draft.get('paragraphs'),blocks)
         analysis=valid_paragraphs(draft.get('review',[]),blocks,allow_empty=True) if payload.review=='internal' else []
         if payload.review=='internal' and not analysis:raise HTTPException(502,'The requested internal analysis was missing. Please retry.')
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-        check=await model_json('Check ALL proposed output against its cited ORIGINAL SOURCE passages. Summary paragraphs must be supported. Review paragraphs must be fair, clearly labeled interpretations grounded in the cited passages. Reject changed numbers, missing negation, invented references, outside information, or unsupported claims. Do not judge external truth. Return {"supported":true or false,"checked_paragraphs":INTEGER}.\nUNTRUSTED OUTPUT:\n'+json.dumps({'paragraphs':paragraphs,'review':analysis},ensure_ascii=False)+'\nUNTRUSTED ORIGINAL SOURCE:\n'+json.dumps(source,ensure_ascii=False))
+        cited={i for p in paragraphs+analysis for i in p['evidence_ids']}
+        check=await model_json('Check ALL proposed output against its cited ORIGINAL SOURCE passages. Summary paragraphs must be supported. Review paragraphs must be fair, clearly labeled interpretations grounded in the cited passages. Reject changed numbers, missing negation, invented references, outside information, or unsupported claims. Do not judge external truth. Return {"supported":true or false,"checked_paragraphs":INTEGER}.\nUNTRUSTED OUTPUT:\n'+json.dumps({'paragraphs':paragraphs,'review':analysis},ensure_ascii=False)+'\nUNTRUSTED CITED SOURCE:\n'+json.dumps([s for s in source if s['id'] in cited],ensure_ascii=False),creds,usage)
         if check.get('supported') is not True or check.get('checked_paragraphs')!=len(paragraphs)+len(analysis):raise HTTPException(502,'The source-support check did not pass. No unverified output was displayed. Retry a smaller section or inspect original passages.')
-        return {'paragraphs':paragraphs,'review':analysis,'processed_blocks':len(blocks),'total_blocks':len(blocks),'language':payload.language,'mode':'ai','checked':True}
+        return {'paragraphs':paragraphs,'review':analysis,'processed_blocks':len(blocks),'total_blocks':len(blocks),'language':payload.language,'mode':'ai','checked':True,'model':creds[1],'usage':usage}
+
+@app.post('/api/compose')
+async def compose(payload:CompositionRequest,request:Request,user:dict=Depends(ai_user)):
+    if len({s.id for s in payload.sections})!=len(payload.sections):raise HTTPException(422,'Section IDs must be unique.')
+    if sum(len(p.text) for s in payload.sections for p in s.paragraphs)>350_000:raise HTTPException(413,'Too much summary text to synthesize in one report. Use a shorter summary depth.')
+    creds=user_credentials(user);usage={'input':0,'output':0}
+    sources={}
+    for section in payload.sections:
+        for paragraph in section.paragraphs:
+            ids=[section.id] if payload.kind=='book' else paragraph.evidence_ids
+            for source_id in ids:sources.setdefault(source_id,[]).append(paragraph.text)
+    # Evidence blocks validate references locally; the model sees each summary once.
+    blocks=[SourceBlock.model_construct(id=source_id,text='\n'.join(texts)) for source_id,texts in sources.items()]
+    if payload.kind=='book':sections=[{'id':s.id,'title':s.title,'summary':[{k:v for k,v in {'heading':p.heading,'text':p.text}.items() if v} for p in s.paragraphs]} for s in payload.sections]
+    else:sections=[s.model_dump(exclude_none=True) for s in payload.sections]
+    supplied=json.dumps(sections,ensure_ascii=False)
+    structure='Create an opening overview of the WHOLE BOOK: its central argument, structure, methods when supplied, major themes, and important limitations. Draw on every supplied chapter. Put 4–8 concise key takeaways in takeaways. Cite chapter IDs (each section id).' if payload.kind=='book' else 'Combine these consecutive source-grounded parts into one coherent chapter summary. Preserve the argument, examples, qualifications, and important details. Remove repetition while retaining distinct content. Cite the original evidence_ids attached to the paragraphs you draw on. Return takeaways as an empty array.'
+    async with semaphore:
+        if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
+        draft=await model_json('Write in language code '+payload.language+'. '+structure+' The supplied text consists of summaries, not the original book. Do not add external knowledge or claim external fact checking. Use useful subsection headings. Return {"paragraphs":[{"heading":"Subsection","text":"...","evidence_ids":["ID"]}],"takeaways":[{"text":"...","evidence_ids":["ID"]}]}.\nUNTRUSTED TITLE:\n'+json.dumps(payload.title,ensure_ascii=False)+'\nUNTRUSTED SECTIONS:\n'+supplied,creds,usage)
+        paragraphs=valid_paragraphs(draft.get('paragraphs'),blocks)
+        takeaways=valid_paragraphs(draft.get('takeaways',[]),blocks,allow_empty=payload.kind=='chapter')
+        if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
+        check=await model_json('Check every proposed paragraph and takeaway against the supplied summaries it cites ('+('section ids' if payload.kind=='book' else 'paragraph evidence_ids')+'). Reject unsupported claims, invented facts, changed numbers, missing qualifications, or misleading attributions. This is a support check against summaries, not an independent verification of the original book. Return {"supported":true or false,"checked_paragraphs":INTEGER}.\nUNTRUSTED OUTPUT:\n'+json.dumps(paragraphs+takeaways,ensure_ascii=False)+'\nUNTRUSTED SECTIONS:\n'+supplied,creds,usage)
+        if check.get('supported') is not True or check.get('checked_paragraphs')!=len(paragraphs)+len(takeaways):raise HTTPException(502,'The synthesis support check did not pass. Completed chapter summaries are saved; retry to finish the report.')
+        return {'paragraphs':paragraphs,'takeaways':takeaways,'checked':True,'language':payload.language,'model':creds[1],'usage':usage}
+GUIDE_TYPES={
+    'fiction':('Fiction',[('characters','Character list','Each major character as its own item: the name as heading, then role, traits, relationships, and how they change.'),('themes','Themes','Each central theme as an item: what it is and how the story develops it.'),('symbols','Symbols and motifs','Recurring images, objects, or patterns and what they carry. Omit if the summaries give no basis.'),('setting','Setting and context','Time, place, and social world as the book itself presents them.'),('style','Narration and style','Point of view, structure, tone, and notable techniques.')]),
+    'narrative':('Narrative nonfiction',[('people','Key people','Each important person: who they are and their part in the account.'),('timeline','Timeline','Major events in order, one item each, with the date or period as heading when given.'),('themes','Themes','Central themes and how the account develops them.'),('context','Context','The historical, social, or personal setting the book establishes.')]),
+    'argument':('Ideas and argument',[('ideas','Key ideas','The main ideas, one item each.'),('arguments','Arguments and evidence','How the author argues each major claim and what evidence is offered.'),('terms','Key terms','Important concepts, each defined as the book uses it.'),('applications','Applications','Only applications the book itself supports, with their conditions. Omit if none.'),('limits','Assumptions and limitations','Assumptions, qualifications, and limits visible within the book. Label interpretation.')]),
+    'academic':('Academic work',[('thesis','Research question and thesis','What the work asks and argues.'),('method','Sources and method','The evidence base and approach.'),('findings','Findings','The main findings, one item each.'),('terms','Key terms','Technical terms as the work defines them.'),('limits','Limitations and open questions','Limits the work acknowledges or that are visible within it. Label interpretation.')]),
+    'poetry':('Poetry or drama',[('characters','Speakers and characters','Each speaker or character and their role.'),('themes','Themes','Central themes and how they develop.'),('devices','Form and devices','Form, structure, imagery, and other devices the summaries describe.')]),
+}
+class GuideRequest(StrictModel):
+    title:str=Field(min_length=1,max_length=1000)
+    author:str=Field(default='',max_length=500)
+    sections:list[SummarySection]=Field(min_length=1,max_length=300)
+    language:Literal['en','fa','de','ar','es','fr','tr','zh']
+@app.post('/api/guide')
+async def guide(payload:GuideRequest,request:Request,user:dict=Depends(ai_user)):
+    if len({s.id for s in payload.sections})!=len(payload.sections):raise HTTPException(422,'Section IDs must be unique.')
+    if sum(len(p.text) for s in payload.sections for p in s.paragraphs)>350_000:raise HTTPException(413,'Too much summary text for one study guide. Use a shorter summary depth.')
+    creds=user_credentials(user);usage={'input':0,'output':0}
+    blocks=[SourceBlock.model_construct(id=s.id,text='\n'.join(p.text for p in s.paragraphs)) for s in payload.sections]
+    supplied=json.dumps([{'id':s.id,'title':s.title,'summary':[p.text for p in s.paragraphs]} for s in payload.sections],ensure_ascii=False)
+    templates=json.dumps({kind:{'label':label,'sections':[{'kind':k,'title':t,'instructions':i} for k,t,i in rows]} for kind,(label,rows) in GUIDE_TYPES.items()},ensure_ascii=False)
+    async with semaphore:
+        if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
+        draft=await model_json('Create a study guide in language code '+payload.language+' for the book below. First choose the ONE book type whose template fits best. Then fill every section of that template, following its instructions, using only the supplied chapter summaries. Translate section titles into the output language. Each item cites the chapter IDs it draws on. Leave a section\'s items empty rather than guessing. Return {"type":"fiction|narrative|argument|academic|poetry","sections":[{"kind":"...","title":"...","items":[{"heading":"Name or short title","text":"...","evidence_ids":["chapter ID"]}]}]}.\nTEMPLATES:\n'+templates+'\nUNTRUSTED TITLE AND AUTHOR:\n'+json.dumps([payload.title,payload.author],ensure_ascii=False)+'\nUNTRUSTED CHAPTER SUMMARIES:\n'+supplied,creds,usage)
+        kind=draft.get('type')
+        if kind not in GUIDE_TYPES:raise HTTPException(502,'The study guide did not name a known book type. Please retry.')
+        expected={k:t for k,t,_ in GUIDE_TYPES[kind][1]};sections=[]
+        for section in draft.get('sections') if isinstance(draft.get('sections'),list) else []:
+            if not isinstance(section,dict) or section.get('kind') not in expected or any(s['kind']==section['kind'] for s in sections):continue
+            items=valid_paragraphs(section.get('items',[]),blocks,allow_empty=True)
+            title=section.get('title') if isinstance(section.get('title'),str) and 0<len(section['title'].strip())<=120 else expected[section['kind']]
+            if items:sections.append({'kind':section['kind'],'title':title.strip(),'items':items})
+        if len(sections)<2:raise HTTPException(502,'The study guide came back too thin. Please retry.')
+        if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
+        items=[i for s in sections for i in s['items']]
+        check=await model_json('Check every study-guide item against the chapter summaries it cites. Reject invented characters, events, claims, numbers, or attributions not supported by the cited summaries. Return {"supported":true or false,"checked_paragraphs":INTEGER}.\nUNTRUSTED OUTPUT:\n'+json.dumps(items,ensure_ascii=False)+'\nUNTRUSTED CHAPTER SUMMARIES:\n'+supplied,creds,usage)
+        if check.get('supported') is not True or check.get('checked_paragraphs')!=len(items):raise HTTPException(502,'The study guide did not pass its support check. Retry to finish it.')
+        return {'type':kind,'type_label':GUIDE_TYPES[kind][0],'sections':sections,'model':creds[1],'usage':usage}
+@app.get('/api/book-info')
+async def book_info(request:Request,title:str,author:str=''):
+    throttle('info:'+client_ip(request),30)
+    if not 1<=len(title.strip())<=300 or len(author)>300:raise HTTPException(422,'Enter a title of up to 300 characters.')
+    return await bookinfo.lookup(title.strip(),author.strip())
+@app.get('/api/cover')
+async def cover_image(request:Request,src:str):
+    throttle('cover:'+client_ip(request),30)
+    try:content,kind=await bookinfo.cover(src)
+    except (ValueError,httpx.HTTPError):raise HTTPException(404,'No cover image was found there.') from None
+    return Response(content,media_type=kind,headers={'Cache-Control':'private, max-age=86400'})
+class PdfParagraph(StrictModel):
+    heading:str|None=Field(default=None,max_length=200)
+    text:str=Field(min_length=1,max_length=12000)
+    ref:str=Field(default='',max_length=2000)
+class PdfChapter(StrictModel):
+    title:str=Field(min_length=1,max_length=1000)
+    paragraphs:list[PdfParagraph]=Field(max_length=100)
+    review:list[PdfParagraph]=Field(default=[],max_length=100)
+class PdfSection(StrictModel):
+    title:str=Field(min_length=1,max_length=200)
+    items:list[PdfParagraph]=Field(max_length=200)
+class PdfRequest(StrictModel):
+    book:dict[str,str]
+    language:Literal['en','fa','de','ar','es','fr','tr','zh']
+    model:str=Field(default='',max_length=100)
+    cover:str|None=Field(default=None,max_length=700_000)
+    info:dict|None=None
+    overview:list[PdfParagraph]=Field(default=[],max_length=100)
+    takeaways:list[PdfParagraph]=Field(default=[],max_length=20)
+    guide:dict[str,list[PdfSection]]|None=None
+    chapters:list[PdfChapter]=Field(default=[],max_length=300)
+    labels:dict[str,str]=Field(default={},max_length=20)
+@app.post('/api/pdf')
+async def pdf_report(payload:PdfRequest,user:dict=Depends(current_user)):
+    throttle('pdf:'+user['id'],6)
+    if not payload.book.get('title'):raise HTTPException(422,'The book needs a title.')
+    try:cover,kind=pdf.cover_payload(payload.cover)
+    except ValueError:raise HTTPException(422,'Use a JPEG, PNG, or WebP cover image.') from None
+    doc=payload.model_dump();doc['cover']=cover;doc['cover_type']=kind
+    async with pdf_lock:data=await asyncio.to_thread(pdf.render,doc)
+    return Response(data,media_type='application/pdf',headers={'Content-Disposition':'attachment; filename="summary.pdf"'})
+pdf_lock=asyncio.Semaphore(1)
+class AudioRequest(StrictModel):
+    text:str=Field(min_length=1,max_length=4500)
+    language:Literal['en','fa','de','ar','es','fr','tr','zh']
+    engine:Literal['offline','elevenlabs']='offline'
+@app.post('/api/audio')
+async def narrate(payload:AudioRequest,user:dict=Depends(current_user)):
+    throttle('audio:'+user['id'],40)
+    if payload.engine=='elevenlabs':
+        creds=accounts.service_credentials(user['id'],'elevenlabs')
+        if not creds:raise HTTPException(412,'Add your ElevenLabs key in Account, or choose the free offline voice.')
+        try:data=await audio.eleven_mp3(payload.text,payload.language,creds[0],creds[1])
+        except PermissionError as e:raise HTTPException(422,str(e)) from None
+        except OverflowError as e:raise HTTPException(429,str(e)) from None
+        except (ConnectionError,httpx.HTTPError) as e:raise HTTPException(502,str(e) or 'ElevenLabs could not be reached.') from None
+    else:
+        try:data=await asyncio.to_thread(audio.piper_mp3,payload.text,payload.language)
+        except ValueError as e:raise HTTPException(422,str(e)) from None
+        except OSError:raise HTTPException(503,'The offline voice could not be loaded. Try again shortly.') from None
+    return Response(data,media_type='audio/mpeg')
+class VoiceKeyRequest(StrictModel):
+    api_key:str|None=Field(default=None,min_length=20,max_length=200)
+    voice:str=Field(default='',max_length=64,pattern=r'^[A-Za-z0-9]*$')
+@app.put('/api/me/voice-key')
+async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(current_user)):
+    throttle('key:'+user['id'],10)
+    api_key=body.api_key.strip() if body.api_key else None
+    if api_key:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:r=await client.get('https://api.elevenlabs.io/v1/voices',headers={'xi-api-key':api_key})
+        except httpx.HTTPError:raise HTTPException(502,'ElevenLabs could not be reached to check the key.') from None
+        if r.status_code in (401,403):raise HTTPException(422,'ElevenLabs rejected this API key.')
+    accounts.save_service_key(user['id'],'elevenlabs',api_key,body.voice)
+    return me_payload(user)
+@app.delete('/api/me/voice-key')
+async def remove_voice_key(user:dict=Depends(current_user)):accounts.remove_service_key(user['id'],'elevenlabs');return me_payload(user)
 def public_target(url:str)->tuple[str,str,int,str,str]:
     try:
         p=urlsplit(url)
@@ -210,7 +458,7 @@ class ReadableHTML(HTMLParser):
     def handle_data(self,data):
         if self.in_title:self.title.append(data)
         elif not self.skip:self.parts.append(data)
-@app.post('/api/import',dependencies=[Depends(authorize)])
+@app.post('/api/import',dependencies=[Depends(ai_user)])
 async def import_source(payload:ImportRequest):
     host=(urlsplit(payload.url).hostname or '').lower()
     if host in ('youtube.com','www.youtube.com','m.youtube.com','youtu.be'):raise HTTPException(422,'This version requires a supplied video transcript. Upload SRT/VTT or paste the transcript. Visual content will not be reviewed.')

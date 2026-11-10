@@ -27,12 +27,6 @@ export function chaptersFromText(text:string,prefix='text'):Chapter[]{
   if(heading){flushChapter();title=heading;}else if(!s)flushParagraph();else pending.push(line);
  }flushChapter();return result;
 }
-export function cleanApiUrl(value:string){
- const t=value.trim().replace(/\/$/,'');if(!t)return '';
- const u=new URL(t);if(u.username||u.password||u.search||u.hash)throw Error('Use a server URL without credentials, query parameters, or fragments.');
- if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw Error('Use HTTPS, or HTTP on localhost for development.');
- return t;
-}
 export function markdownExport(book:Book,chapter:Chapter,items:ReturnType<typeof selectedPassages>){
  return '# '+book.title+'\n\n## '+chapter.title+'\n\nSelected original passages (not an AI summary).\n\n'+items.map(p=>'> '+p.text.replace(/\n/g,'\n> ')+'\n\n'+p.block.location).join('\n\n')+'\n\nSource version: '+book.hash+'\n';
 }

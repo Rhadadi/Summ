@@ -11,17 +11,24 @@ else
   git -C "$summ_dir" pull --ff-only
 fi
 cd "$summ_dir"
+umask 077
 if [ ! -f .env ]; then
-  umask 077
   cp .env.example .env
+  echo 'Created a private .env.'
+fi
+# Accounts need a secret for encrypting each user's Gemini key; add one to older .env files too.
+if ! grep -q '^SUMM_SECRET_KEY=.\{32,\}' .env || grep -q '^SUMM_SECRET_KEY=replace-' .env; then
   python3 - <<'PY'
 from pathlib import Path
-import secrets
-p=Path('.env')
-p.write_text(p.read_text().replace('replace-with-a-long-random-token',secrets.token_urlsafe(36)))
+import re,secrets
+p=Path('.env');text=p.read_text()
+line='SUMM_SECRET_KEY='+secrets.token_urlsafe(48)
+text=re.sub(r'^SUMM_SECRET_KEY=.*$',line,text,flags=re.M) if re.search(r'^SUMM_SECRET_KEY=',text,re.M) else text.rstrip('\n')+'\n'+line+'\n'
+p.write_text(text)
 PY
-  echo 'Created a private .env. Set GEMINI_API_KEY and SUMM_MODEL to enable AI.'
+  echo 'Generated SUMM_SECRET_KEY in .env.'
 fi
+grep -q '^SUMM_TRUST_PROXY=' .env || echo 'SUMM_TRUST_PROXY=true' >> .env
 docker compose up -d --build
 echo 'Summ started. Check: docker compose logs --tail=40'
-echo 'Enter the app access token from your local .env into app Settings.'
+echo 'Open the app, create an account, and add your own Gemini key under Account.'

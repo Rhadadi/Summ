@@ -8,10 +8,17 @@ A source-first reading app with a Google Material Design–inspired interface. I
 - Chapter navigation and editable contents.
 - Four reading depths, original-passage references, bookmarks, local reading progress, and Markdown exports.
 - Language and purpose controls for AI generation; source excerpts retain their original language.
-- Optional Gemini processing service: chapter summaries, translations, academic or educational presentation, and separate internal critique.
+- Optional Gemini processing service: chapter and whole-book summaries, translations, academic or educational presentation, and separate internal critique.
+- Accounts (username and password, or Google sign-in). Each person stores their own Gemini key, encrypted on the server, and pays for their own summaries.
+- A cost estimate (tokens, model calls, and a dollar range) before every chapter or whole-book run, and the actual cost afterwards.
+- A study guide per book: overview and key takeaways, sections chosen for the kind of book (characters, themes, and symbols for fiction; key ideas, arguments, and terms for nonfiction; thesis, method, and findings for academic work), and every chapter summary.
+- Book facts and reception from Google Books, Open Library, and Wikipedia (with attribution), plus links to Goodreads and StoryGraph. Goodreads has no public API and forbids scraping, so its ratings are linked, not copied.
+- Covers from the file (EPUB cover image or the first non-blank PDF page) or, failing that, from Open Library or Google Books.
+- Narration: free offline Piper voices on the server (English, Persian, and six more languages), or ElevenLabs with each user's own key. Audio is cached in the browser.
+- A typeset PDF of the study guide (cover, contents with page numbers, running heads; Vazirmatn and right-to-left layout for Persian and Arabic).
 - Light/dark appearance, keyboard navigation, responsive layouts, and Persian/Arabic text support.
 
-Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the configured server and Gemini.
+Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Summ server, which calls Gemini with the signed-in user's own key.
 
 ## Hosting
 
@@ -22,11 +29,12 @@ For the complete app on your home server:
 1. Install Docker Engine and Docker Compose.
 2. Clone this repository into `~/summ`.
 3. Run `bash deploy/on-server.sh` inside the checkout.
-4. Edit the private `.env` file: set `GEMINI_API_KEY` and an available `SUMM_MODEL`.
-5. Run `docker compose up -d` after changing environment values.
-6. In the app Settings, enter the app access token from `.env`. This is different from the Gemini key.
+4. The script creates a private `.env` with a random `SUMM_SECRET_KEY`. It encrypts saved Gemini keys: back it up together with the `summ_data` Docker volume. If it changes, users must re-enter their keys.
+5. Optional: set `GOOGLE_CLIENT_ID` to a Google Cloud OAuth web client ID (authorized JavaScript origin `https://booksumm.duckdns.org`) to show "Continue with Google". Set `SUMM_ALLOW_SIGNUP=false` to stop new sign-ups.
+6. Run `docker compose up -d` after changing environment values.
+7. Open the app, create an account, and add your Gemini key and model under Account.
 
-The install script creates a random app token. Provider credentials never belong in frontend code or the public repository.
+Provider credentials never belong in frontend code or the public repository. The server no longer uses a shared `GEMINI_API_KEY` or `SUMM_ACCESS_TOKEN`.
 
 For `booksumm.duckdns.org`, keep DuckDNS pointed to your server's current public IP and forward TCP 80 and 443 to that server. Caddy obtains HTTPS certificates. Check existing services before claiming those ports.
 
@@ -41,7 +49,7 @@ docker compose -f compose.yaml -f deploy/compose.existing-proxy.yaml up -d --bui
 
 This binds the app to `127.0.0.1:9010` and adds a health check. The bundled Caddy container is disabled in this configuration. Add the site block from `deploy/Caddyfile.existing-proxy` to the host's existing Caddyfile, validate it, and reload Caddy. Preserve the other site blocks.
 
-The app is served at `https://booksumm.duckdns.org`. AI remains disabled until `GEMINI_API_KEY` and `SUMM_MODEL` are configured in `~/summ/.env`. After changing that file, rerun the command above. Retrieve `SUMM_ACCESS_TOKEN` privately on the server and enter it in app Settings to use link import and, once configured, AI processing. Local file and pasted-text imports work without a token.
+The app is served at `https://booksumm.duckdns.org`. Before the first start with accounts, make sure `~/summ/.env` has a `SUMM_SECRET_KEY` of at least 32 characters and `SUMM_TRUST_PROXY=true` (running `deploy/on-server.sh` adds both). After changing that file, rerun the command above. Sign in to use link import and AI; local file and pasted-text imports work without an account.
 
 **A domain cannot point to both GitHub Pages and your home server at the same time.** For the recommended home-server setup, use the DuckDNS domain for the complete app and the standard GitHub Pages address for the static reader. If Pages has that custom domain configured, remove it from Pages to keep the standard Pages address from redirecting to the home server.
 
@@ -58,11 +66,11 @@ Optional backend:
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-# Set SUMM_ACCESS_TOKEN, GEMINI_API_KEY, SUMM_MODEL in your server environment.
-uvicorn server.app:app --host 127.0.0.1 --port 9000
+SUMM_SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))') SUMM_INSECURE_COOKIES=true \
+  uvicorn server.app:app --host 127.0.0.1 --port 9000
 ```
 
-For a separate development backend, set the app's processing URL to `http://localhost:9000`.
+The Vite dev server proxies `/api` to port 9000, so the session cookie stays same-origin. `SUMM_INSECURE_COOKIES=true` is for plain-HTTP development only.
 
 ## Validation
 
@@ -83,7 +91,8 @@ Original passages are verbatim extracted text, **not generated summaries**. AI o
 - PDF columns, notes, formulas, and tables require checking against the original.
 - YouTube uses an uploaded or pasted transcript; automatic arbitrary-video caption retrieval is not implemented.
 - EPUB navigation uses reading order; some notes may be separate sections.
-- AI processing supports chapters up to 48,000 characters. Split longer chapters in the contents editor.
+- Long chapters are split automatically (smaller parts at deeper reading depths) and recombined. Short chapters are summarized in two model calls; long ones add one inventory call per ~24,000 characters.
+- Cost estimates use approximate token counts and Google's list prices (checked November 10, 2026). Google's bill is final.
 - Web import accepts accessible public HTML/text/PDF. It blocks private addresses and revalidates redirects.
 - Citation support checks are automated and can miss errors. Inspect the evidence.
 
