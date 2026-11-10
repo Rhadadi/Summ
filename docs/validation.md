@@ -1,5 +1,16 @@
 # Validation
 
+## Native Safari stream iteration fix — November 9, 2026
+
+The exact reported error was reproduced in the user's actual Safari session on the current public build. PDF.js's `getTextContent()` uses `for await` on a ReadableStream, but shipping Safari lacks that async iterator even when Playwright's newer WebKit supports it. This matches [Mozilla issue #21924](https://github.com/mozilla/pdf.js/issues/21924).
+
+Text extraction now drains `streamTextContent()` through `getReader().read()` and releases the reader, preserving text order, styles, and language. Pure XFA pages retain their existing extraction path. The regression tests explicitly remove `ReadableStream.prototype[Symbol.asyncIterator]` so newer WebKit cannot hide this incompatibility. The updated importer test fails before the workaround and passes after it.
+
+- Five source/import tests, twelve backend tests, and the production build passed.
+- The full PDF browser test passes in WebKit with stream iteration disabled and in Chromium: import, reload, original-file opening, and matching SHA-256 bytes.
+- HTML now has `Cache-Control: no-cache` so reloading revalidates the deployed entry point. Import failures log their stage and error stack to the local browser console.
+- Native Safari controls subsequently stalled, so the final native-browser retest is not claimed. The earlier generic WebKit passes below did not establish compatibility with shipping Safari; the new missing-API regression addresses that gap.
+
 ## Safari original-file storage fix — November 9, 2026
 
 Automated WebKit testing exposed a second failure after successful PDF parsing: writing a browser `File` directly to IndexedDB failed, and the request wrapper rejected with `null` before the transaction error was available. The file-import error handler then failed while reading `error.message`.
@@ -9,7 +20,7 @@ Originals now persist as an ArrayBuffer plus MIME type, and are reconstructed as
 - Five source/import tests and the production build passed.
 - `tests/browser_pdf_import.py` passed in WebKit and Chromium using the supplied 366-page PDF. It verifies import, persistence after a full page reload, opening the original from a passage, and a SHA-256 match of the original file bytes. Neither browser reported a page error.
 - The earlier Chromium error at `127.0.0.1:3910` was from a stopped temporary preview. Use the public `https://booksumm.duckdns.org` address.
-- The PDF.js compatibility build and security patch remain in place. The earlier native-Safari limitation below is superseded by these automated WebKit results.
+- The PDF.js compatibility build and security patch remain in place. These automated results covered storage but did not model native Safari's missing stream iterator; see the later fix above.
 
 ## Safari PDF import compatibility fix — November 9, 2026
 

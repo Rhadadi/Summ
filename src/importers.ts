@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import{chaptersFromText}from './core.ts';import type{Block,Book,Chapter}from './types';
+import{pdfTextContent}from './pdf-text.ts';
 const MAX=12*1024*1024;
 async function digest(bytes:ArrayBuffer){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function textBook(text:string,title:string,author='',format='TEXT'):Promise<Book>{
@@ -66,7 +67,7 @@ async function pdfBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Pr
   if(pdf.numPages>2000)throw Error('Please split PDFs longer than 2,000 pages.');
   const pages:Block[][]=[];const empty:number[]=[];let total=0;
   for(let p=1;p<=pdf.numPages;p++){
-   notify('Reading PDF page '+p+' of '+pdf.numPages+'…');const page=await pdf.getPage(p);const tc=await page.getTextContent();
+   notify('Reading PDF page '+p+' of '+pdf.numPages+'…');const page=await pdf.getPage(p);const tc=await pdfTextContent(page);
    let paragraph='';let prevY:number|undefined;let prevH=12;const paragraphs:string[]=[];
    for(const item of tc.items){if(!('str'in item))continue;const y=item.transform[5],gap=prevY===undefined?0:Math.abs(y-prevY);
     if(gap>prevH*1.7&&paragraph.trim()){paragraphs.push(paragraph.trim());paragraph='';}

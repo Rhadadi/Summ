@@ -20,10 +20,12 @@ function samplePdf(){
  return new TextEncoder().encode(pdf+'trailer\n<< /Size '+offsets.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF');
 }
 
-test('PDF import retains every page when recent collection APIs are unavailable',async()=>{
+test('PDF import retains every page without Safari-missing collection and stream iteration APIs',async()=>{
  // Browser geometry is present in Safari; provide it for the Node test as well.
  const{DOMMatrix,ImageData,Path2D}=await import('@napi-rs/canvas');
  Object.assign(globalThis,{DOMMatrix,ImageData,Path2D});
+ const streamIterator=Object.getOwnPropertyDescriptor(ReadableStream.prototype,Symbol.asyncIterator);
+ Object.defineProperty(ReadableStream.prototype,Symbol.asyncIterator,{value:undefined,writable:true,configurable:true});
  const descriptors=new Map<PropertyKey,PropertyDescriptor|undefined>();
  for(const key of ['getOrInsert','getOrInsertComputed']){
   descriptors.set(key,Object.getOwnPropertyDescriptor(Map.prototype,key));
@@ -40,6 +42,7 @@ test('PDF import retains every page when recent collection APIs are unavailable'
   assert.ok(blocks.some(block=>block.text==='A final limitation remains.'));
   assert.ok(updates.includes('Reading PDF page 2 of 2…'));
  }finally{
+  if(streamIterator)Object.defineProperty(ReadableStream.prototype,Symbol.asyncIterator,streamIterator);else Reflect.deleteProperty(ReadableStream.prototype,Symbol.asyncIterator);
   for(const[key,descriptor]of descriptors){if(descriptor)Object.defineProperty(Map.prototype,key,descriptor);else Reflect.deleteProperty(Map.prototype,key);}
  }
 });

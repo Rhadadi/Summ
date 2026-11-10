@@ -32,6 +32,7 @@ async def body_limit(request:Request,call_next):
     response.headers['X-Content-Type-Options']='nosniff'
     response.headers['Referrer-Policy']='strict-origin-when-cross-origin'
     if request.url.path.startswith('/api/'):response.headers['Cache-Control']='no-store'
+    elif response.headers.get('content-type','').startswith('text/html'):response.headers['Cache-Control']='no-cache'
     return response
 def ai_configured():
     return bool(os.getenv('GEMINI_API_KEY') and os.getenv('SUMM_MODEL') and os.getenv('SUMM_ACCESS_TOKEN') and not os.getenv('SUMM_ACCESS_TOKEN','').startswith('replace-'))

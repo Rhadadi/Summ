@@ -22,6 +22,10 @@ with sync_playwright() as playwright:
         browser = getattr(playwright, engine).launch(headless=True)
         try:
             page = browser.new_page(viewport={'width': 1280, 'height': 900})
+            if engine == 'webkit':
+                # Playwright WebKit ships stream async iteration before native
+                # Safari. Remove it so this test exercises the shipping gap.
+                page.add_init_script("Object.defineProperty(ReadableStream.prototype, Symbol.asyncIterator, {value: undefined, configurable: true})")
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(args.url, wait_until='networkidle')
