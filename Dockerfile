@@ -15,6 +15,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home summ && mkdir /data && chown summ /data
 COPY server ./server
 COPY --from=frontend /build/dist ./dist
+# The image is read-only at runtime; font and model caches go to the /tmp tmpfs.
+ENV XDG_CACHE_HOME=/tmp
 USER summ
 EXPOSE 9000
 CMD ["uvicorn","server.app:app","--host","0.0.0.0","--port","9000","--no-access-log"]
