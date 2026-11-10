@@ -30,6 +30,19 @@ The install script creates a random app token. Provider credentials never belong
 
 For `booksumm.duckdns.org`, keep DuckDNS pointed to your server's current public IP and forward TCP 80 and 443 to that server. Caddy obtains HTTPS certificates. Check existing services before claiming those ports.
 
+### Server with an existing reverse proxy
+
+The deployment at `rumi@192.168.1.51` uses the host's existing Caddy service. Start only the app using this configuration:
+
+```sh
+cd ~/summ
+docker compose -f compose.yaml -f deploy/compose.existing-proxy.yaml up -d --build --wait app
+```
+
+This binds the app to `127.0.0.1:9010` and adds a health check. The bundled Caddy container is disabled in this configuration. Add the site block from `deploy/Caddyfile.existing-proxy` to the host's existing Caddyfile, validate it, and reload Caddy. Preserve the other site blocks.
+
+The app is served at `https://booksumm.duckdns.org`. AI remains disabled until `GEMINI_API_KEY` and `SUMM_MODEL` are configured in `~/summ/.env`. After changing that file, rerun the command above. Retrieve `SUMM_ACCESS_TOKEN` privately on the server and enter it in app Settings to use link import and, once configured, AI processing. Local file and pasted-text imports work without a token.
+
 **A domain cannot point to both GitHub Pages and your home server at the same time.** For the recommended home-server setup, use the DuckDNS domain for the complete app and the standard GitHub Pages address for the static reader. If Pages has that custom domain configured, remove it from Pages to keep the standard Pages address from redirecting to the home server.
 
 ## Development

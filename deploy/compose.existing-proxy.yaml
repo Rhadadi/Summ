@@ -1,0 +1,13 @@
+# Use with: docker compose -f compose.yaml -f deploy/compose.existing-proxy.yaml up -d --build
+# The host's existing reverse proxy must forward to 127.0.0.1:9010.
+services:
+  app:
+    ports: ["127.0.0.1:9010:9000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+  caddy:
+    profiles: ["standalone-proxy"]
