@@ -196,3 +196,29 @@ body{background:var(--bg);color:var(--ink)}
 .guide-player{top:76px}
 @media (max-width:899px){.site-header{padding:0 12px;gap:8px}.site-actions .site-link{display:none}.site-brand span{display:none}.book{padding:0 16px 80px}.book-head{gap:24px;padding:28px 0 24px}.bk-card{flex:0 0 auto;padding:0;border:0;box-shadow:none;background:none}.bk-card .card-top,.bk-card h2,.bk-card .card-author{display:none}.bk-card .bk-cover{width:150px;box-shadow:0 4px 16px rgba(0,0,0,.18)}.doc-nav{position:static;flex:1 1 100%;max-height:none}.book-body{gap:20px}.doc p,.doc li{font-size:18px}}
 .site-login,.site-actions .MuiButton-root{white-space:nowrap;flex:none}.site-search{min-width:0}
+/* Book page, second pass: book-like original text, inline references, tidy chips */
+.card-top{gap:8px}.card-tag{white-space:nowrap;flex:none}.card-brand{flex:none}
+.doc p .refs{display:inline-flex;flex-wrap:wrap;gap:4px;margin-inline-start:6px;vertical-align:2px}
+.doc p .refs button{border:0;border-radius:4px;background:var(--surface-tint);padding:1px 6px;font:500 11px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;color:var(--brand);cursor:pointer}
+.text-p{position:relative}
+.text-p p{margin:0 0 18px;text-indent:0;hyphens:auto;text-wrap:pretty}
+.text-p+.text-p p{text-indent:1.5em}
+.folio{position:absolute;inset-inline-start:-58px;top:4px;width:44px;text-align:end;border:0;background:none;padding:0;font:500 12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted);cursor:pointer}.folio:hover{color:var(--brand)}
+.keep{position:absolute!important;inset-inline-end:-44px;top:0;opacity:0;transition:opacity .15s;color:var(--muted)!important}
+.text-p:hover .keep,.keep:focus-visible{opacity:1}
+@media (hover:none){.keep{opacity:.6}}
+.text-h{margin:36px 0 12px;font:600 21px/1.35 var(--serif)}
+.notes{margin-top:40px;padding-top:16px;border-top:1px solid var(--line)}.notes summary{cursor:pointer;font:500 15px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted);margin-bottom:12px}
+.notes p{font-size:15px!important;line-height:1.55!important;color:var(--muted);margin-bottom:10px!important}
+.folio-inline{border:0;background:none;padding:0;color:var(--brand);font:500 12px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}
+.box-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.doc-box>strong{display:block;font-size:18px}.doc-box>p{color:var(--muted)}
+.nav-item.has::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--brand);margin-inline-start:8px;vertical-align:middle}
+.book-tabs+.MuiAlert-root,.book-head+.MuiAlert-root{margin:0 0 16px}
+@media (max-width:1100px){.folio{position:static;display:block;width:auto;text-align:start;margin-bottom:4px}.keep{inset-inline-end:0;top:-30px}}
+.cover{aspect-ratio:2/3}.cover.has-image img{object-position:top}
+.card h2{min-height:0}
+.doc-pager{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:48px;padding-top:24px;border-top:1px solid var(--line)}
+.doc-pager .pg{display:flex;flex-direction:column;gap:4px;max-width:none;padding:14px 16px;border:1px solid var(--line)!important;border-radius:10px;background:var(--surface)!important;text-align:start;color:var(--ink)!important}
+.doc-pager .pg.next{text-align:end;grid-column:2}.doc-pager .pg small{font-size:12px;color:var(--muted)}.doc-pager .pg span{font:500 16px/1.35 var(--serif);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.doc-pager .pg:hover{border-color:var(--brand)!important}.doc-pager .pg-read{grid-column:1/-1;justify-self:center;max-width:none;color:var(--brand)}

@@ -30,3 +30,19 @@ export function chaptersFromText(text:string,prefix='text'):Chapter[]{
 export function markdownExport(book:Book,chapter:Chapter,items:ReturnType<typeof selectedPassages>){
  return '# '+book.title+'\n\n## '+chapter.title+'\n\nSelected original passages (not an AI summary).\n\n'+items.map(p=>'> '+p.text.replace(/\n/g,'\n> ')+'\n\n'+p.block.location).join('\n\n')+'\n\nSource version: '+book.hash+'\n';
 }
+// Footnotes stay readable in the original but are left out of AI input and highlights.
+export function bodyChapter(c:Chapter):Chapter{const blocks=c.blocks.filter(b=>!b.note);return blocks.length?{...c,blocks}:c;}
+// Short unpunctuated lines inside a chapter are section headings.
+export const isHeading=(text:string)=>text.length<90&&!/[.!?:;,"”’)]$/.test(text)&&!/^[•\d]/.test(text);
+const frontMatter=/^(?:contents|table of contents|acknowledg|list of|abbreviations|texts, transcriptions|map|maps|copyright|dedication|title page|half title|blank|front matter|пустая|series|also by|praise for|cover)/i;
+const backMatter=/^(?:works quoted|works cited|bibliography|references|index|notes|endnotes|about the author|glossary)/i;
+// Splits a book's sections into front matter, main chapters, and back matter for navigation.
+export function sectionKind(c:Chapter,i:number,all:Chapter[]):'front'|'main'|'back'{
+ const title=c.title.replace(/^\d+[.\s]+/,'').trim();
+ const firstMain=all.findIndex(x=>!frontMatter.test(x.title.replace(/^\d+[.\s]+/,'').trim())&&chapterWords(x)>1500);
+ if(backMatter.test(title))return'back';
+ if(frontMatter.test(title)||(firstMain>=0&&i<firstMain))return'front';
+ return'main';
+}
+export function readingTime(words:number){const m=minutes(words);if(m<90)return m+'-minute read';const h=Math.round(m/60);return'about '+h+'-hour read';}
+export const displayName=(name:string)=>name&&name===name.toUpperCase()&&/\p{Lu}/u.test(name)?name.toLowerCase().replace(/(^|[\s.'-])(\p{L})/gu,(_,a,b)=>a+b.toUpperCase()):name;

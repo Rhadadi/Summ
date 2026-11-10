@@ -1,5 +1,6 @@
 import type{Book,BookReport,Chapter,KeyInfo,Settings,Usage}from'./types.ts';
 import{chapterParts,partLimit}from'./book-summary.ts';
+import{bodyChapter}from'./core.ts';
 
 // Gemini list prices in USD per 1M tokens, from ai.google.dev/gemini-api/docs/pricing (checked 2026-11-10).
 // Output prices include thinking tokens. Users can override them in Account.
@@ -48,7 +49,7 @@ function partEstimate(part:Chapter,s:Pick<Settings,'depth'|'language'|'review'>)
 const zero=():Estimate=>({input:0,output:0,calls:0,chars:0});
 const plus=(a:Estimate,b:Estimate):Estimate=>({input:a.input+b.input,output:a.output+b.output,calls:a.calls+b.calls,chars:a.chars+b.chars});
 function chapterEstimate(chapter:Chapter,s:Pick<Settings,'depth'|'language'|'review'>){
- const parts=chapterParts(chapter,partLimit(s.depth)).map(part=>partEstimate(part,s));
+ const parts=chapterParts(bodyChapter(chapter),partLimit(s.depth)).map(part=>partEstimate(part,s));
  let total=parts.reduce<Estimate>(plus,zero());const summary=parts.reduce((n,p)=>n+p.draft,0);
  if(parts.length>1){const combined=Math.min(16000,Math.ceil(summary*.7));total=plus(total,{input:summary*2+combined+PROMPT*2,output:combined+60,calls:2,chars:0});return{total,summary:combined};}
  return{total,summary};

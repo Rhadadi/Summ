@@ -1,3 +1,4 @@
+import{bodyChapter}from'./core.ts';
 import type{Book,BookReport,Chapter,Depth,Guide,Overview,Settings,Summary,SummaryParagraph,SummarySection,Usage}from'./types.ts';
 
 export interface BookProgress{completed:number;total:number;chapter:string;part:number;parts:number;stage:'chapter'|'overview'|'guide'}
@@ -9,7 +10,7 @@ export function combineParts(chapter:Chapter,results:Summary[],combined:Overview
  return{...results[0],paragraphs:combined.paragraphs,review:results.flatMap(result=>result.review),processed_blocks:chapter.blocks.length,total_blocks:chapter.blocks.length,model:combined.model,usage:addUsage(...results.map(r=>r.usage),combined.usage)};
 }
 export async function summarizeChapter(chapter:Chapter,depth:Depth,summarize:(part:Chapter)=>Promise<Summary>,compose:(title:string,sections:SummarySection[])=>Promise<Overview>):Promise<Summary>{
- const parts=chapterParts(chapter,partLimit(depth));const results:Summary[]=[];
+ const parts=chapterParts(bodyChapter(chapter),partLimit(depth));const results:Summary[]=[];
  for(const part of parts)results.push(await summarize(part));
  if(results.length===1)return results[0];
  return combineParts(chapter,results,await compose(chapter.title,parts.map((part,i)=>({id:part.id,title:part.title,paragraphs:results[i].paragraphs}))));
@@ -52,7 +53,7 @@ export async function runBookReport(book:Book,s:Settings,model:string,previous:B
  const save=async()=>{check();report={...report,updatedAt:Date.now(),parts:{...report.parts},chapters:{...report.chapters}};await runner.save(report);};
  for(let index=0;index<book.chapters.length;index++){
   check();const chapter=book.chapters[index];if(report.chapters[chapter.id])continue;
-  const parts=chapterParts(chapter,partLimit(s.depth));const results:Summary[]=[];
+  const parts=chapterParts(bodyChapter(chapter),partLimit(s.depth));const results:Summary[]=[];
   for(let part=0;part<parts.length;part++){
    check();runner.progress({completed:index,total:book.chapters.length,chapter:chapter.title,part:part+1,parts:parts.length,stage:'chapter'});
    const partKey=chapter.id+':'+part;

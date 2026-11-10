@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import{chaptersFromText}from './core.ts';import type{Block,Book,Chapter}from './types';
 import{pdfTextContent}from './pdf-text.ts';
+import{cleanPages}from './pdf-clean.ts';import type{RawParagraph}from './pdf-clean.ts';
 const MAX=12*1024*1024;
 async function digest(bytes:ArrayBuffer){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function textBook(text:string,title:string,author='',format='TEXT'):Promise<Book>{
@@ -43,14 +44,17 @@ export async function extractCover(file:Blob,name:string):Promise<Blob|undefined
   const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');const worker=await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
   const task=pdfjs.getDocument({data:await file.arrayBuffer()});const pdf=await task.promise;
   try{
-   for(let p=1;p<=Math.min(3,pdf.numPages);p++){
+   // Publisher PDFs often open with blank or text-only pages; pick the most image-like of the first few.
+   let best:{ink:number;canvas:HTMLCanvasElement}|undefined;
+   for(let p=1;p<=Math.min(6,pdf.numPages);p++){
     const page=await pdf.getPage(p);const base=page.getViewport({scale:1});const viewport=page.getViewport({scale:700/base.width});
     const canvas=document.createElement('canvas');canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const context=canvas.getContext('2d')!;
     await page.render({canvasContext:context,canvas,viewport}).promise;
     const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let ink=0,seen=0;
     for(let i=0;i<pixels.length;i+=4*97){seen++;if(pixels[i]+pixels[i+1]+pixels[i+2]<690)ink++;}
-    if(ink/seen>.04)return await new Promise<Blob|undefined>(resolve=>canvas.toBlob(blob=>resolve(blob||undefined),'image/jpeg',.86));
+    if(!best||ink/seen>best.ink)best={ink:ink/seen,canvas};
    }
+   if(best&&best.ink>.12){const chosen=best.canvas;return await new Promise<Blob|undefined>(resolve=>chosen.toBlob(blob=>resolve(blob||undefined),'image/jpeg',.86));}
   }finally{await task.destroy();}
  }catch(e){console.warn('Summ could not extract a cover',e);}
 }
@@ -81,7 +85,7 @@ async function epubBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):P
   if(blocks.length)chapters.push({id:'epub-c'+i,title:heading,blocks});
  }
  if(!chapters.length)throw Error('No readable EPUB text was found.');
- const b=await textBook('EPUB source',title,author,'EPUB');b.chapters=chapters;b.category='book';b.hash=await digest(bytes);
+ const b=await textBook('EPUB source',title,author,'EPUB');b.chapters=chapters;b.category='book';b.hash=await digest(bytes);b.importVersion=2;
  b.warnings.push('Contents follow the EPUB reading order. Footnotes may appear in separate sections. Review contents before generating summaries.');
  if(tables)b.warnings.push('Tables were imported as text; check numeric relationships against the original layout.');
  return b;
@@ -93,17 +97,20 @@ async function pdfBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Pr
  const task=pdfjs.getDocument({data:bytes.slice(0)});const pdf=await task.promise;
  try{
   if(pdf.numPages>2000)throw Error('Please split PDFs longer than 2,000 pages.');
-  const pages:Block[][]=[];const empty:number[]=[];let total=0;
+  const raw:RawParagraph[][]=[];const empty:number[]=[];let total=0;
   for(let p=1;p<=pdf.numPages;p++){
    notify('Reading PDF page '+p+' of '+pdf.numPages+'…');const page=await pdf.getPage(p);const tc=await pdfTextContent(page);
-   let paragraph='';let prevY:number|undefined;let prevH=12;const paragraphs:string[]=[];
+   // Track each paragraph's average glyph height so footnotes can be told apart from body text.
+   let paragraph='',weight=0,chars=0;let prevY:number|undefined;let prevH=12;const paragraphs:RawParagraph[]=[];
+   const flush=()=>{if(paragraph.trim())paragraphs.push({text:paragraph.trim(),size:chars?weight/chars:prevH});paragraph='';weight=0;chars=0;};
    for(const item of tc.items){if(!('str'in item))continue;const y=item.transform[5],gap=prevY===undefined?0:Math.abs(y-prevY);
-    if(gap>prevH*1.7&&paragraph.trim()){paragraphs.push(paragraph.trim());paragraph='';}
+    if(gap>prevH*1.7&&paragraph.trim())flush();
     else if(gap>2&&paragraph&&!paragraph.endsWith(' '))paragraph+=' ';
-    paragraph+=item.str+(item.hasEOL?'\n':' ');prevY=y;prevH=Math.max(item.height||12,8);
-   }if(paragraph.trim())paragraphs.push(paragraph.trim());const joined=paragraphs.join('\n');total+=joined.length;if(total>MAX)throw Error('This PDF exceeds the extracted-text limit.');if(joined.length<30)empty.push(p);
-   pages.push(paragraphs.map((text,i)=>({id:'pdf-p'+p+'-b'+i,text,location:'PDF page '+p+' · Passage '+(i+1),page:p})));page.cleanup();
+    const h=Math.max(item.height||12,4);paragraph+=item.str+(item.hasEOL?'\n':' ');weight+=h*item.str.length;chars+=item.str.length;prevY=y;prevH=Math.max(h,8);
+   }flush();const joined=paragraphs.map(x=>x.text).join('\n');total+=joined.length;if(total>MAX)throw Error('This PDF exceeds the extracted-text limit.');if(joined.length<30)empty.push(p);
+   raw.push(paragraphs);page.cleanup();
   }
+  const pages=cleanPages(raw);
   if(pages.every(p=>!p.length))throw Error('No text layer was found. OCR is needed; import a searchable PDF.');
   const boundaries:{title:string;page:number}[]=[];
   for(const item of await pdf.getOutline()||[]){
@@ -114,7 +121,7 @@ async function pdfBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Pr
   if(!boundaries.length)boundaries.push({title:'Full document',page:1});else if(boundaries[0].page>1)boundaries.unshift({title:'Front matter',page:1});
   const chapters=boundaries.map((x,i)=>({id:'pdf-c'+i,title:x.title,blocks:pages.slice(x.page-1,(boundaries[i+1]?.page||pdf.numPages+1)-1).flat()})).filter(c=>c.blocks.length);
   const md=await pdf.getMetadata().catch(()=>null);const info=md?.info as{Title?:string;Author?:string}|undefined;
-  const b=await textBook('PDF source',info?.Title||name,info?.Author||'','PDF');b.chapters=chapters;b.category='book';b.hash=await digest(bytes);
+  const b=await textBook('PDF source',info?.Title||name,info?.Author||'','PDF');b.chapters=chapters;b.category='book';b.hash=await digest(bytes);b.importVersion=2;
   b.warnings.push('Page references use PDF file pages. Check complex columns, tables, formulas, and footnotes against the original.');
   if(inferred)b.warnings.push('Suggested outline: no usable PDF chapter bookmarks were found. Edit the contents if necessary.');
   if(empty.length)b.warnings.push(empty.length+' page(s) had little or no readable text: '+empty.slice(0,20).join(', ')+(empty.length>20?'…':'')+'. These may be blank or need OCR.');
