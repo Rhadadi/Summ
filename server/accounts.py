@@ -49,10 +49,17 @@ def login(username:str,password:str)->str:
     if not check_password(password,rows[0][1] if rows else None):raise AccountError(401,'Incorrect username or password.')
     return rows[0][0]
 def google_user(sub:str,email:str,allow_new:bool=True)->str:
-    rows=query('SELECT id FROM users WHERE google_sub=?',(sub,))
-    if rows:query('UPDATE users SET email=? WHERE id=?',(email,rows[0][0]));return rows[0][0]
-    if not allow_new:raise AccountError(403,'New accounts are closed on this server.')
-    user_id=str(uuid.uuid4());query('INSERT INTO users(id,google_sub,email,created) VALUES(?,?,?,?)',(user_id,sub,email,time.time()));return user_id
+    if allow_new:
+        rows = query(
+            'INSERT INTO users(id,google_sub,email,created) VALUES(?,?,?,?) '
+            'ON CONFLICT(google_sub) DO UPDATE SET email=excluded.email RETURNING id',
+            (str(uuid.uuid4()), sub, email, time.time()),
+        )
+    else:
+        rows = query('UPDATE users SET email=? WHERE google_sub=? RETURNING id', (email, sub))
+    if not rows:
+        raise AccountError(403, 'New accounts are closed on this server.')
+    return rows[0][0]
 def _token_hash(token:str)->str:return hashlib.sha256(token.encode()).hexdigest()
 def create_session(user_id:str)->str:
     token=secrets.token_urlsafe(32);now=time.time()

@@ -1,7 +1,7 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,ToggleButton,ToggleButtonGroup}from'@mui/material';
 import{AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,DownloadRounded,EditOutlined,ExpandMoreRounded,GraphicEqRounded,ImageOutlined,OpenInNewRounded,PauseRounded,PlayArrowRounded,StarRounded,TuneRounded}from'@mui/icons-material';
-import type{Account,Block,Book,BookInfo,BookReport,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
+import type{Account,Block,Book,BookInfo,BookReport,Chapter,Depth,GoogleBookEdition,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,narrate,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
@@ -9,11 +9,12 @@ import{bookWords,depthLabels,languages,minutes,selectedPassages}from'./core';
 import{money,usageCost}from'./cost';
 import type{Price}from'./cost';
 import Cover from'./Cover';import{Logo}from'./Header';
+import GoogleBooksDialog from'./GoogleBooksDialog';
 
 interface Props{
  book:Book;chapter:Chapter;settings:Settings;account:Account|null;price:Price|null;saved:SavedPassage[];cover:string;reportVersion:number;
  summary:Summary|null;generating:boolean;generationError:string;
- onCover:(blob:Blob,source:'file'|'online')=>void;onCreate:()=>void;onAccount:()=>void;onPreferences:(patch:Partial<Settings>)=>void;
+ onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onAccount:()=>void;onPreferences:(patch:Partial<Settings>)=>void;
  onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
  onChoose:(index:number)=>void;onExport:()=>void;onEditContents:()=>void;onFinished:()=>void;
 }
@@ -35,21 +36,30 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
  const[report,setReport]=useState<BookReport>(),[info,setInfo]=useState<BookInfo|null>(null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>('loading');
  const[tab,setTab]=useState<'guide'|'text'>('guide'),[section,setSection]=useState('overview'),[textMode,setTextMode]=useState<'full'|'highlights'>('full');
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false);
+ const[editionOpen,setEditionOpen]=useState(false);
  const[navOpen,setNavOpen]=useState({guide:true,chapters:true}),[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
  const[busy,setBusy]=useState(''),[error,setError]=useState('');
  const[engine,setEngine]=useState<'offline'|'elevenlabs'>('offline'),[queue,setQueue]=useState<{title:string;text:string}[]>([]),[track,setTrack]=useState(0),[ready,setReady]=useState<string[]>([]),[playing,setPlaying]=useState(false);
  const audio=useRef<HTMLAudioElement>(null),narration=useRef<AbortController|null>(null);
  const language=report?.language||settings.language;
  useEffect(()=>{let live=true;store.latestReport(book.id).then(key=>key?store.report(key):undefined).then(r=>{if(live)setReport(r);}).catch(()=>{});return()=>{live=false;};},[book.id,reportVersion]);
+ async function useOnlineCover(url:string){await onCover(await coverImage(url),'online',url);}
+ async function showInfo(result:BookInfo,replace=false){
+  setInfo(result);setInfoState('ready');
+  const stored=await store.cover(book.id),url=result.covers[0];
+  if(url&&(!stored||(replace&&stored.source==='online')))await useOnlineCover(url);
+ }
  async function lookup(title:string,author:string,force=false){
   setInfoState('loading');
   try{
-   const saved=force?undefined:await store.info(book.id);const result=saved||await bookInfo(title,author);
-   if(!saved)await store.saveInfo(book.id,result);setInfo(result);setInfoState('ready');
-   // A cover taken from the file always wins; online covers only fill a gap or replace an earlier online pick.
-   const stored=await store.cover(book.id);
-   if(result.covers[0]&&(!stored||(force&&stored.source==='online')))onCover(await coverImage(result.covers[0]),'online');
-  }catch{setInfo(null);setInfoState('none');}
+   const saved=force?undefined:await store.info(book.id);
+   const result=saved||await store.saveInfo(book.id,await bookInfo(title,author),force);
+   void showInfo(result,force).catch(()=>{});
+  }catch{setInfoState(info?'ready':'none');}
+ }
+ async function chooseEdition(edition:GoogleBookEdition){
+  const result=await store.saveInfo(book.id,await bookInfo('','',edition.id),true);
+  void showInfo(result,true).catch(()=>{});
  }
  useEffect(()=>{if(!book.demo)lookup(query.title,query.author);else setInfoState('none');return()=>narration.current?.abort();},[book.id]);
  const chapters=book.chapters.filter(c=>report?.chapters[c.id]);
@@ -125,7 +135,7 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
      <Button variant="outlined" startIcon={<GraphicEqRounded/>} disabled={!chapters.length} onClick={listen}>Listen</Button>
      <IconButton className="ring" aria-label="Edit contents" onClick={onEditContents}><EditOutlined/></IconButton>
      <IconButton className="ring" aria-label="Export notes" onClick={onExport}><DownloadRounded/></IconButton>
-     {!book.demo&&<IconButton className="ring" aria-label={book.format==='PDF'||book.format==='EPUB'?'Cover from file':'Cover from web'} onClick={()=>book.format==='PDF'||book.format==='EPUB'?coverFromFile():info?.covers[0]&&coverImage(info.covers[0]).then(b=>onCover(b,'online'))}><ImageOutlined/></IconButton>}
+     {!book.demo&&<IconButton className="ring" aria-label={book.format==='PDF'||book.format==='EPUB'?'Cover from file':'Cover from web'} onClick={()=>book.format==='PDF'||book.format==='EPUB'?coverFromFile():info?.covers[0]&&useOnlineCover(info.covers[0]).catch(e=>setError(e.message))}><ImageOutlined/></IconButton>}
     </div>
    </div>
   </section>
@@ -155,11 +165,12 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
     {tab==='guide'&&section==='glance'&&<>
      <h2>At a glance</h2>
      {infoState==='loading'?<div className="guide-loading"><CircularProgress size={20}/> Looking the book up…</div>:infoState==='none'||!info?<p>No public record was found for this book.</p>:<>
-      <dl className="facts">{info.year&&<div><dt>Published</dt><dd>{info.year}</dd></div>}{info.pages&&<div><dt>Length</dt><dd>{info.pages} pages</dd></div>}{info.readers&&<div><dt>Open Library readers</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
+      <dl className="facts">{info.year&&<div><dt>Published</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.pages&&<div><dt>Length</dt><dd>{info.pages} pages</dd></div>}{info.google_edition?.publisher&&<div><dt>Publisher</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>Open Library readers</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
       {info.wikipedia&&<><h3 className="doc-h">Background and reception</h3><p dir="auto">{info.wikipedia.extract}</p><p className="doc-src">From <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">Wikipedia</a> · {info.wikipedia.license}</p></>}
       <h3 className="doc-h">Reviews elsewhere</h3><div className="links">{info.links.map(l=><a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div>
       <p className="doc-src">Goodreads has no public API and forbids automated copying, so Summ links to it instead of showing its ratings.</p></>}
      {!book.demo&&(editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>)}
+     {!book.demo&&<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button>}
     </>}
     {guideSection&&<><h2 dir="auto">{guideSection.title}</h2>{summaryParagraphs(guideSection.items)}<p className="doc-src">Built from the checked chapter summaries and checked again against them. Consult the book.</p></>}
     {tab==='guide'&&current&&<>
@@ -184,6 +195,7 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
     </>}
    </article>
   </div>
+  {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   <Popover open={!!opts} anchorEl={opts} onClose={()=>setOpts(null)} slotProps={{paper:{className:'opts-pop'}}}>
    <TextField select size="small" fullWidth label="Purpose" value={settings.purpose} onChange={e=>onPreferences({purpose:e.target.value as Settings['purpose']})}><MenuItem value="understand">Understand</MenuItem><MenuItem value="learn">Learn</MenuItem><MenuItem value="academic">Academic</MenuItem><MenuItem value="apply">Apply</MenuItem></TextField>

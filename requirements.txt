@@ -6,3 +6,4 @@ cryptography==50.0.2
 weasyprint==70.0
 piper-tts==1.8.0
 lameenc==1.9.0
+google-auth[requests]==2.62.2

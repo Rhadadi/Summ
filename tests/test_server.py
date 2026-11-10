@@ -1,7 +1,11 @@
-import os,tempfile,unittest
+import os,tempfile,time,unittest
 from unittest.mock import AsyncMock,patch
+import httpx
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from google.auth import crypt,jwt
 from server import accounts
 from server.app import SourceBlock,app,block_batches,hits,public_target,valid_paragraphs
 class PipelineTests(unittest.TestCase):
@@ -38,6 +42,12 @@ class ServerTest(unittest.TestCase):
             with patch('server.app.check_key',new=AsyncMock()):
                 r=client.put('/api/me/key',json={'api_key':key,'model':'test-model'});self.assertEqual(r.status_code,200,r.text)
 class AccountTests(ServerTest):
+    @classmethod
+    def setUpClass(cls):
+        key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+        cls.signer=crypt.RSASigner.from_string(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()),key_id='test-key')
+        cls.public_key=key.public_key().public_bytes(serialization.Encoding.PEM,serialization.PublicFormat.SubjectPublicKeyInfo)
+        cls.google_client_id='test-client.apps.googleusercontent.com'
     def test_passwords_are_hashed_and_keys_encrypted(self):
         self.sign_up()
         stored=accounts.query('SELECT password FROM users')[0][0];self.assertTrue(stored.startswith('scrypt$'));self.assertNotIn('correct horse',stored)
@@ -63,16 +73,29 @@ class AccountTests(ServerTest):
             self.assertEqual(self.client.post('/api/auth/register',json={'username':'reader','password':'correct horse battery'}).status_code,403)
     def test_cross_site_writes_without_header_are_blocked(self):
         bare=TestClient(app);self.assertEqual(bare.post('/api/auth/register',json={'username':'reader','password':'correct horse battery'}).status_code,403);bare.close()
-    def google(self,info:dict):
-        class Reply:
-            status_code=200
-            def json(self):return info
-        with patch.dict(os.environ,{'GOOGLE_CLIENT_ID':'client.apps.googleusercontent.com'}),patch('httpx.AsyncClient.get',new=AsyncMock(return_value=Reply())):
-            return self.client.post('/api/auth/google',json={'credential':'x'*40})
-    def test_google_sign_in_checks_audience(self):
-        self.assertEqual(self.google({'aud':'someone-else','iss':'accounts.google.com','email_verified':'true','sub':'1'}).status_code,401)
-        r=self.google({'aud':'client.apps.googleusercontent.com','iss':'accounts.google.com','email_verified':'true','sub':'42','email':'reader@example.com'})
-        self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['user']['name'],'reader@example.com')
+    def google(self,**claims):
+        now=int(time.time())
+        payload={'aud':self.google_client_id,'iss':'https://accounts.google.com','iat':now,'exp':now+60,
+                 'email_verified':True,'sub':'42','email':'reader@example.com',**claims}
+        token=jwt.encode(self.signer,payload).decode()
+        with patch.dict(os.environ,{'GOOGLE_CLIENT_ID':self.google_client_id}),patch('google.oauth2.id_token._fetch_certs',return_value={'test-key':self.public_key}):
+            return self.client.post('/api/auth/google',json={'credential':token})
+    def test_google_sign_in_checks_token_and_creates_session(self):
+        for claims in ({'aud':'someone-else'},{'iss':'https://other.example'},{'exp':int(time.time())-5},{'email_verified':False}):
+            with self.subTest(claims=claims):
+                self.assertEqual(self.google(**claims).status_code,401)
+        self.assertEqual(self.client.get('/api/me').status_code,401)
+        response=self.google()
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertIn('HttpOnly',response.headers['set-cookie'])
+        self.assertEqual(self.client.get('/api/me').json()['user']['name'],'reader@example.com')
+    def test_google_sign_in_keeps_subject_linked_when_signups_close(self):
+        self.assertEqual(self.google().status_code,200)
+        user_id=accounts.query('SELECT id FROM users WHERE google_sub=?',('42',))[0][0]
+        with patch.dict(os.environ,{'SUMM_ALLOW_SIGNUP':'false'}):
+            self.assertEqual(self.google(sub='43').status_code,403)
+            self.assertEqual(self.google(email='updated@example.com').status_code,200)
+        self.assertEqual(accounts.query('SELECT id,email FROM users'),[(user_id,'updated@example.com')])
     def test_changed_server_secret_asks_for_key_again(self):
         self.sign_up()
         with patch.dict(os.environ,{'SUMM_SECRET_KEY':'t'*40}),patch('server.app.model_json',new=AsyncMock())as model:
@@ -167,6 +190,40 @@ class GuideAndMediaTests(ServerTest):
             self.assertEqual(self.client.get('/api/book-info',params={'title':'Book'}).json()['title'],'Book')
         self.assertEqual(self.client.get('/api/cover',params={'src':'https://192.168.1.1/x.jpg'}).status_code,404)
         self.assertEqual(self.client.get('/api/cover',params={'src':'http://covers.openlibrary.org/b/id/1-L.jpg'}).status_code,404)
+    def test_google_books_search_by_isbn_and_select_exact_edition(self):
+        edition={'id':'volume_A','volumeInfo':{
+            'title':'Example book','authors':['A. Reader'],'publishedDate':'2024-05-01','pageCount':123,
+            'industryIdentifiers':[{'type':'ISBN_13','identifier':'9780140328721'}],
+            'imageLinks':{'thumbnail':'http://books.google.com/books/content?id=volume_A'},
+            'previewLink':'https://books.google.com/books?id=volume_A'},'accessInfo':{'viewability':'PARTIAL'}}
+        async def upstream(url,**options):
+            if url=='https://www.googleapis.com/books/v1/volumes':
+                self.assertEqual(options['params']['q'],'isbn:9780140328721')
+                self.assertEqual(options['params']['key'],'test-books-key')
+                return httpx.Response(200,json={'items':[edition,{**edition,'id':'volume_B','accessInfo':{'viewability':'NO_PAGES'}}]})
+            if url=='https://www.googleapis.com/books/v1/volumes/volume_A':
+                return httpx.Response(200,json=edition)
+            return httpx.Response(404)
+        with patch.dict(os.environ,{'GOOGLE_BOOKS_API_KEY':'test-books-key'}),patch('httpx.AsyncClient.get',new=AsyncMock(side_effect=upstream)):
+            search=self.client.get('/api/books/search',params={'q':'978-0-14-032872-1'})
+            self.assertEqual(search.status_code,200,search.text)
+            first,second=search.json()['items']
+            self.assertEqual(first['isbns'],['9780140328721'])
+            self.assertTrue(first['preview_url']);self.assertIsNone(second['preview_url'])
+            self.assertNotIn('test-books-key',search.text)
+            response=self.client.get('/api/book-info',params={'google_volume_id':'volume_A'})
+            self.assertEqual(response.status_code,200,response.text)
+            chosen=response.json()
+            self.assertEqual(chosen['google_edition']['id'],'volume_A')
+            self.assertEqual(chosen['pages'],123)
+            self.assertEqual(chosen['covers'],['https://books.google.com/books/content?id=volume_A'])
+    def test_google_books_rejects_invalid_ids_and_explains_access_errors(self):
+        with patch('httpx.AsyncClient.get',new=AsyncMock(return_value=httpx.Response(403))) as upstream:
+            self.assertEqual(self.client.get('/api/book-info',params={'google_volume_id':'../other'}).status_code,422)
+            upstream.assert_not_awaited()
+            response=self.client.get('/api/books/search',params={'q':'Example'})
+            self.assertEqual(response.status_code,503)
+            self.assertIn('Books API',response.json()['detail'])
     def test_pdf_renders_for_signed_in_users(self):
         body={'book':{'title':'Book','author':'A'},'language':'fa','overview':[{'text':'نمای کلی کتاب.'}],'chapters':[{'title':'Chapter','paragraphs':[{'heading':'H','text':'Text.','ref':'Page 1'}]}]}
         self.assertEqual(self.client.post('/api/pdf',json=body).status_code,401)
