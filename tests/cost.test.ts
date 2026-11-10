@@ -3,7 +3,7 @@ import test from'node:test';
 import{costRange,effectivePrice,estimateBook,estimateChapter,estimateTokens,listPrice,money}from'../src/cost.ts';
 import type{Book,BookReport,Chapter,Settings,Summary}from'../src/types.ts';
 
-const settings:Settings={depth:'detailed',purpose:'understand',language:'en',review:'off',fontSize:19,dark:false};
+const settings:Settings={depth:'detailed',purpose:'understand',language:'en',review:'off',fontSize:19,theme:'paper'};
 const chapter=(id:string,chars:number):Chapter=>({id,title:id,blocks:Array.from({length:Math.ceil(chars/1000)},(_,i)=>({id:id+'-'+i,text:'word '.repeat(200),location:''}))});
 const book=(chapters:Chapter[]):Book=>({id:'b',title:'Book',author:'',format:'PDF',category:'book',chapters,warnings:[],addedAt:0,lastRead:0,chapterIndex:0,completed:[],color:0,hash:'h'});
 

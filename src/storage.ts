@@ -1,5 +1,5 @@
 import type{Book,BookInfo,SavedPassage,Settings,Summary,BookReport}from './types';
-export const defaults:Settings={depth:'detailed',purpose:'understand',review:'off',language:'en',fontSize:19,dark:false};
+export const defaults:Settings={depth:'detailed',purpose:'understand',review:'off',language:'en',fontSize:19,theme:'paper'};
 const database=new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('summ-reader',2);r.onupgradeneeded=()=>{for(const n of ['books','files','passages','summaries','covers','audio'])if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n);};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
 interface StoredFile{version:1;data:ArrayBuffer;type:string}
 async function request<T>(name:string,method:'get'|'getAll'|'put'|'delete',key?:IDBValidKey,value?:unknown):Promise<T>{
@@ -28,5 +28,5 @@ export const store={
   const db=await database;await new Promise<void>((resolve,reject)=>{const tx=db.transaction(['summaries','audio'],'readwrite');for(const name of ['summaries','audio']){const r=tx.objectStore(name).openCursor();r.onsuccess=()=>{const c=r.result;if(c){if(String(c.key).startsWith(id+':'))c.delete();c.continue();}};}tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
  }
 };
-export function loadSettings():Settings{try{const{apiUrl:_,token:__,...saved}=JSON.parse(localStorage.getItem('summ-settings')||'{}');return{...defaults,...saved};}catch{return{...defaults};}}
+export function loadSettings():Settings{try{const{apiUrl:_,token:__,dark,...saved}=JSON.parse(localStorage.getItem('summ-settings')||'{}');return{...defaults,...(dark?{theme:'night'}:{}),...saved};}catch{return{...defaults};}}
 export function saveSettings(s:Settings){localStorage.setItem('summ-settings',JSON.stringify(s));}

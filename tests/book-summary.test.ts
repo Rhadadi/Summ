@@ -3,7 +3,7 @@ import test from'node:test';
 import{chapterParts,partLimit,reportComplete,reportHtml,reportKey,reportMarkdown,runBookReport}from'../src/book-summary.ts';
 import type{Book,BookReport,Chapter,Overview,Settings,Summary}from'../src/types.ts';
 
-const settings:Settings={depth:'detailed',purpose:'understand',language:'en',review:'off',fontSize:19,dark:false};
+const settings:Settings={depth:'detailed',purpose:'understand',language:'en',review:'off',fontSize:19,theme:'paper'};
 const chapter=(id:string,text='A qualified finding.'):Chapter=>({id,title:'Chapter '+id,blocks:[{id:id+'-b',text,location:'Paragraph 1',page:1}]});
 const book=(chapters=[chapter('one'),chapter('two'),chapter('three')]):Book=>({id:'book',title:'A reading book',author:'An author',format:'TEXT',category:'book',chapters,warnings:[],addedAt:1,lastRead:0,chapterIndex:0,completed:[],color:0,hash:'source-version'});
 const summary=(c:Chapter):Summary=>({paragraphs:[{heading:'Argument',text:'A source-grounded summary of '+c.title,evidence_ids:[c.blocks[0].id]}],review:[],processed_blocks:c.blocks.length,total_blocks:c.blocks.length,language:'en',mode:'ai',checked:true,model:'quality-pro'});
@@ -45,7 +45,7 @@ test('report caches distinguish model, language, and edited contents but ignore 
  assert.notEqual(key,reportKey(source,settings,'fast-model'));
  assert.notEqual(key,reportKey(source,{...settings,language:'fa'},'quality-pro'));
  assert.notEqual(key,reportKey({...source,chapters:[chapter('renamed')]},settings,'quality-pro'));
- assert.equal(key,reportKey(source,{...settings,fontSize:24,dark:true},'quality-pro'));
+ assert.equal(key,reportKey(source,{...settings,fontSize:24,theme:'night'},'quality-pro'));
 });
 
 test('formatted exports escape source text, identify partial reports, and exclude credentials',()=>{

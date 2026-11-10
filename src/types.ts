@@ -2,7 +2,7 @@ export type Depth='glance'|'overview'|'detailed'|'close';
 export interface Block{id:string;text:string;location:string;page?:number}
 export interface Chapter{id:string;title:string;blocks:Block[]}
 export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string}
-export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;dark:boolean}
+export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
 export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[]}
