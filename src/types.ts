@@ -1,7 +1,7 @@
 export type Depth='glance'|'overview'|'detailed'|'close';
 export interface Block{id:string;text:string;location:string;page?:number;note?:boolean}
 export interface Chapter{id:string;title:string;blocks:Block[]}
-export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string;importVersion?:number}
+export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string;importVersion?:number;published?:{id:string;slug:string;visibility:'public'|'unlisted';at:number}}
 export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
@@ -19,5 +19,16 @@ export interface Rating{source:string;rating:number;count:number|null;url:string
 export interface GoogleBookEdition{id:string;title:string;subtitle:string;authors:string[];publisher:string;published_date:string;language:string;pages:number|null;isbns:string[];url:string;preview_url:string|null;cover:string|null}
 export interface BookInfo{title:string;authors:string[];year:string;pages:number|null;categories:string[];description:string;ratings:Rating[];readers:number|null;wikipedia:{title:string;extract:string;url:string;license:string}|null;covers:string[];links:{name:string;url:string}[];google_edition?:GoogleBookEdition|null}
 export interface KeyInfo{hint:string;model:string;price_in:number|null;price_out:number|null}
-export interface Account{user:{name:string};key:KeyInfo|null;voice:{hint:string;option:string}|null}
+export type Role='owner'|'editor'|'reader';
+export interface EditorRequest{status:'pending'|'approved'|'rejected';message:string;created:number}
+export interface Account{user:{name:string;email:string};role:Role;editorRequest:EditorRequest|null;key:KeyInfo|null;voice:{hint:string;option:string}|null}
+export interface Person{id:string;name:string;email:string;message?:string;created?:number}
+export interface People{pending:Person[];editors:Person[]}
+// A published book carries summaries, never the original text or file.
+export interface PubPara{heading?:string;text:string;pages?:number[];chapters?:string[]}
+export interface PubVersion{language:string;type:string;label:string;model?:string;createdAt?:number;overview?:{paragraphs:PubPara[];takeaways?:PubPara[]};guide?:{type_label:string;sections:{kind:string;title:string;items:PubPara[]}[]};chapters:Record<string,{paragraphs:PubPara[];review?:PubPara[]}>}
+export interface PubChapter{id:string;title:Record<string,string>;group:'main'|'front'|'back'}
+export interface PubDoc{title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
+export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;doc?:PubDoc}
+export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string}[]}
 export interface AppConfig{google_client_id:string;signup:boolean}

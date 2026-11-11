@@ -10,16 +10,20 @@ from urllib.parse import urljoin,urlsplit
 import httpx
 from fastapi import Depends,FastAPI,HTTPException,Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse,Response
+from contextlib import asynccontextmanager
+from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,audio,bookinfo,google_books,google_identity,pdf
+from . import accounts,audio,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
 MODEL_NAME=re.compile(r'[a-zA-Z0-9._-]{3,100}')
 COOKIE='summ_session'
-app=FastAPI(title='Summ processing',version='0.3.0',docs_url=None,redoc_url=None,openapi_url=None)
+@asynccontextmanager
+async def lifespan(_:FastAPI):
+    library.reset_jobs();yield
+app=FastAPI(title='Summ processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
 hits:dict[str,deque]=defaultdict(deque)
@@ -61,14 +65,21 @@ async def current_user(request:Request)->dict:
     user=accounts.session_user(request.cookies.get(COOKIE,''))
     if not user:raise HTTPException(401,'Sign in to use AI summaries and link import.')
     return user
-async def ai_user(user:dict=Depends(current_user))->dict:
+# Only the owner and approved editors may import, generate, or publish. Readers can read.
+async def editor_user(user:dict=Depends(current_user))->dict:
+    if user['role'] not in ('owner','editor'):raise HTTPException(403,'Only the owner and approved editors can do this. You can ask for editor access in Account.')
+    return user
+async def owner_user(user:dict=Depends(current_user))->dict:
+    if user['role']!='owner':raise HTTPException(403,'Only the owner can do this.')
+    return user
+async def ai_user(user:dict=Depends(editor_user))->dict:
     throttle('user:'+user['id'],12);return user
 def user_credentials(user:dict)->tuple[str,str]:
     creds=accounts.credentials(user['id'])
     if not creds:raise HTTPException(412,'Add your Gemini API key in Account first. Summaries are billed to your own key.')
     return creds
 def signup_open():return os.getenv('SUMM_ALLOW_SIGNUP','true')!='false'
-def me_payload(user:dict)->dict:return {'user':{'name':user['name']},'key':accounts.key_info(user['id']),'voice':accounts.service_info(user['id'],'elevenlabs')}
+def me_payload(user:dict)->dict:return {'user':{'name':user['name'],'email':user.get('email','')},'role':user['role'],'editorRequest':accounts.editor_request(user['id']),'key':accounts.key_info(user['id']),'voice':accounts.service_info(user['id'],'elevenlabs')}
 def signed_in(user_id:str)->JSONResponse:
     token=accounts.create_session(user_id);response=JSONResponse(me_payload(accounts.session_user(token)))
     response.set_cookie(COOKIE,token,max_age=accounts.SESSION_SECONDS,httponly=True,samesite='lax',secure=os.getenv('SUMM_INSECURE_COOKIES')!='true',path='/')
@@ -121,14 +132,14 @@ async def check_key(api_key:str,model:str):
     if r.status_code==404:raise HTTPException(422,'This key cannot use '+model+'. Check the model name.')
     if r.status_code!=200:raise HTTPException(502,'Google could not check the key right now (HTTP '+str(r.status_code)+').')
 @app.put('/api/me/key')
-async def save_key(body:KeyRequest,user:dict=Depends(current_user)):
+async def save_key(body:KeyRequest,user:dict=Depends(editor_user)):
     throttle('key:'+user['id'],10)
     api_key=body.api_key.strip() if body.api_key else None
     await check_key(api_key or user_credentials(user)[0],body.model)
     accounts.save_key(user['id'],api_key,body.model,body.price_in,body.price_out)
     return me_payload(user)
 @app.delete('/api/me/key')
-async def remove_key(user:dict=Depends(current_user)):accounts.remove_key(user['id']);return me_payload(user)
+async def remove_key(user:dict=Depends(editor_user)):accounts.remove_key(user['id']);return me_payload(user)
 class SourceBlock(StrictModel):
     id:str=Field(min_length=1,max_length=200)
     text:str=Field(min_length=1,max_length=MAX_SOURCE)
@@ -360,7 +371,7 @@ class PdfRequest(StrictModel):
     chapters:list[PdfChapter]=Field(default=[],max_length=300)
     labels:dict[str,str]=Field(default={},max_length=20)
 @app.post('/api/pdf')
-async def pdf_report(payload:PdfRequest,user:dict=Depends(current_user)):
+async def pdf_report(payload:PdfRequest,user:dict=Depends(editor_user)):
     throttle('pdf:'+user['id'],6)
     if not payload.book.get('title'):raise HTTPException(422,'The book needs a title.')
     try:cover,kind=pdf.cover_payload(payload.cover)
@@ -374,7 +385,7 @@ class AudioRequest(StrictModel):
     language:Literal['en','fa','de','ar','es','fr','tr','zh']
     engine:Literal['offline','elevenlabs']='offline'
 @app.post('/api/audio')
-async def narrate(payload:AudioRequest,user:dict=Depends(current_user)):
+async def narrate(payload:AudioRequest,user:dict=Depends(editor_user)):
     throttle('audio:'+user['id'],40)
     if payload.engine=='elevenlabs':
         creds=accounts.service_credentials(user['id'],'elevenlabs')
@@ -392,7 +403,7 @@ class VoiceKeyRequest(StrictModel):
     api_key:str|None=Field(default=None,min_length=20,max_length=200)
     voice:str=Field(default='',max_length=64,pattern=r'^[A-Za-z0-9]*$')
 @app.put('/api/me/voice-key')
-async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(current_user)):
+async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(editor_user)):
     throttle('key:'+user['id'],10)
     api_key=body.api_key.strip() if body.api_key else None
     if api_key:
@@ -403,7 +414,59 @@ async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(current_user)):
     accounts.save_service_key(user['id'],'elevenlabs',api_key,body.voice)
     return me_payload(user)
 @app.delete('/api/me/voice-key')
-async def remove_voice_key(user:dict=Depends(current_user)):accounts.remove_service_key(user['id'],'elevenlabs');return me_payload(user)
+async def remove_voice_key(user:dict=Depends(editor_user)):accounts.remove_service_key(user['id'],'elevenlabs');return me_payload(user)
+class EditorRequestBody(StrictModel):message:str=Field(default='',max_length=500)
+@app.post('/api/editor-request')
+async def ask_for_editor(body:EditorRequestBody,user:dict=Depends(current_user)):
+    if user['role']!='reader':raise HTTPException(409,'You already have editor access.')
+    throttle('request:'+user['id'],5);accounts.request_editor(user['id'],body.message);return me_payload(user)
+@app.get('/api/people')
+async def people(user:dict=Depends(owner_user)):return accounts.people()
+@app.post('/api/people/{user_id}/approve')
+async def approve_editor(user_id:str,user:dict=Depends(owner_user)):accounts.decide_request(user_id,True);return accounts.people()
+@app.post('/api/people/{user_id}/reject')
+async def reject_editor(user_id:str,user:dict=Depends(owner_user)):accounts.decide_request(user_id,False);return accounts.people()
+@app.delete('/api/people/{user_id}')
+async def revoke_editor(user_id:str,user:dict=Depends(owner_user)):accounts.revoke_editor(user_id);return accounts.people()
+# ---- library: reading is public, publishing is for the owner and approved editors
+def own_or_owner(user:dict,book_id:str):
+    owner=library.owner_of(book_id)
+    if owner is None:raise HTTPException(404,'This book is not in the library.')
+    if owner!=user['id'] and user['role']!='owner':raise HTTPException(403,'You can only change books you published.')
+@app.get('/api/library')
+async def library_list(request:Request):throttle('lib:'+client_ip(request),120);return {'books':library.listing()}
+@app.get('/api/library/mine')
+async def library_mine(user:dict=Depends(editor_user)):return {'books':library.listing_all() if user['role']=='owner' else library.listing(user['id'])}
+@app.get('/api/library/{key}')
+async def library_book(key:str,request:Request):throttle('lib:'+client_ip(request),120);return library.get(key)
+@app.post('/api/library')
+async def library_publish(body:library.PublishRequest,user:dict=Depends(editor_user)):
+    throttle('publish:'+user['id'],20);return await asyncio.to_thread(library.publish,user,body)
+@app.delete('/api/library/{book_id}')
+async def library_remove(book_id:str,user:dict=Depends(editor_user)):own_or_owner(user,book_id);library.remove(book_id);return {'ok':True}
+class VisibilityBody(StrictModel):visibility:Literal['public','unlisted']
+@app.put('/api/library/{book_id}/visibility')
+async def library_visibility(book_id:str,body:VisibilityBody,user:dict=Depends(editor_user)):own_or_owner(user,book_id);library.set_visibility(book_id,body.visibility);return library.get(book_id)
+@app.put('/api/library/{book_id}/cover')
+async def library_cover_upload(book_id:str,request:Request,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);library.save_cover(book_id,await request.body());return {'ok':True}
+@app.get('/api/library/{book_id}/cover')
+async def library_cover(book_id:str):
+    found=library.cover(book_id)
+    if not found:raise HTTPException(404,'No cover.')
+    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
+class NarrationBody(StrictModel):
+    language:Literal['en','fa','de','ar','es','fr','tr','zh'];type:str|None=Field(default=None,max_length=40)
+@app.post('/api/library/{book_id}/narration')
+async def library_narration_start(book_id:str,body:NarrationBody,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);library.start_narration(book_id,body.language,body.type);return library.narration_status(book_id,body.language)
+@app.get('/api/library/{book_id}/narration/{language}')
+async def library_narration(book_id:str,language:str):return library.narration_status(book_id,language)
+@app.get('/api/library/{book_id}/audio/{language}/{name}')
+async def library_audio(book_id:str,language:str,name:str):
+    path=library.audio_path(book_id,language,name)
+    if not path:raise HTTPException(404,'No audio.')
+    return FileResponse(path,media_type='audio/mpeg',headers={'Cache-Control':'public, max-age=86400'})
 def public_target(url:str)->tuple[str,str,int,str,str]:
     try:
         p=urlsplit(url)

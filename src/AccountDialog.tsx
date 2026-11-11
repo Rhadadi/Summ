@@ -2,7 +2,7 @@ import{useEffect,useRef,useState}from'react';
 import{Alert,Autocomplete,Button,Dialog,DialogContent,DialogTitle,Divider,IconButton,LinearProgress,TextField,ToggleButton,ToggleButtonGroup}from'@mui/material';
 import{CheckRounded,CloseRounded,LockOutlined}from'@mui/icons-material';
 import type{Account,AppConfig}from'./types';
-import{deleteAccount,googleLogin,login,logout,register,removeKey,removeVoiceKey,saveKey,saveVoiceKey}from'./api';
+import{askEditor,deleteAccount,googleLogin,login,logout,register,removeKey,removeVoiceKey,saveKey,saveVoiceKey}from'./api';
 import{listPrice,modelSuggestions}from'./cost';
 
 declare global{interface Window{google?:{accounts:{id:{initialize:(o:{client_id:string;callback:(r:{credential:string})=>void})=>void;renderButton:(el:HTMLElement,o:Record<string,unknown>)=>void}}}}}
@@ -46,6 +46,8 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
  async function act(task:()=>Promise<unknown>,done=''){if(acting.current)return;acting.current=true;setBusy(true);setError('');setNotice('');try{await task();if(done)setNotice(done);}catch(e){setError(e instanceof Error?e.message:'Something went wrong.');}finally{acting.current=false;setBusy(false);}}
  const price=(value:string)=>value.trim()===''?null:Number(value);
  const list=listPrice(model);
+ const canEdit=account?.role==='owner'||account?.role==='editor';
+ const[reason,setReason]=useState('');
  const pricesValid=[priceIn,priceOut].every(v=>v.trim()===''||(Number.isFinite(Number(v))&&Number(v)>=0))&&(priceIn.trim()==='')===(priceOut.trim()==='');
  return <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="account-title" slotProps={{paper:{className:'account-sheet'}}}>
   <DialogTitle id="account-title" className="dialog-heading"><span>{account?'Account':'Sign in to Summ'}</span><IconButton aria-label="Close account" onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
@@ -63,7 +65,8 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
     <TextField fullWidth type="password" label="Password" autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} helperText={mode==='register'?'At least 10 characters.':''}/>
     <Button type="submit" variant="contained" size="large" disabled={busy||!username.trim()||!password}>{busy?'One moment…':mode==='login'?'Sign in':'Create account'}</Button>
    </form>:<div className="account-form">
-    <div className="account-user"><span className="account-avatar">{account.user.name.slice(0,1).toUpperCase()}</span><div><strong>{account.user.name}</strong><span>{account.key?'Gemini key ending …'+account.key.hint:'No Gemini key yet'}</span></div></div>
+    <div className="account-user"><span className="account-avatar">{account.user.name.slice(0,1).toUpperCase()}</span><div><strong>{account.user.name}</strong><span>{canEdit?(account.role==='owner'?'Owner · ':'Editor · ')+(account.key?'Gemini key ending …'+account.key.hint:'No Gemini key yet'):'Reader'}</span></div></div>
+    {canEdit&&<>
     {account.key?<Alert icon={<CheckRounded/>} severity="success">Verified with Google and encrypted on the server.</Alert>:<Alert severity="info">Create a key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>, then paste it here.</Alert>}
     <TextField fullWidth type="password" autoComplete="off" label={account.key?'Replace key (optional)':'Gemini API key'} value={apiKey} onChange={e=>setApiKey(e.target.value)}/>
     <Autocomplete freeSolo options={modelSuggestions} inputValue={model} onInputChange={(_,v)=>setModel(v.trim())} renderInput={params=><TextField {...params} label="Model" helperText={list?'List price $'+list.input+' in / $'+list.output+' out per 1M tokens.'+(list.note?' '+list.note:''):'No list price known for this model. Enter yours below for dollar estimates.'}/>}/>
@@ -77,6 +80,15 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
     <TextField fullWidth type="password" autoComplete="off" label={account.voice?'Replace ElevenLabs key (optional)':'ElevenLabs API key'} value={voiceKey} onChange={e=>setVoiceKey(e.target.value)}/>
     <TextField fullWidth label="Voice ID (optional)" value={voiceId} onChange={e=>setVoiceId(e.target.value.replace(/[^A-Za-z0-9]/g,''))} helperText="Leave empty for a standard narrator voice."/>
     <div className="account-actions"><Button variant="outlined" disabled={busy||(!account.voice&&!voiceKey.trim())} onClick={()=>act(()=>saveVoiceKey({...(voiceKey.trim()?{api_key:voiceKey.trim()}:{}),voice:voiceId}).then(a=>{onAccount(a);setVoiceKey('');}),'ElevenLabs settings saved.')}>Save narration</Button>{account.voice&&<Button color="error" disabled={busy} onClick={()=>act(()=>removeVoiceKey().then(onAccount),'ElevenLabs key removed.')}>Remove</Button>}</div>
+    </>}
+    {!canEdit&&<div className="editor-ask">
+     <h3 className="settings-section-title">Want to add books and summaries?</h3>
+     <p className="settings-help">Reading is open to everyone. Importing books, generating summaries and publishing are for the owner and editors the owner approves.</p>
+     {account.editorRequest?.status==='pending'?<Alert severity="info">Your request is waiting for the owner.</Alert>:<>
+      {account.editorRequest?.status==='rejected'&&<Alert severity="warning" sx={{mb:1}}>Your last request was not approved. You can ask again.</Alert>}
+      <TextField fullWidth multiline minRows={2} label="Tell the owner who you are and what you'd like to add" value={reason} onChange={e=>setReason(e.target.value.slice(0,500))}/>
+      <Button variant="contained" disabled={busy} onClick={()=>act(()=>askEditor(reason).then(onAccount),'Request sent. The owner will review it.')}>Request editor access</Button></>}
+    </div>}
     <Divider/>
     <div className="account-actions"><Button disabled={busy} onClick={()=>act(()=>logout().then(onSignedOut))}>Sign out</Button>{confirmDelete?<Button color="error" variant="contained" disabled={busy} onClick={()=>act(()=>deleteAccount().then(onSignedOut))}>Delete account and key</Button>:<Button color="error" disabled={busy} onClick={()=>setConfirmDelete(true)}>Delete account…</Button>}</div>
    </div>}

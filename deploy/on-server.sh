@@ -29,6 +29,8 @@ PY
   echo 'Generated SUMM_SECRET_KEY in .env.'
 fi
 grep -q '^SUMM_TRUST_PROXY=' .env || echo 'SUMM_TRUST_PROXY=true' >> .env
+grep -q '^SUMM_OWNER_EMAIL=' .env || echo 'SUMM_OWNER_EMAIL=' >> .env
+grep -q '^SUMM_OWNER_EMAIL=.\+' .env || echo 'Set SUMM_OWNER_EMAIL in .env to your Google account email, or nobody can publish.'
 docker compose up -d --build
 echo 'Summ started. Check: docker compose logs --tail=40'
 echo 'Open the app, create an account, and add your own Gemini key under Account.'

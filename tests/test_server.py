@@ -35,9 +35,11 @@ class ServerTest(unittest.TestCase):
         self.client.close()
         if accounts._conn:accounts._conn.close();accounts._conn=None
         self.env.stop();self.data.cleanup()
-    def sign_up(self,client=None,username='reader',key='AIza-test-key-0000000000000x7Qa'):
+    def sign_up(self,client=None,username='reader',key='AIza-test-key-0000000000000x7Qa',role='editor'):
         client=client or self.client
         r=client.post('/api/auth/register',json={'username':username,'password':'correct horse battery'});self.assertEqual(r.status_code,200,r.text)
+        # Generation, keys, PDFs and narration are for editors; promote the test user unless a reader is wanted.
+        if role!='reader':accounts.set_role(accounts.query('SELECT id FROM users WHERE username=?',(username,))[0][0],role)
         if key:
             with patch('server.app.check_key',new=AsyncMock()):
                 r=client.put('/api/me/key',json={'api_key':key,'model':'test-model'});self.assertEqual(r.status_code,200,r.text)

@@ -2,12 +2,14 @@ import{useEffect,useRef,useState}from'react';
 import{IconButton,LinearProgress,Tooltip}from'@mui/material';
 import{BookmarkBorderRounded,CloseRounded,Forward10Rounded,PauseRounded,PlayArrowRounded,Replay10Rounded,SkipNextRounded,SkipPreviousRounded}from'@mui/icons-material';
 import type{Book}from'./types';
+type Source={id:string;title:string};
 import{ApiError,narrate}from'./api';
 import{store}from'./storage';
 
-export interface Track{title:string;text:string;chapterId?:string}
+// A track is either text to narrate (editors) or an audio file the owner already generated (everyone else).
+export interface Track{title:string;text:string;chapterId?:string|null;url?:string}
 type Engine='offline'|'elevenlabs';
-interface State{book:Book;tracks:Track[];index:number;urls:(string|undefined)[];playing:boolean;engine:Engine;language:string;error:string}
+interface State{book:Source;tracks:Track[];index:number;urls:(string|undefined)[];playing:boolean;engine:Engine;language:string;error:string}
 const RATES=[1,1.25,1.5,1.75,2,.75];
 function hash(text:string){let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(36);}
 // Narration requests stay under the server's 4,500-character limit and break at paragraph boundaries.
@@ -36,12 +38,14 @@ export function usePlayer(onAccount:()=>void){
   setState({...s,index,playing:play&&!!s.urls[index]});
   if(s.urls[index]){a.src=s.urls[index]!;a.playbackRate=rate;if(play)a.play().catch(()=>{});}else{a.pause();a.removeAttribute('src');}
  }
- async function load(book:Book,items:Track[],language:string,engine:Engine,startChapter?:string){
+ async function load(book:Source,items:Track[],language:string,engine:Engine,startChapter?:string|null){
   run.current?.abort();const controller=new AbortController();run.current=controller;
-  const tracks=chunk(items);if(!tracks.length)return;
+  const hosted=items.length>0&&items.every(t=>t.url);
+  const tracks=hosted?items:chunk(items);if(!tracks.length)return;
   const start=Math.max(0,startChapter?tracks.findIndex(t=>t.chapterId===startChapter):0);
-  const urls:(string|undefined)[]=tracks.map(()=>undefined);
+  const urls:(string|undefined)[]=tracks.map(t=>hosted?t.url:undefined);
   setState({book,tracks,index:start,urls,playing:false,engine,language,error:''});setTime({at:0,length:0});
+  if(hosted){const next={book,tracks,index:start,urls,playing:false,engine,language,error:''};current.current=next;go(start,true);return;}
   // Generate from the chosen start onward, then the earlier parts, so playback begins as soon as possible.
   const order=[...tracks.keys()].filter(i=>i>=start).concat([...tracks.keys()].filter(i=>i<start));
   try{
@@ -67,7 +71,7 @@ export function usePlayer(onAccount:()=>void){
 export type PlayerApi=ReturnType<typeof usePlayer>;
 
 const clock=(s:number)=>{if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');};
-export function PlayerBar({player,cover,onOpen,onSave}:{player:PlayerApi;cover?:string;onOpen:(chapterId?:string)=>void;onSave?:()=>void}){
+export function PlayerBar({player,cover,onOpen,onSave}:{player:PlayerApi;cover?:string;onOpen:(chapterId?:string|null)=>void;onSave?:()=>void}){
  const{state,time,rate}=player;if(!state)return null;
  const track=state.tracks[state.index];const total=state.tracks.reduce((n,t)=>n+t.text.length,0);
  const ready=state.urls.filter(Boolean).length;

@@ -1,4 +1,4 @@
-import type{Account,AppConfig,BookInfo,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
@@ -34,4 +34,19 @@ const post=(body:unknown,signal?:AbortSignal):RequestInit=>({method:'POST',heade
 export const coverImage=(src:string)=>binary('cover?'+new URLSearchParams({src}),{signal:AbortSignal.timeout(30000)});
 export const pdfReport=(doc:unknown)=>binary('pdf',post(doc));
 export const narrate=(text:string,language:string,engine:'offline'|'elevenlabs',signal?:AbortSignal)=>binary('audio',post({text,language,engine},signal));
+// ---- editors and the public library
+export const askEditor=(message:string)=>call<Account>('editor-request',{body:{message}});
+export const people=()=>call<People>('people');
+export const approvePerson=(id:string)=>call<People>('people/'+id+'/approve',{body:{}});
+export const rejectPerson=(id:string)=>call<People>('people/'+id+'/reject',{body:{}});
+export const revokePerson=(id:string)=>call<People>('people/'+id,{method:'DELETE'});
+export const libraryList=()=>call<{books:PubBook[]}>('library').then(r=>r.books);
+export const libraryMine=()=>call<{books:PubBook[]}>('library/mine').then(r=>r.books);
+export const libraryBook=(key:string)=>call<PubBook&{doc:PubDoc}>('library/'+encodeURIComponent(key));
+export const publishBook=(body:{id?:string;doc:PubDoc;visibility:'public'|'unlisted'})=>call<PubBook&{doc:PubDoc}>('library',{body});
+export const unpublishBook=(id:string)=>call<{ok:boolean}>('library/'+id,{method:'DELETE'});
+export const setVisibility=(id:string,visibility:'public'|'unlisted')=>call<PubBook&{doc:PubDoc}>('library/'+id+'/visibility',{method:'PUT',body:{visibility}});
+export const uploadCover=(id:string,blob:Blob)=>binary('library/'+id+'/cover',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
+export const startNarration=(id:string,language:string,type?:string)=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type}});
+export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language);
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');

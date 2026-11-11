@@ -20,6 +20,13 @@ A source-first reading app with a Google Material Design–inspired interface. I
 
 Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Summ server, which calls Gemini with the signed-in user's own key.
 
+## Who can do what
+
+- **Owner** (the Google-verified account whose email is `SUMM_OWNER_EMAIL`): imports books, generates or imports summaries, publishes them, and approves editors.
+- **Editors** (approved by the owner in Settings): the same, using their own Gemini key. They can change only the books they published.
+- **Readers** (everyone, with or without an account): read published summaries and listen to their narration. They cannot generate anything.
+- Publishing stores summaries, a cover and narration on the server. The original file and its text are never uploaded, and page references in a published summary show page numbers only.
+
 ## Hosting
 
 GitHub Actions builds and checks the app, then deploys the static reader to GitHub Pages. Pages cannot run the Python processing service.

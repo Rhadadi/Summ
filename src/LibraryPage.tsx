@@ -16,7 +16,7 @@ export default function LibraryPage({books,covers,filter,query,canSearchBooks,on
  const shown=books.filter(b=>(filter==='all'||b.category===filter)&&(b.title+' '+b.author).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt));
  const present=filters.filter(f=>f.id==='all'||books.some(b=>b.category===f.id));
  return <div className="library">
-  <h1 className="library-title">Your library</h1>
+  <h1 className="library-title">Your workspace</h1>
   <p className="library-sub">{books.length} {books.length===1?'book':'books'} · {hours(books.reduce((n,b)=>n+minutes(words(b)),0))} of reading</p>
   {canSearchBooks&&<Button variant="outlined" sx={{mb:3}} startIcon={<SearchRounded/>} onClick={()=>setSearchOpen(true)}>Find books</Button>}
   <div className="pills" role="group" aria-label="Filter">{present.map(f=><button key={f.id} className={'pill'+(filter===f.id?' on':'')} aria-pressed={filter===f.id} onClick={()=>onFilter(f.id)}>{f.label}</button>)}</div>

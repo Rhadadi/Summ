@@ -7,8 +7,10 @@ SESSION_SECONDS=30*24*3600
 SCHEMA='''CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT UNIQUE COLLATE NOCASE,password TEXT,google_sub TEXT UNIQUE,email TEXT,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,expires REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS service_keys(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,service TEXT NOT NULL,secret BLOB NOT NULL,hint TEXT NOT NULL,option TEXT NOT NULL DEFAULT '',updated REAL NOT NULL,PRIMARY KEY(user_id,service));
+CREATE TABLE IF NOT EXISTS editor_requests(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,message TEXT NOT NULL DEFAULT '',status TEXT NOT NULL,created REAL NOT NULL,decided REAL);
 CREATE TABLE IF NOT EXISTS keys(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,secret BLOB NOT NULL,hint TEXT NOT NULL,model TEXT NOT NULL,price_in REAL,price_out REAL,updated REAL NOT NULL);'''
 USERNAME=re.compile(r'[A-Za-z0-9._-]{3,32}')
+EXTRA_SCHEMA:list[str]=[]  # other modules (the library) register their tables here
 _lock=threading.RLock();_conn:sqlite3.Connection|None=None;_path=''
 class AccountError(Exception):
     def __init__(self,status:int,detail:str):super().__init__(detail);self.status=status;self.detail=detail
@@ -20,6 +22,8 @@ def _db()->sqlite3.Connection:
         Path(path).parent.mkdir(parents=True,exist_ok=True)
         _conn=sqlite3.connect(path,check_same_thread=False,isolation_level=None);_path=path
         _conn.execute('PRAGMA foreign_keys=ON');_conn.execute('PRAGMA journal_mode=WAL');_conn.executescript(SCHEMA)
+        for extra in EXTRA_SCHEMA:_conn.executescript(extra)
+        if 'role' not in [r[1] for r in _conn.execute('PRAGMA table_info(users)')]:_conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'reader'")
     return _conn
 def query(sql:str,args:tuple=())->list[tuple]:
     with _lock:return _db().execute(sql,args).fetchall()
@@ -65,10 +69,39 @@ def create_session(user_id:str)->str:
     token=secrets.token_urlsafe(32);now=time.time()
     query('DELETE FROM sessions WHERE expires<?',(now,));query('INSERT INTO sessions VALUES(?,?,?)',(_token_hash(token),user_id,now+SESSION_SECONDS))
     return token
+# The owner is the Google-verified account whose email is SUMM_OWNER_EMAIL. A username and password
+# account has no verified email, so it can never be the owner.
+def resolve_role(email:str|None,google_sub:str|None,stored:str)->str:
+    owner=os.getenv('SUMM_OWNER_EMAIL','').strip().lower()
+    if owner and google_sub and email and email.strip().lower()==owner:return 'owner'
+    return 'editor' if stored=='editor' else 'reader'
 def session_user(token:str)->dict|None:
     if not token:return None
-    rows=query('SELECT u.id,u.username,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires>?',(_token_hash(token),time.time()))
-    return {'id':rows[0][0],'name':rows[0][1] or rows[0][2] or 'Reader'} if rows else None
+    rows=query('SELECT u.id,u.username,u.email,u.google_sub,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires>?',(_token_hash(token),time.time()))
+    if not rows:return None
+    uid,username,email,sub,role=rows[0]
+    return {'id':uid,'name':username or email or 'Reader','email':email or '','role':resolve_role(email,sub,role)}
+def set_role(user_id:str,role:str):
+    if role not in ('reader','editor'):raise AccountError(422,'Unknown role.')
+    query('UPDATE users SET role=? WHERE id=?',(role,user_id))
+def request_editor(user_id:str,message:str):
+    rows=query('SELECT status FROM editor_requests WHERE user_id=?',(user_id,))
+    if rows and rows[0][0]=='pending':raise AccountError(409,'Your request is already waiting for the owner.')
+    query('INSERT OR REPLACE INTO editor_requests(user_id,message,status,created,decided) VALUES(?,?,?,?,NULL)',(user_id,message.strip()[:500],'pending',time.time()))
+def editor_request(user_id:str)->dict|None:
+    rows=query('SELECT status,message,created FROM editor_requests WHERE user_id=?',(user_id,))
+    return {'status':rows[0][0],'message':rows[0][1],'created':rows[0][2]} if rows else None
+def people()->dict:
+    who=lambda r:{'id':r[0],'name':r[1] or r[2] or 'Reader','email':r[2] or ''}
+    pending=[{**who(r),'message':r[3],'created':r[4]} for r in query("SELECT u.id,u.username,u.email,r.message,r.created FROM editor_requests r JOIN users u ON u.id=r.user_id WHERE r.status='pending' ORDER BY r.created")]
+    editors=[who(r) for r in query("SELECT id,username,email FROM users WHERE role='editor' ORDER BY COALESCE(username,email)")]
+    return {'pending':pending,'editors':editors}
+def decide_request(user_id:str,approve:bool):
+    if not query("SELECT 1 FROM editor_requests WHERE user_id=? AND status='pending'",(user_id,)):raise AccountError(404,'There is no pending request from this person.')
+    query('UPDATE editor_requests SET status=?,decided=? WHERE user_id=?',('approved' if approve else 'rejected',time.time(),user_id))
+    if approve:set_role(user_id,'editor')
+def revoke_editor(user_id:str):
+    set_role(user_id,'reader');query("UPDATE editor_requests SET status='rejected',decided=? WHERE user_id=?",(time.time(),user_id))
 def end_session(token:str):query('DELETE FROM sessions WHERE token_hash=?',(_token_hash(token),))
 def delete_user(user_id:str):query('DELETE FROM users WHERE id=?',(user_id,))
 def save_key(user_id:str,api_key:str|None,model:str,price_in:float|None,price_out:float|None):

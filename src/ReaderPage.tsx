@@ -14,6 +14,7 @@ interface Props{
  onPreferences:(patch:Partial<Settings>)=>void;onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
  onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onFinished:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;
  imported:ImportedSummaries|null;importLang:string;onImportLang:(language:string)=>void;onImportSummary:(mode:'edit'|'new')=>void;
+ readOnly?:boolean;
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
@@ -36,7 +37,7 @@ export default function ReaderPage(p:Props){
  const aiLabel=!account?'Log in to summarize':!account.key?'Add your Gemini key':summary?'Summarize again':'Summarize this chapter';
  function choose(c:Chapter){setList(false);p.onChoose(book.chapters.indexOf(c));}
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=><div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}<span className="refs">{c?[...new Map(x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)).filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].map(b=><button key={b.id} onClick={()=>p.onEvidence(b,b.text,c)}>{b.page?'p. '+b.page:'¶'}</button>):x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}</span></p></div>);
+  return items.map((x,i)=><div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}<span className="refs">{c?[...new Map(x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)).filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].map(b=>p.readOnly?<span className="pg-chip" key={b.id}>{b.page?'p. '+b.page:'¶'}</span>:<button key={b.id} onClick={()=>p.onEvidence(b,b.text,c)}>{b.page?'p. '+b.page:'¶'}</button>):x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}</span></p></div>);
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){
@@ -80,17 +81,18 @@ export default function ReaderPage(p:Props){
    {guideSection&&<div dir={rtl(report?.language)}><p className="r2-kicker">STUDY GUIDE</p><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
     <div className="r2-top"><p className="r2-kicker">{index>=0?'CHAPTER '+(index+1)+' OF '+main.length:'SECTION'}</p>
-     <div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>Summary</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>Original</button></div>
+     {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>Summary</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>Original</button></div>}
     </div>
     <h1 dir="auto">{strip(chapter.title)}</h1>
     {view==='summary'&&(summary?<>
      <div className="r2-meta"><span title={summary.model||undefined}>AI summary{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
       <Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>Listen</Button>
-      <Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
+      {!p.readOnly&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
-      <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></div>
+      <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
      <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter)}</>}</div></>
+    :p.readOnly?<div className="r2-box"><strong>This chapter isn’t part of the published summary</strong><p>Pick another chapter from the list.</p></div>
     :<div className="r2-box">
      <strong>This chapter isn’t summarized yet</strong>
      <p>{bookWords({...book,chapters:[bodyChapter(chapter)]}).toLocaleString()} words{estimate!=null?' · about '+money(estimate)+' with your Gemini key':''}. Or read the original text.</p>

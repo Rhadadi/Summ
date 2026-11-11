@@ -1,6 +1,6 @@
 import{useEffect,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
-import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
+import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
 import type{Book,BookInfo,Chapter,GoogleBookEdition,ImportedSummaries,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
@@ -15,6 +15,7 @@ interface Props{
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  imported:ImportedSummaries|null;onImportSummary:(mode:'edit'|'new')=>void;onReadImported:()=>void;
+ readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Summ · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
@@ -23,9 +24,9 @@ async function downscale(blob:Blob){
  return canvas.toDataURL('image/jpeg',.85);
 }
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,imported,onImportSummary,onReadImported}:Props){
+export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,imported,onImportSummary,onReadImported,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
- const[info,setInfo]=useState<BookInfo|null>(null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>('loading');
+ const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false),[editionOpen,setEditionOpen]=useState(false);
  const[coverMenu,setCoverMenu]=useState<HTMLElement|null>(null),[more,setMore]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[rebuilding,setRebuilding]=useState(false);
  const upload=useRef<HTMLInputElement>(null);
@@ -46,8 +47,8 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
   const{extractCover}=await import('./importers');const blob=await extractCover(file,book.format==='EPUB'?'x.epub':'x.pdf');
   if(blob)await onCover(blob,'file');else setError('No cover image was found in the file.');setBusy('');
  }
- useEffect(()=>{if(!book.demo)lookup(query.title,query.author);else setInfoState('none');},[book.id]);
- useEffect(()=>{if(cover||book.demo)return;store.cover(book.id).then(c=>{if(!c&&(book.format==='PDF'||book.format==='EPUB'))coverFromFile();}).catch(()=>{});},[book.id]);
+ useEffect(()=>{if(readOnly)return;if(!book.demo)lookup(query.title,query.author);else setInfoState('none');},[book.id]);
+ useEffect(()=>{if(readOnly||cover||book.demo)return;store.cover(book.id).then(c=>{if(!c&&(book.format==='PDF'||book.format==='EPUB'))coverFromFile();}).catch(()=>{});},[book.id]);
  // Books imported before cleaner extraction are re-read automatically when nothing depends on their old passages.
  const outdated=(book.format==='PDF'||book.format==='EPUB')&&!book.demo&&(book.importVersion||1)<2;
  useEffect(()=>{if(!data.loaded||!outdated||rebuilding)return;if(!report&&!Object.keys(summaries).length&&!saved.some(x=>x.bookId===book.id)){setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}},[data.loaded,outdated]);
@@ -77,18 +78,18 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
   return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{strip(c.title)}</span><span className={'ch-status'+(s?' has':'')}>{s?'Summary · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  return <div className="detail">
-  <button className="back-link" onClick={onBack}><ArrowBackRounded/>My library</button>
+  <button className="back-link" onClick={onBack}><ArrowBackRounded/>{backLabel||'My library'}</button>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
   {outdated&&!rebuilding&&data.loaded&&(report||Object.keys(summaries).length>0||saved.some(x=>x.bookId===book.id))&&<Alert severity="info" action={<Button onClick={()=>{setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}}>Re-read file</Button>}>Cleaner text extraction is available for this book. Re-reading it resets its summaries and saved passages.</Alert>}
   {error&&<Alert severity="error" onClose={()=>setError('')}>{error}</Alert>}
   <section className="hero">
    <div className="hero-top">
     <div className="hero-cover"><Shelf book={book} url={cover}/>
-     <div className="hero-tools">
+     {!readOnly&&<div className="hero-tools">
       <Tooltip title="Edit contents"><IconButton aria-label="Edit contents" onClick={onEditContents}><EditOutlined/></IconButton></Tooltip>
       <Tooltip title="Export notes"><IconButton aria-label="Export notes" onClick={onExport}><TextSnippetOutlined/></IconButton></Tooltip>
       {!book.demo&&<Tooltip title="Change cover"><IconButton aria-label="Change cover" onClick={e=>setCoverMenu(e.currentTarget)}>{busy==='cover'?<CircularProgress size={18}/>:<ImageOutlined/>}</IconButton></Tooltip>}
-     </div>
+     </div>}
     </div>
     <div className="hero-text">
      <span className="kicker">Study guide{report?.guide?' · '+report.guide.type_label:''}</span>
@@ -97,21 +98,22 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}
      <div className="stats">
       {info?.ratings[0]&&<span><StarRounded/>{info.ratings[0].rating.toFixed(1)}{info.ratings[0].count?' ('+info.ratings[0].count.toLocaleString()+' ratings)':''}</span>}
-      <span><AccessTimeRounded/>{readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
+      <span><AccessTimeRounded/>{readOnly?minutes(Object.values(summaries).reduce((n,x)=>n+x.paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0),0))+' min of summaries':readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
       <span><LightbulbOutlined/>{main.length} key chapters</span>
       {pages&&<span><DescriptionOutlined/>{pages} pages</span>}
      </div>
      <Button className="big" variant="contained" startIcon={<MenuBookRounded/>} onClick={()=>onRead(startAt)}>{book.lastRead?'Continue reading':'Start reading'}</Button>
-     <Button className="big" variant="outlined" startIcon={imported?<DescriptionOutlined/>:<FileUploadOutlined/>} onClick={imported?onReadImported:()=>onImportSummary('new')}>{imported?'Read your imported summary':'Import a summary you already have'}</Button>
-     <Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable} onClick={()=>onListen()}>{listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>
+     {!readOnly&&<Button className="big" variant="outlined" startIcon={imported?<DescriptionOutlined/>:<FileUploadOutlined/>} onClick={imported?onReadImported:()=>onImportSummary('new')}>{imported?'Read your imported summary':'Import a summary you already have'}</Button>}
+     <Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable&&!readOnly} onClick={()=>onListen()}>{readOnly?'Listen':listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>
+     {!readOnly&&!!onPublish&&<Button className="big" variant="text" startIcon={<PublicOutlined/>} onClick={onPublish}>{book.published?'Published · manage':'Publish this summary'}</Button>}
     </div>
    </div>
-   <div className="band">
+   {!readOnly&&<div className="band">
     {complete?<><div><strong>Study guide complete</strong><span>Overview, key takeaways{report?.guide?', '+report.guide.sections.map(s=>s.title.toLowerCase()).slice(0,3).join(', '):''} and every chapter.</span></div>
       <Button variant="contained" className="dark" startIcon={busy==='pdf'?<CircularProgress size={16} color="inherit"/>:<DownloadRounded/>} disabled={!!busy} onClick={downloadPdf}>{busy==='pdf'?'Typesetting…':'Download PDF'}</Button></>
     :<><div><strong>{done} of {main.length} chapters summarized</strong><span>{done?'Finish the study guide to get the overview, key takeaways, themes and a typeset PDF.':'Summarize every chapter, then get the overview, key takeaways, themes and a typeset PDF.'} You see the cost before anything runs.</span></div>
       <Button variant="contained" className="dark" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{done?'Finish the study guide':'Create the study guide'}</Button></>}
-   </div>
+   </div>}
   </section>
   <section className="about">
    <h2>What’s it about?</h2>
@@ -125,13 +127,13 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
    {main.map(row)}
    {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'Show'} front matter, notes and index</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
   </section>
-  {!book.demo&&<section className="reception">
+  {(!book.demo||readOnly)&&<section className="reception">
    <h2>Reception</h2>
    {infoState==='loading'?<p className="muted"><CircularProgress size={16}/> Looking the book up…</p>:!info||infoState==='none'?<p className="muted">No public record was found for this book.</p>:<>
     <dl className="facts">{info.year&&<div><dt>Published</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.google_edition?.publisher&&<div><dt>Publisher</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>Open Library readers</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
     {info.wikipedia&&<><p dir="auto">{info.wikipedia.extract}</p><small>From <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">Wikipedia</a> · {info.wikipedia.license}</small></>}
     <div className="links">{info.links.map(l=><a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div></>}
-   <div className="reception-actions">{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>
+   {!readOnly&&<div className="reception-actions">{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}
   </section>}
   {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}
   <Menu anchorEl={coverMenu} open={!!coverMenu} onClose={()=>setCoverMenu(null)}>
