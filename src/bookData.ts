@@ -58,6 +58,6 @@ export function narrationItems(book:Book,data:BookData){
  const say=(p:{heading?:string;text:string})=>(p.heading?p.heading+'. ':'')+p.text;
  return[
   ...(data.report?.overview?[{title:'Overview',text:data.report.overview.paragraphs.map(say).join('\n\n')}]:[]),
-  ...book.chapters.filter(c=>data.summaries[c.id]).map(c=>({title:chapterTitle(data,c),chapterId:c.id,text:chapterTitle(data,c)+'.\n\n'+data.summaries[c.id].paragraphs.map(say).join('\n\n')})),
+  ...book.chapters.filter(c=>data.summaries[c.id]).map(c=>({title:chapterTitle(data,c),chapterId:c.id,text:chapterTitle(data,c)+'.\n\n'+data.summaries[c.id].paragraphs.filter(p=>!p.image).map(say).join('\n\n')})),
  ];
 }

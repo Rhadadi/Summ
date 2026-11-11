@@ -40,7 +40,7 @@ export function buildDoc(book:Book,entries:Entry[],info:BookInfo|null,title:stri
  const versions:PubVersion[]=entries.map(e=>{
   const{data,choice}=e,picked=forEntry(e);
   const version:PubVersion={language:choice.language,type:choice.type,label:choice.label||depthLabels[choice.type as keyof typeof depthLabels]||choice.type,model:data.report?.model||Object.values(data.summaries)[0]?.model||'',createdAt:Date.now(),chapters:{}};
-  for(const c of picked){const s:Summary=data.summaries[c.id];version.chapters[c.id]={paragraphs:s.paragraphs.map(p=>para(p,c,ids)),...(s.review.length?{review:s.review.map(p=>para(p,c,ids))}:{})};}
+  for(const c of picked){const s:Summary=data.summaries[c.id];version.chapters[c.id]={paragraphs:s.paragraphs.filter(p=>!p.image).map(p=>para(p,c,ids)),...(s.review.length?{review:s.review.map(p=>para(p,c,ids))}:{})};}
   const rep=data.report;
   if(rep?.overview&&rep.language===choice.language)version.overview={paragraphs:rep.overview.paragraphs.map(p=>para(p,undefined,ids)),takeaways:rep.overview.takeaways.map(p=>para(p,undefined,ids))};
   if(rep?.guide&&rep.language===choice.language)version.guide={type_label:rep.guide.type_label,sections:rep.guide.sections.map(s=>({kind:s.kind,title:s.title,items:s.items.map(p=>para(p,undefined,ids))}))};

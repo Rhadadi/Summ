@@ -37,6 +37,18 @@ class AccessTests(RolesTest):
         for method,path,kwargs in [('post','/api/summarize',{'json':body}),('post','/api/import',{'json':{'url':'https://example.com/page'}}),('post','/api/pdf',{'json':{}}),('post','/api/audio',{'json':{'text':'x','language':'en'}}),('post','/api/library',{'json':{'doc':doc()}}),('put','/api/me/key',{'json':{'api_key':'k'*30,'model':'test-model'}}),('get','/api/library/mine',{})]:
             self.assertEqual(getattr(r,method)(path,**kwargs).status_code,403,path)
         self.assertEqual(r.get('/api/library').status_code,200)
+    def test_home_slide_choice_and_art_are_editor_only(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc(),'visibility':'public'}).json()
+        self.assertEqual(book['slide'],{'mode':'none'})
+        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'cover'}).json(),{'mode':'cover'})
+        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'art'}).status_code,422)
+        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'art','file':'File:../x.jpg'}).status_code,422)
+        r=self.reader()
+        self.assertEqual(r.get('/api/art/search?q=love').status_code,403)
+        self.assertEqual(r.put('/api/library/'+book['id']+'/slide',json={'mode':'cover'}).status_code,403)
+        anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
+        self.assertEqual(anon.get('/api/library').json()['books'][0]['slide']['mode'],'cover')
+        self.assertEqual(anon.get('/api/library/'+book['id']+'/art').status_code,404)
     def test_editor_request_approval_flow(self):
         owner,_=self.owner();r=self.reader('asker')
         self.assertEqual(r.post('/api/editor-request',json={'message':'I translate books.'}).json()['editorRequest']['status'],'pending')

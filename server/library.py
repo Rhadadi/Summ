@@ -78,11 +78,14 @@ def _rating(d:dict):
     if not rs:return None
     r=max(rs,key=lambda x:x.get('count') or 0)
     return {'source':r.get('source',''),'rating':r['rating'],'count':r.get('count')}
+def _slide(book_id:str)->dict:
+    from . import artwork
+    return artwork.slide(book_id)
 def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover' if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)
@@ -112,6 +115,8 @@ def owner_of(book_id:str)->str|None:
 def remove(book_id:str):
     q('DELETE FROM library WHERE id=?',(book_id,))
     import shutil
+    from . import artwork
+    artwork.remove(book_id)
     for sub in ('covers','audio'):
         target=_dir(sub)/book_id
         if target.is_dir():shutil.rmtree(target,ignore_errors=True)

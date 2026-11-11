@@ -1,4 +1,4 @@
-import{useEffect,useRef,useState}from'react';
+import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField}from'@mui/material';
 import{ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,EditOutlined,BookmarkRounded,ChevronRightRounded,ExpandMoreRounded,FormatListBulletedRounded,LightbulbOutlined,PlayArrowRounded,TuneRounded}from'@mui/icons-material';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
@@ -33,8 +33,13 @@ export default function ReaderPage(p:Props){
  const spent=usageCost(summary?.usage,p.price);
  const aiLabel=!account?'Log in to summarize':!account.key?'Add your Gemini key':summary?'Summarize again':'Summarize this chapter';
  function choose(c:Chapter){setList(false);p.onChoose(book.chapters.indexOf(c));}
+ // Pictures that came with an imported summary live in this browser; each gets a temporary address while the page is open.
+ const pictures=useMemo(()=>Object.fromEntries((data.version?.images||[]).map(i=>[i.path,URL.createObjectURL(new Blob([i.data],{type:i.type}))])),[data.version]);
+ useEffect(()=>()=>{for(const u of Object.values(pictures))URL.revokeObjectURL(u);},[pictures]);
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=><div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}<span className="refs">{c?[...new Map(x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)).filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].map(b=>p.readOnly?<span className="pg-chip" key={b.id}>{b.page?'p. '+b.page:'¶'}</span>:<button key={b.id} onClick={()=>p.onEvidence(b,b.text,c)}>{b.page?'p. '+b.page:'¶'}</button>):x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}{c&&(x.pages||[]).map(n=>{const b=c.blocks.find(y=>y.page===n&&!y.note);return b&&!p.readOnly?<button key={'p'+n} onClick={()=>p.onEvidence(b,b.text,c)}>p. {n}</button>:<span className="pg-chip" key={'p'+n}>p. {n}</span>;})}</span></p></div>);
+  return items.map((x,i)=>x.image&&pictures[x.image.path]?<figure className="r2-fig" key={i}><img src={pictures[x.image.path]} alt={x.image.alt}/><figcaption dir="auto">{x.text}</figcaption></figure>
+   :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
+   :<div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}<span className="refs">{c?[...new Map(x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)).filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].map(b=>p.readOnly?<span className="pg-chip" key={b.id}>{b.page?'p. '+b.page:'¶'}</span>:<button key={b.id} onClick={()=>p.onEvidence(b,b.text,c)}>{b.page?'p. '+b.page:'¶'}</button>):x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}{c&&(x.pages||[]).map(n=>{const b=c.blocks.find(y=>y.page===n&&!y.note);return b&&!p.readOnly?<button key={'p'+n} onClick={()=>p.onEvidence(b,b.text,c)}>p. {n}</button>:<span className="pg-chip" key={'p'+n}>p. {n}</span>;})}</span></p></div>);
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){

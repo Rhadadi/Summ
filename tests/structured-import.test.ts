@@ -80,3 +80,17 @@ test('a top-level "Summary" heading is the document title, not the overview',()=
  const b=parseBlock('# خلاصهٔ کتاب\n\n## نمای کلی\n\nاین کتاب.\n\n## نکات کلیدی\n\n- پرسش.\n\n## 1. اصل اول\n\nمتن.\n',null,'fa');
  assert.deepEqual([b.overview.length,b.takeaways.length,b.chapters.length,b.bookTitle],[1,1,1,'خلاصهٔ کتاب']);
 });
+test('figures and tables stay with the chapter they were written in',()=>{
+ const b=parseBlock('# T\n\n## 1. First\n\nText.\n\n![A chart](images/c.png)\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nMore.\n',null,'en');
+ const ps=b.chapters[0].paragraphs;
+ assert.deepEqual(ps.map(p=>!!p.image||!!p.table),[false,true,true,false]);
+ assert.deepEqual(ps[2].table,[['A','B'],['1','2']]);
+ const v=buildVersion(b,[{chapterId:'a',parsed:b.chapters[0]}],'en','detailed',{sourcePath:'summary.md',images:[{path:'images/c.png',type:'image/png',data:new ArrayBuffer(3)}]});
+ assert.equal(v.report.chapters.a.paragraphs[1].image?.path,'images/c.png');assert.equal(v.images?.length,1);
+});
+test('the prompt asks for a ZIP with images only when figures are wanted',()=>{
+ const book={title:'T',author:'A',chapters:[{id:'a',title:'1',blocks:[]}]};
+ const o={...defaultOptions({code:'fa',name:'Persian (Farsi)'}),chapters:[0]};
+ assert.match(buildPrompt(book,o),/inkling-summary\.zip/);assert.match(buildPrompt(book,o),/1\. Chapter 1/);
+ assert.doesNotMatch(buildPrompt(book,{...o,figures:false}),/zip named/i);
+});

@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,audio,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -455,6 +455,27 @@ async def library_cover(book_id:str):
     found=library.cover(book_id)
     if not found:raise HTTPException(404,'No cover.')
     return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
+@app.get('/api/art/search')
+async def art_search(q:str,user:dict=Depends(editor_user)):
+    throttle('art:'+user['id'],30)
+    try:return {'results':await artwork.search(q)}
+    except httpx.HTTPError:raise HTTPException(502,'Wikimedia Commons did not answer. Try again in a moment.')
+class SlideBody(StrictModel):
+    mode:Literal['none','cover','art'];file:str|None=Field(default=None,max_length=240)
+@app.put('/api/library/{book_id}/slide')
+async def library_slide(book_id:str,body:SlideBody,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);throttle('art:'+user['id'],30)
+    credit=None
+    if body.mode=='art':
+        if not body.file:raise HTTPException(422,'Choose a painting first.')
+        try:credit=await artwork.save(book_id,body.file)
+        except httpx.HTTPError:raise HTTPException(502,'Wikimedia Commons did not answer. Try again in a moment.')
+    artwork.set_mode(book_id,body.mode,credit);return artwork.slide(book_id)
+@app.get('/api/library/{book_id}/art')
+async def library_art(book_id:str):
+    found=artwork.image(book_id)
+    if not found:raise HTTPException(404,'No artwork.')
+    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=86400'})
 class NarrationBody(StrictModel):
     language:Literal['en','fa','de','ar','es','fr','tr','zh'];type:str|None=Field(default=None,max_length=40)
 @app.post('/api/library/{book_id}/narration')

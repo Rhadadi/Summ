@@ -1,9 +1,9 @@
 import{useMemo,useRef,useState}from'react';
 import{Alert,Button,Checkbox,Chip,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,IconButton,MenuItem,Step,StepButton,Stepper,TextField}from'@mui/material';
 import{AutoAwesomeRounded,CheckRounded,CloseRounded,ContentCopyRounded,FileUploadOutlined}from'@mui/icons-material';
-import type{Book,ImportedVersion}from'./types';
+import type{Book,ImportedVersion,SummaryImage}from'./types';
 import{chapterWords,languages,minutes,sectionKind}from'./core';
-import{audiences,buildPrompt,defaultOptions,summaryTypes,tones,type PromptOptions}from'./prompt-builder';
+import{audiences,buildPrompt,chapterLabel,defaultOptions,summaryTypes,tones,type PromptOptions}from'./prompt-builder';
 import{mapChapters,parseBlock,splitBlocks}from'./structured-import';
 import{buildVersion,versionLabel}from'./imports';
 import{readSummaryFile,summaryMarkdown}from'./summary-import';
@@ -18,7 +18,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  const kinds=useMemo(()=>book.chapters.map((c,i)=>sectionKind(c,i,book.chapters)),[book]);
  const[step,setStep]=useState(startAt);
  const[opts,setOpts]=useState<PromptOptions>(()=>({...defaultOptions({code:language,name:nativeName(language)}),chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')}));
- const[raw,setRaw]=useState(''),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
+ const[raw,setRaw]=useState(''),[files,setFiles]=useState<{sourcePath:string;images:SummaryImage[]}>({sourcePath:'',images:[]}),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
  const[overrides,setOverrides]=useState<Record<number,{type?:string;language?:string}>>({});
  const file=useRef<HTMLInputElement>(null);
  const set=(patch:Partial<PromptOptions>)=>{setOpts(o=>({...o,...patch}));setCopied(false);};
@@ -39,7 +39,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  async function save(){
   setBusy(true);setError('');
   try{
-   const versions=parsed.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type));
+   const versions=parsed.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
    if(new Set(versions.map(v=>v.id)).size!==versions.length)throw Error('Two of the summaries share a language and style. Change one of them below.');
    await onSave(versions);
   }catch(e){setError(e instanceof Error?e.message:'Could not save the summary.');setBusy(false);}
@@ -55,7 +55,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
      <Button size="small" onClick={()=>set({chapters:book.chapters.map((_,i)=>i)})}>All</Button>
      <Button size="small" onClick={()=>set({chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')})}>Chapters only</Button>
      <Button size="small" onClick={()=>set({chapters:[]})}>None</Button></div>
-    <div className="wizard-chapters">{book.chapters.map((c,i)=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={opts.chapters.includes(i)} onChange={()=>set({chapters:toggle(opts.chapters,i)})}/>} label={<span className="wizard-row"><span dir="auto">{i+1}. {c.title.replace(/^\d+[.\s]+/,'')}</span><small>{kinds[i]!=='main'&&<Chip size="small" label={kinds[i]+' matter'}/>} {minutes(chapterWords(c))} min</small></span>}/>)}</div>
+    <div className="wizard-chapters">{book.chapters.map((c,i)=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={opts.chapters.includes(i)} onChange={()=>set({chapters:toggle(opts.chapters,i)})}/>} label={<span className="wizard-row"><span dir="auto">{i+1}. {chapterLabel(c.title)}</span><small>{kinds[i]!=='main'&&<Chip size="small" label={kinds[i]+' matter'}/>} {minutes(chapterWords(c))} min</small></span>}/>)}</div>
    </section>}
    {step===1&&<section>
     <p className="dialog-lead">Pick one style or several. Each one becomes its own summary of every chapter you chose.</p>
@@ -71,6 +71,9 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     <div className="wizard-langs">
      <FormControlLabel control={<Checkbox size="small" checked={opts.overview} onChange={()=>set({overview:!opts.overview})}/>} label="Overview of the whole book"/>
      <FormControlLabel control={<Checkbox size="small" checked={opts.takeaways} onChange={()=>set({takeaways:!opts.takeaways})}/>} label="Key takeaways"/>
+     <FormControlLabel control={<Checkbox size="small" checked={opts.concepts} onChange={()=>set({concepts:!opts.concepts})}/>} label="Key concepts and connections"/>
+     <FormControlLabel control={<Checkbox size="small" checked={opts.evidence} onChange={()=>set({evidence:!opts.evidence})}/>} label="Evidence and limitations"/>
+     <FormControlLabel control={<Checkbox size="small" checked={opts.figures} onChange={()=>set({figures:!opts.figures})}/>} label="Figures, images and tables (as a ZIP)"/>
      <FormControlLabel control={<Checkbox size="small" checked={opts.glossary} onChange={()=>set({glossary:!opts.glossary})}/>} label="Key terms"/>
      <FormControlLabel control={<Checkbox size="small" checked={opts.pageRefs} onChange={()=>set({pageRefs:!opts.pageRefs})}/>} label="Page references"/>
      <FormControlLabel control={<Checkbox size="small" checked={opts.quotes} onChange={()=>set({quotes:!opts.quotes})}/>} label="Short quotes"/>
@@ -86,17 +89,18 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     <pre className="wizard-prompt" aria-label="Generated prompt">{prompt}</pre>
    </section>}
    {step===3&&<section>
-    <p className="dialog-lead">Paste the AI's answer or choose a Markdown or ZIP file. Chapter titles, overview and summaries are split out and matched to the book's chapters.</p>
+    <p className="dialog-lead">Paste the AI's answer or choose its Markdown or ZIP file (with the images). Chapter titles, overview and summaries are split out and matched to the book's chapters.</p>
     <div className="wizard-bar"><Button variant="outlined" startIcon={<FileUploadOutlined/>} onClick={()=>file.current?.click()}>Choose a file</Button>
-     <input ref={file} hidden type="file" accept=".md,.markdown,.zip" onChange={async e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value='';if(!f)return;try{setRaw((await readSummaryFile(f)).markdown);setOverrides({});setError('');}catch(x){setError((x as Error).message);}}}/>
+     <input ref={file} hidden type="file" accept=".md,.markdown,.zip" onChange={async e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value='';if(!f)return;try{const r=await readSummaryFile(f);setRaw(r.markdown);setFiles({sourcePath:r.sourcePath,images:r.images});setOverrides({});setError('');}catch(x){setError((x as Error).message);}}}/>
+     {files.images.length>0&&<small>{files.images.length} {files.images.length===1?'image':'images'} found in the ZIP</small>}
      {existing.length>0&&<small>Already saved: {existing.map(v=>v.label+' · '+languageName(v.language)).join(', ')}</small>}</div>
-    <TextField fullWidth multiline minRows={6} maxRows={14} label="Summary" placeholder="Paste the Markdown here" value={raw} onChange={e=>{setRaw(e.target.value);setOverrides({});}} slotProps={{htmlInput:{maxLength:2*1024*1024,dir:'auto'}}}/>
+    <TextField fullWidth multiline minRows={6} maxRows={14} label="Summary" placeholder="Paste the Markdown here" value={raw} onChange={e=>{setRaw(e.target.value);setOverrides({});if(files.images.length)setFiles({sourcePath:'',images:[]});}} slotProps={{htmlInput:{maxLength:2*1024*1024,dir:'auto'}}}/>
     {parsed.map((p,i)=>{const{mapped,missing,extra}=p.result;return <div className="wizard-found" key={i}>
      <div className="wizard-found-head"><strong>Found a summary</strong>
       <TextField select size="small" label="Style" value={p.type} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],type:e.target.value}}))}>{summaryTypes.map(t=><MenuItem key={t.id} value={t.id}>{t.label}</MenuItem>)}{!summaryTypes.some(t=>t.id===p.type)&&<MenuItem value={p.type}>{versionLabel(p.type)}</MenuItem>}</TextField>
       <TextField select size="small" label="Language" value={p.lang} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],language:e.target.value}}))}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField></div>
      <p className="settings-help">{mapped.length} of {mapped.length+extra.length} chapters matched{p.block.overview.length?' · overview':''}{p.block.takeaways.length?' · key takeaways':''}{p.block.sections.length?' · '+p.block.sections.length+' more sections':''}{existing.some(v=>v.id===p.lang+':'+p.type)?' · replaces your saved '+versionLabel(p.type)+' summary':''}</p>
-     <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=book.chapters.find(x=>x.id===m.chapterId)!;return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{c.title.replace(/^\d+[.\s]+/,'')}</small></li>;})}</ol>
+     <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=book.chapters.find(x=>x.id===m.chapterId)!;return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{chapterLabel(c.title)}</small></li>;})}</ol>
      {extra.length>0&&<Alert severity="warning">{extra.length} chapter{extra.length===1?'':'s'} in the summary could not be matched to the book: {extra.slice(0,4).map(e=>e.title).join('; ')}.</Alert>}
      {mapped.length>0&&missing.length>0&&opts.chapters.some(i=>missing.some(c=>c.id===book.chapters[i].id))&&<small className="settings-help">Not covered: {missing.filter(c=>opts.chapters.includes(book.chapters.indexOf(c))).slice(0,6).map(c=>c.title.replace(/^\d+[.\s]+/,'')).join('; ')}</small>}
      {mapped.length===0&&<Alert severity="error">No chapters were recognised. Each chapter needs a heading such as “## 1. Title” (or “## Chapter 1: Title”).</Alert>}

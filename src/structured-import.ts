@@ -3,8 +3,10 @@ import{detectSummaryLanguage,importedChapterHeadings}from'./summary-import.ts';
 
 // Turns an AI-written Markdown summary into per-chapter summaries. The language, translated chapter titles,
 // overview, takeaways and extra guide sections are all recovered from the headings.
-export interface ParsedChapter{n:number|null;title:string;paragraphs:PubPara[]}
-export interface ParsedBlock{type:string|null;language:string;bookTitle:string;overview:PubPara[];takeaways:PubPara[];sections:{title:string;items:PubPara[]}[];chapters:ParsedChapter[]}
+// Figures and tables that came with the summary are kept beside the text.
+export interface ParaIn extends PubPara{image?:{src:string;alt:string};table?:string[][]}
+export interface ParsedChapter{n:number|null;title:string;paragraphs:ParaIn[]}
+export interface ParsedBlock{type:string|null;language:string;bookTitle:string;overview:ParaIn[];takeaways:ParaIn[];sections:{title:string;items:ParaIn[]}[];chapters:ParsedChapter[]}
 const DIGITS:Record<string,string>={'۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
 export const latinDigits=(text:string)=>text.replace(/[۰-۹٠-٩]/g,d=>DIGITS[d]);
 const delimiter=/^\s*={3,}\s*INKLING\b(.*?)=*\s*$/i;
@@ -25,24 +27,28 @@ export function extractPages(text:string):{text:string;pages:number[]}{
  }
  return{text:text.replace(pageRef,'').replace(/\s+([.,;:!?،؛])/g,'$1').replace(/\s{2,}/g,' ').trim(),pages:[...pages].sort((a,b)=>a-b)};
 }
-function paragraphs(lines:string[]):PubPara[]{
- const out:PubPara[]=[];let pending:string[]=[];let heading:string|undefined;
+function paragraphs(lines:string[]):ParaIn[]{
+ const out:ParaIn[]=[];let pending:string[]=[];let heading:string|undefined;let rows:string[][]=[];
  const push=(raw:string)=>{
   const cleaned=inline(raw);if(!cleaned)return;
   const{text,pages}=extractPages(cleaned);if(!text)return;
-  const p:PubPara={text};if(heading){p.heading=heading;heading=undefined;}if(pages.length)p.pages=pages;out.push(p);
+  const p:ParaIn={text};if(heading){p.heading=heading;heading=undefined;}if(pages.length)p.pages=pages;out.push(p);
  };
  const flush=()=>{if(pending.length)push(pending.join(' '));pending=[];};
+ const flushTable=()=>{if(!rows.length)return;const p:ParaIn={text:rows.map(r=>r.join(' · ')).join('\n'),table:rows};if(heading){p.heading=heading;heading=undefined;}out.push(p);rows=[];};
  for(const line of lines){
+  if(/^\s*\|/.test(line)){flush();const cells=line.trim().replace(/^\||\|$/g,'').split('|').map(c=>inline(c));if(!cells.every(c=>/^:?-{2,}:?$/.test(c)||!c))rows.push(cells);continue;}
+  flushTable();
   const h=line.match(headingLine);
   if(h){flush();heading=inline(h[2]);continue;}
+  const img=line.match(/^\s*!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?[^)]*\)\s*$/);
+  if(img){flush();out.push({text:inline(img[1])||'Figure',image:{src:img[2],alt:inline(img[1])}});continue;}
   if(!line.trim()||/^\s*(?:---+|\*\*\*+)\s*$/.test(line)){flush();continue;}
-  if(/^\s*\|/.test(line)){flush();push(line.replace(/^\s*\||\|\s*$/g,'').split('|').map(c=>c.trim()).filter(c=>c&&!/^:?-{2,}:?$/.test(c)).join(' · '));continue;}
   const bullet=line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
   if(bullet){flush();pending=[bullet[1]];flush();continue;}
   pending.push(line.replace(/^\s*>\s?/,'').trim());
  }
- flush();return out;
+ flush();flushTable();return out;
 }
 // A pasted answer can hold several summaries, each introduced by a line like "=== INKLING: type=short; language=fa ===".
 export function splitBlocks(markdown:string):{type:string|null;language:string|null;text:string}[]{
