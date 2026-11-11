@@ -32,7 +32,7 @@ export default function PublishedBook({slug,mode,section,settings,player,navigat
  </div>;
  if(mode==='read')return <ReaderPage book={book} chapter={book.chapters[book.chapterIndex]} section={section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly
   onPreferences={onPreferences} onGenerate={noop} onCancel={noop} onBookmark={noop} onEvidence={noop} onChoose={i=>{move({index:i});navigate(base+'/read');}} onSection={s=>navigate(base+'/read/'+encodeURIComponent(s))} onBack={()=>navigate(base)}
-  onFinished={()=>{const id=book.chapters[book.chapterIndex].id;move({completed:position.completed.includes(id)?position.completed.filter(x=>x!==id):[...position.completed,id]});}} onListen={listen} onCreate={noop}/>;
+  onHome={()=>navigate('/')} cover={pub.cover||undefined} onListen={listen} onCreate={noop}/>;
  return <>{switcher}<BookDetail book={book} cover={pub.cover||''} data={data} saved={[]} readOnly pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={pub.doc.review||null}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

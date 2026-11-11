@@ -1,6 +1,8 @@
 import{useEffect,useMemo,useState}from'react';
 import{Alert,Button,Checkbox,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,LinearProgress,MenuItem,Radio,RadioGroup,TextField}from'@mui/material';
-import{ContentCopyRounded,OpenInNewRounded}from'@mui/icons-material';
+import{AutoAwesomeRounded,ContentCopyRounded,OpenInNewRounded}from'@mui/icons-material';
+import ArtPicker from'./ArtPicker';
+import{tagsOf}from'./BookDetail';
 import type{ArtResult,Book,BookInfo,LocalReview,NarrationStatus}from'./types';
 import type{BookData}from'./bookData';
 import{artSearch,narrationStatus,publishBook,setSlide,startNarration,unpublishBook,uploadCover,uploadFigure}from'./api';
@@ -10,8 +12,8 @@ import{depthLabels,displayName,languages,sectionKind}from'./core';
 import{chapterTitle}from'./bookData';
 
 const VOICES=['en','fa','de','es','fr','tr','zh','ar'];
-interface Props{book:Book;data:BookData;defaultLanguage:string;defaultType:string;onClose:()=>void;onPublished:(p:NonNullable<Book['published']>)=>void;onUnpublished:()=>void}
-export default function PublishDialog({book,data,defaultLanguage,defaultType,onClose,onPublished,onUnpublished}:Props){
+interface Props{onAccount?:()=>void;book:Book;data:BookData;defaultLanguage:string;defaultType:string;onClose:()=>void;onPublished:(p:NonNullable<Book['published']>)=>void;onUnpublished:()=>void}
+export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguage,defaultType,onClose,onPublished,onUnpublished}:Props){
  const langs=useMemo(()=>availableVersions(data),[data]);
  const[language,setLanguage]=useState(langs.includes(defaultLanguage)?defaultLanguage:langs[0]||defaultLanguage),[type,setType]=useState(defaultType);
  const imports=data.versions;
@@ -25,9 +27,8 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
  const[visibility,setVisibility]=useState<'public'|'unlisted'>(book.published?.visibility||'public'),[narrate,setNarrate]=useState(VOICES.includes(language)||imports.some(v=>VOICES.includes(v.language)));
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[done,setDone]=useState<{slug:string;id:string}|null>(book.published?{slug:book.published.slug,id:book.published.id}:null),[status,setStatus]=useState<NarrationStatus|null>(null);
  // How this book looks on the home page: a gallery painting chosen for the book, or just its cover.
- const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artQuery,setArtQuery]=useState(''),[artHits,setArtHits]=useState<ArtResult[]|null>(null),[artPick,setArtPick]=useState<ArtResult|null>(null),[artBusy,setArtBusy]=useState(false),[ideas,setIdeas]=useState<string[]>([]);
- useEffect(()=>{store.info(book.id).then(info=>{const stop=new Set('the a an of and to in on for with can could how why what is are be your you our their this that from beyond studies study about into'.split(' '));const words=[...(info?.categories||[]).flatMap(c=>c.split(/[\s&,/]+/)),...book.title.split(/[\s:,.?!]+/)].map(w=>w.toLowerCase()).filter(w=>w.length>3&&!stop.has(w)&&/^\p{Script=Latin}+$/u.test(w));const list=[...new Set(words)].slice(0,6);setIdeas(list);setArtQuery(q=>q||list.slice(0,2).join(' '));}).catch(()=>{});},[book.id]);
- async function findArt(q=artQuery){setArtBusy(true);setError('');try{setArtHits(await artSearch(q));}catch(e){setError((e as Error).message);}finally{setArtBusy(false);}}
+ const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[tags,setTags]=useState<string[]>([]);
+ useEffect(()=>{store.info(book.id).then(info=>setTags(tagsOf(info?.categories||[]))).catch(()=>{});},[book.id]);
  const[withPages,setWithPages]=useState(false),[withFigures,setWithFigures]=useState(true);
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
  useEffect(()=>{store.review(book.id).then(r=>setLocalReview(r||null)).catch(()=>{});},[book.id]);
@@ -85,10 +86,8 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
      <FormControlLabel value="art" control={<Radio/>} label="A public-domain painting that fits this book"/>
     </RadioGroup>
     {slide==='art'&&<div className="art-pick">
-     <form className="art-search" onSubmit={e=>{e.preventDefault();findArt();}}><TextField size="small" fullWidth label="Describe the mood or subject" value={artQuery} onChange={e=>setArtQuery(e.target.value)} placeholder="love, marriage, psychology…"/><Button type="submit" variant="outlined" disabled={artBusy||artQuery.trim().length<2}>{artBusy?'Searching…':'Find paintings'}</Button></form>
-     {ideas.length>0&&<div className="art-ideas">{ideas.map(w=><button type="button" key={w} onClick={()=>{setArtQuery(w);findArt(w);}}>{w}</button>)}</div>}
-     {artHits&&!artHits.length&&<p className="settings-help">Nothing public-domain matched. Try other words, such as “couple”, “garden” or “night”.</p>}
-     {artHits&&artHits.length>0&&<div className="art-grid">{artHits.map(h=><button type="button" key={h.file} className={'art-hit'+(artPick?.file===h.file?' on':'')} aria-pressed={artPick?.file===h.file} onClick={()=>setArtPick(h)}><img src={h.thumb} alt="" loading="lazy"/><small>{h.title.slice(0,60)}{h.artist?' · '+h.artist.slice(0,30):''}</small></button>)}</div>}
+     {artPick?<div className="art-chosen"><img src={artPick.thumb} alt=""/><div><strong>{artPick.title}</strong><small>{[artPick.artist,artPick.year].filter(Boolean).join(', ')}</small><Button size="small" onClick={()=>setPicker(true)}>Choose another</Button></div></div>
+      :<Button variant="outlined" startIcon={<AutoAwesomeRounded/>} onClick={()=>setPicker(true)}>Choose a painting…</Button>}
      <p className="settings-help">Paintings come from Wikimedia Commons and are shown with their credit on the home page.</p>
     </div>}
     <h4 className="pub-h">Who can find it?</h4>
@@ -107,5 +106,6 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
    <span style={{flex:1}}/><Button onClick={onClose}>Close</Button>
    <Button variant="contained" disabled={!!busy||!ready||!title.trim()||(slide==='art'&&!artPick)} onClick={publish} startIcon={busy==='publish'?<CircularProgress size={16} color="inherit"/>:undefined}>{book.published?'Update published version':'Publish'}</Button>
   </DialogActions>
+ {picker&&<ArtPicker title={title||book.title} author={author} about={data.report?.overview?.paragraphs[0]?.text||''} themes={localReview?.review.themes||[]} tags={tags} language={languages.find(l=>l.code===(entries[0]?.choice.language||'en'))?.label.replace(/ ·.*/,'')||'English'} initial={artPick} onAccount={onAccount} onClose={()=>setPicker(false)} onPick={a=>{setArtPick(a);setPicker(false);}}/>}
  </Dialog>;
 }

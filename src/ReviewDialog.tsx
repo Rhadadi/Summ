@@ -42,6 +42,18 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
      <TextField multiline minRows={4} label="Praise (one per line)" value={lines(review.pros)} onChange={e=>set({pros:split(e.target.value)})} slotProps={{htmlInput:{dir:'auto'}}}/>
      <TextField multiline minRows={4} label="Criticism (one per line)" value={lines(review.cons)} onChange={e=>set({cons:split(e.target.value)})} slotProps={{htmlInput:{dir:'auto'}}}/>
     </div>
+    <TextField fullWidth multiline minRows={2} sx={{mt:2}} label="Influence and legacy" value={review.impact||''} onChange={e=>set({impact:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}}/>
+    <TextField fullWidth size="small" sx={{mt:2}} label="Prizes and honours (comma separated)" value={(review.awards||[]).join(', ')} onChange={e=>set({awards:e.target.value.split(/[,،]/).map(x=>x.trim()).filter(Boolean).slice(0,8)})} slotProps={{htmlInput:{dir:'auto'}}}/>
+    <h4 className="pub-h">Critics ({(review.critics||[]).length})</h4>
+    {(review.critics||[]).map((c,i)=><div className="rv-edit-quote" key={'c'+i}>
+     <TextField fullWidth multiline size="small" label={c.publication+(c.reviewer?' · '+c.reviewer:'')+(c.stance?' · '+c.stance:'')} value={c.summary} onChange={e=>set({critics:review.critics!.map((x,j)=>j===i?{...x,summary:e.target.value}:x)})} slotProps={{htmlInput:{dir:'auto'}}}/>
+     <small>{c.excerpt?'“'+c.excerpt+'”':'no excerpt'}{c.url?<> · <a href={c.url} target="_blank" rel="noopener noreferrer">check the review <OpenInNewRounded fontSize="inherit"/></a></>:' · no link'}</small>
+     <IconButton aria-label="Remove critic" onClick={()=>set({critics:review.critics!.filter((_,j)=>j!==i)})}><DeleteOutlineRounded/></IconButton></div>)}
+    <h4 className="pub-h">Readers ({(review.readers||[]).length})</h4>
+    {(review.readers||[]).map((r,i)=><div className="rv-edit-quote" key={'r'+i}>
+     <TextField fullWidth multiline size="small" label={r.name+(r.stars!=null?' · '+r.stars+'★':'')} value={r.excerpt||r.summary} onChange={e=>set({readers:review.readers!.map((x,j)=>j===i?(x.excerpt?{...x,excerpt:e.target.value}:{...x,summary:e.target.value}):x)})} slotProps={{htmlInput:{dir:'auto'}}}/>
+     <small>{r.url?<a href={r.url} target="_blank" rel="noopener noreferrer">check the review <OpenInNewRounded fontSize="inherit"/></a>:'no link'}</small>
+     <IconButton aria-label="Remove reader" onClick={()=>set({readers:review.readers!.filter((_,j)=>j!==i)})}><DeleteOutlineRounded/></IconButton></div>)}
     <h4 className="pub-h">Quotes ({review.quotes.length})</h4>
     {review.quotes.map((q,i)=><div className="rv-edit-quote" key={i}>
      <TextField fullWidth multiline size="small" value={q.text} onChange={e=>set({quotes:review.quotes.map((x,j)=>j===i?{...x,text:e.target.value}:x)})} slotProps={{htmlInput:{dir:'auto'}}}/>

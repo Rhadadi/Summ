@@ -25,6 +25,8 @@ async function downscale(blob:Blob){
  const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);
  return canvas.toDataURL('image/jpeg',.85);
 }
+// Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
+export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
 export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
@@ -77,8 +79,9 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
  const firstUnread=main.find(c=>!book.completed.includes(c.id))||main[0]||book.chapters[0];
  const startAt=book.lastRead?book.chapterIndex:book.chapters.indexOf(firstUnread);
  const row=(c:Chapter)=>{const s=summaries[c.id];const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1]||(main.includes(c)?String(main.indexOf(c)+1):'');
-  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?L('Summary')+' · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
+  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?L('Summary')+' · '+shortL(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
  const fileCover=book.format==='PDF'||book.format==='EPUB';
+ const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
  return <div className="detail" dir={rtl(lang)?'rtl':undefined}>
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{backLabel||'My library'}</button>
@@ -99,6 +102,7 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
      <h1 dir="auto">{title}</h1>
      {author&&<p className="hero-author" dir="auto">{lang==='fa'?'نوشتهٔ ':'by '}{author}</p>}
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}
+     {tagsOf([...(review?.themes||[]),...(info?.categories||[])]).length>0&&<div className="hero-tags">{tagsOf([...(review?.themes||[]).slice(0,2),...(info?.categories||[])]).map(t=><span key={t} dir="auto">{t}</span>)}</div>}
      <div className="stats">
       {info?.ratings[0]&&<span><StarRounded/>{num(lang,+info.ratings[0].rating.toFixed(1))}{info.ratings[0].count?' ('+num(lang,info.ratings[0].count)+' '+L('ratings')+')':''}</span>}
       <span><AccessTimeRounded/>{readOnly?num(lang,minutes(Object.values(summaries).reduce((n,x)=>n+x.paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0),0)))+' '+L('min of summaries'):readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
@@ -120,10 +124,9 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
   </section>
   <section className="about">
    <h2>{L('What’s it about?')}</h2>
-   {(report?.guide||info?.categories.length)?<div className="chips">{[report?.guide?.type_label,...(info?.categories||[]).slice(0,4)].filter(Boolean).map(t=><span key={t}>{t}</span>)}</div>:null}
-   {report?.overview?<><p dir="auto">{report.overview.paragraphs[0]?.text}</p><button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button></>
-    :info?.description?<><p dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
-    :intro?<><p dir="auto">{intro.text.length>520?intro.text.slice(0,intro.text.lastIndexOf(' ',520))+'…':intro.text}</p><small>From the book, p. {intro.page}</small></>:null}
+   {report?.overview?<><p className="about-lead" dir="auto">{report.overview.paragraphs[0]?.text}</p><button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button></>
+    :info?.description?<><p className="about-lead" dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
+    :intro?<><p className="about-lead" dir="auto">{intro.text.length>520?intro.text.slice(0,intro.text.lastIndexOf(' ',520))+'…':intro.text}</p><small>From the book, p. {intro.page}</small></>:null}
   </section>
   <section className="chapters">
    <h2>{L('Chapters')}</h2>
@@ -132,12 +135,12 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
    {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'Show'} front matter, notes and index</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
   </section>
   {(!book.demo||readOnly)&&<section className="reception">
-   <h2>{L('Reception')}</h2>
-   {review&&<ReviewSection lang={lang} review={review} title={book.title} author={author} draft={!reviewApproved&&!readOnly}/>}
-   {infoState==='loading'?<p className="muted"><CircularProgress size={16}/> Looking the book up…</p>:!info||infoState==='none'?<p className="muted">No public record was found for this book.</p>:<>
-    <dl className="facts">{info.year&&<div><dt>{L('Published')}</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.google_edition?.publisher&&<div><dt>{L('Publisher')}</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>{L('Open Library readers')}</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
-    {info.wikipedia&&<><p dir="auto">{info.wikipedia.extract}</p><small>From <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">Wikipedia</a> · {info.wikipedia.license}</small></>}
-    <div className="links">{info.links.map(l=><a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div></>}
+   <h2>{L('What others say')}</h2>
+   {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
+    <ReviewSection lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} title={book.title} author={author} draft={!!review&&!reviewApproved&&!readOnly}/>
+    {!review&&info?.wikipedia&&<div className="rv-wiki"><p dir="auto">{info.wikipedia.extract}</p><small>{L('From Wikipedia')} · <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">{info.wikipedia.title}</a> · {info.wikipedia.license}</small></div>}
+    {info&&<p className="facts-line">{[info.google_edition?.publisher,info.google_edition?.published_date||info.year,pages?num(lang,pages)+' '+L('pages'):'',info.google_edition?.isbns[0]?'ISBN '+info.google_edition.isbns[0]:''].filter(Boolean).join(' · ')}</p>}
+   </>}
    {!readOnly&&<div className="reception-actions">{!!onReview&&<Button variant={review?'text':'outlined'} startIcon={<AutoAwesomeRounded/>} onClick={onReview}>{review?'Edit the reception':'Research reviews and ratings'}</Button>}{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}
   </section>}
   {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}

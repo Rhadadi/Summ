@@ -1,6 +1,8 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField}from'@mui/material';
-import{ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,EditOutlined,BookmarkRounded,ChevronRightRounded,ExpandMoreRounded,FormatListBulletedRounded,LightbulbOutlined,PlayArrowRounded,TuneRounded}from'@mui/icons-material';
+import{ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
+import{Logo}from'./Shell';
+import{enFonts,faFonts,installed,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
 import{costRange,estimateChapter,money,usageCost}from'./cost';
@@ -12,7 +14,7 @@ interface Props{
  book:Book;chapter:Chapter;section:string;settings:Settings;account:Account|null;price:Price|null;saved:SavedPassage[];data:BookData;
  summary:Summary|null;generating:boolean;generationError:string;
  onPreferences:(patch:Partial<Settings>)=>void;onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
- onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onFinished:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;
+ onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;cover?:string;
  readOnly?:boolean;
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
@@ -21,7 +23,18 @@ export default function ReaderPage(p:Props){
  const[view,setView]=useState<'summary'|'original'>('summary'),[list,setList]=useState(false),[more,setMore]=useState(false);
  const[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
  const top=useRef<HTMLDivElement>(null);
- useEffect(()=>{top.current?.scrollIntoView({block:'start'});window.scrollTo({top:0});},[chapter.id,section]);
+ const[reading,setReading]=useReading(),[look,setLook]=useState<HTMLElement|null>(null);
+ // Reopening a chapter returns to where the reader stopped; moving on starts at the top.
+ useEffect(()=>{
+  const place=!section?lastPlace(book.id):null;
+  const y=place&&place.chapterId===chapter.id?place.y:0;
+  const t=setTimeout(()=>window.scrollTo({top:y}),60);
+  if(!section)savePlace(book.id,chapter.id,y);
+  let pending=0;
+  const keep=()=>{if(section)return;clearTimeout(pending);pending=window.setTimeout(()=>savePlace(book.id,chapter.id,window.scrollY),400);};
+  window.addEventListener('scroll',keep,{passive:true});
+  return()=>{clearTimeout(t);clearTimeout(pending);window.removeEventListener('scroll',keep);};
+ },[book.id,chapter.id,section]);
  const main=mainChapters(book),kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const report=data.report;
  const lang=p.readOnly?(data.version?.language||report?.language||Object.values(data.summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
@@ -40,6 +53,7 @@ export default function ReaderPage(p:Props){
  useEffect(()=>()=>{for(const u of Object.values(pictures))URL.revokeObjectURL(u);},[pictures]);
  // Neighbouring pages become one chip ("pp. 16–24") so a long passage does not trail a row of numbers.
  function refs(x:SummaryParagraph,c?:Chapter){
+  if(p.readOnly&&c)return null;
   if(!c)return <span className="refs">{x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}</span>;
   const found=[...new Map([...x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)),...(x.pages||[]).map(n=>c.blocks.find(y=>y.page===n&&!y.note))].filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].sort((a,b)=>(a.page??1e9)-(b.page??1e9));
   const groups:Block[][]=[];for(const b of found){const g=groups[groups.length-1];if(g&&b.page&&g[g.length-1].page&&b.page-g[g.length-1].page!<=1)g.push(b);else groups.push([b]);}
@@ -64,21 +78,24 @@ export default function ReaderPage(p:Props){
    return <div className="text-p" key={b.id}>{marker&&<button className="folio" onClick={()=>p.onEvidence(b,b.text,c)} aria-label={'Page '+marker}>{marker}</button>}<p dir="auto">{b.text}</p><IconButton className="keep" size="small" aria-label={kept(b)?'Unsave passage':'Save passage'} onClick={()=>p.onBookmark(b,b.text,c)}>{kept(b)?<BookmarkRounded fontSize="inherit"/>:<BookmarkBorderRounded fontSize="inherit"/>}</IconButton></div>;
   })}{notes.length>0&&<details className="notes"><summary>Notes ({notes.length})</summary>{notes.map(b=><p key={b.id} dir="auto"><button className="folio-inline" onClick={()=>p.onEvidence(b,b.text,c)}>p. {b.page}</button> {b.text}</p>)}</details>}</>;
  }
- const row=(c:Chapter)=>{const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1];const on=isChapter&&c.id===chapter.id;return <button key={c.id} className={'r2-row'+(on?' on':'')+(book.completed.includes(c.id)?' done':'')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n||''}</span><span className="t" dir="auto">{chapterTitle(data,c)}{data.summaries[c.id]&&<i className="dot" aria-label="Summarized"/>}</span><ChevronRightRounded/></button>;};
+ const row=(c:Chapter)=>{const n=data.titles[c.id]||p.readOnly?(main.includes(c)?main.indexOf(c)+1:0):Number(c.title.match(/^(\d+)[.\s]/)?.[1]||0);const on=isChapter&&c.id===chapter.id;
+  return <button key={c.id} className={'r2-row'+(on?' on':'')+(data.summaries[c.id]||p.readOnly?'':' empty')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n?num(lang,n):''}</span><span className="t" dir="auto">{chapterTitle(data,c)}</span></button>;};
  const panel=<nav className="r2-list" aria-label="Contents">
-  <IconButton className="r2-back" aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton>
-  {guideItems.length>0&&<><p className="r2-head"><LightbulbOutlined/>{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span><ChevronRightRounded/></button>)}</>}
-  <p className="r2-head"><FormatListBulletedRounded/>{L('Chapters')}</p>
+  <button className="r2-brand" onClick={p.onHome}><Logo/><span>Inkling</span></button>
+  <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
+  {guideItems.length>0&&<><p className="r2-head">{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
+  <p className="r2-head">{L('Chapters')}</p>
   {main.map(row)}
-  {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
+  {kinds.some(k=>k!=='main')&&!p.readOnly&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
- return <div className="r2" dir={isRtl(lang)?'rtl':undefined}>
+ return <div className={'r2 look-'+reading.theme} dir={isRtl(lang)?'rtl':undefined} style={readingStyle(reading)}>
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article className="r2-main" ref={top}>
    <div className="r2-mobilebar"><IconButton aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label="Contents" onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
+   <div className="r2-tools"><IconButton aria-label="Reading settings" onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>{summary&&p.readOnly&&<Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>}</div>
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     <p className="r2-kicker">{L('Study guide')}</p><h1>{L('Overview')}</h1>
     {paragraphs(report.overview.paragraphs)}
@@ -91,11 +108,11 @@ export default function ReaderPage(p:Props){
     </div>
     <h1 dir="auto">{chapterTitle(data,chapter)}</h1>
     {view==='summary'&&(summary?<>
-     <div className="r2-meta"><span title={summary.model||undefined}>{summary.model==='imported'&&data.version?data.version.label:L('AI summary')}{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
+     {!p.readOnly&&<div className="r2-meta"><span title={summary.model||undefined}>{summary.model==='imported'&&data.version?data.version.label:L('AI summary')}{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
       <Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>
       {!p.readOnly&&summary.model!=='imported'&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
-      <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>
+      <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>}
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
      <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter)}</>}</div></>
     :p.readOnly?<div className="r2-box"><strong>This chapter isn’t part of the published summary</strong><p>Pick another chapter from the list.</p></div>
@@ -108,14 +125,32 @@ export default function ReaderPage(p:Props){
      {main.length>1&&!data.report&&<p className="muted small">Want every chapter? <button className="text-link2 inline" onClick={p.onCreate}>Create the whole study guide</button></p>}
     </div>)}
     {view==='original'&&original(chapter)}
-    <nav className="doc-pager" aria-label="Chapters">{prev?<button className="pg prev" onClick={()=>choose(prev)}><small>{L('Previous')}</small><span dir="auto">{chapterTitle(data,prev)}</span></button>:<span/>}{next?<button className="pg next" onClick={()=>choose(next)}><small>{L('Next')}</small><span dir="auto">{chapterTitle(data,next)}</span></button>:<span/>}<button className="pg-read" onClick={p.onFinished}>{L(book.completed.includes(chapter.id)?'Marked as read ✓':'Mark this chapter as read')}</button></nav>
+    <nav className="doc-pager" aria-label="Chapters">{prev?<button className="pg prev" onClick={()=>choose(prev)}><small>{L('Previous')}</small><span dir="auto">{chapterTitle(data,prev)}</span></button>:<span/>}{next?<button className="pg next" onClick={()=>choose(next)}><small>{L('Next')}</small><span dir="auto">{chapterTitle(data,next)}</span></button>:<span/>}</nav>
    </>}
   </article>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
+  <Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel reading={reading} onChange={setReading}/></Popover>
   <Popover open={!!opts} anchorEl={opts} onClose={()=>setOpts(null)} slotProps={{paper:{className:'opts-pop'}}}>
    <TextField select size="small" fullWidth label="Purpose" value={settings.purpose} onChange={e=>p.onPreferences({purpose:e.target.value as Settings['purpose']})}><MenuItem value="understand">Understand</MenuItem><MenuItem value="learn">Learn</MenuItem><MenuItem value="academic">Academic</MenuItem><MenuItem value="apply">Apply</MenuItem></TextField>
    <TextField select size="small" fullWidth label="Summary language" value={settings.language} onChange={e=>p.onPreferences({language:e.target.value})}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>
    <label className="opts-switch"><span>Include critique</span><Switch checked={settings.review==='internal'} onChange={e=>p.onPreferences({review:e.target.checked?'internal':'off'})}/></label>
   </Popover>
+ </div>;
+}
+
+// Size, spacing, width, page colour and fonts for Persian and English text.
+function ReadingPanel({reading,onChange}:{reading:Reading;onChange:(patch:Partial<Reading>)=>void}){
+ const seg=<K extends keyof Reading>(key:K,options:[Reading[K],string][])=><div className="look-seg" role="group">{options.map(([v,l])=><button key={String(v)} aria-pressed={reading[key]===v} className={reading[key]===v?'on':''} onClick={()=>onChange({[key]:v} as Partial<Reading>)}>{l}</button>)}</div>;
+ const[fa]=useState(()=>faFonts.map(f=>({...f,ok:installed(f)})));
+ return <div className="look">
+  <div className="look-size"><button aria-label="Smaller text" onClick={()=>onChange({size:Math.max(14,reading.size-1)})}>A</button><input type="range" min={14} max={30} value={reading.size} aria-label="Text size" onChange={e=>onChange({size:+e.target.value})}/><button aria-label="Larger text" className="big" onClick={()=>onChange({size:Math.min(30,reading.size+1)})}>A</button></div>
+  <div className="look-themes" role="group" aria-label="Page colour">{(['paper','white','sepia','night'] as const).map(t=><button key={t} aria-label={t} aria-pressed={reading.theme===t} className={'sw sw-'+t+(reading.theme===t?' on':'')} onClick={()=>onChange({theme:t})}>Aa</button>)}</div>
+  <label>Line spacing</label>{seg('leading',[['tight','Compact'],['normal','Normal'],['airy','Airy']])}
+  <label>Page width</label>{seg('width',[['narrow','Narrow'],['medium','Medium'],['wide','Wide']])}
+  <label>Persian font</label>
+  <div className="look-fonts">{fa.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':'Not installed on this device'}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · not installed'}</small></button>)}</div>
+  <label>English font</label>
+  <div className="look-fonts en">{enFonts.map(f=><button key={f.id} className={reading.en===f.id?'on':''} onClick={()=>onChange({en:f.id})} style={{fontFamily:f.family}}><span>The examined life</span><small>{f.label}</small></button>)}</div>
+  <label className="look-switch"><input type="checkbox" checked={reading.justify} onChange={e=>onChange({justify:e.target.checked})}/> Justify text</label>
  </div>;
 }

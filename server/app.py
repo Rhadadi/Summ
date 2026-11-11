@@ -471,6 +471,13 @@ async def art_search(q:str,user:dict=Depends(editor_user)):
     throttle('art:'+user['id'],30)
     try:return {'results':await artwork.search(q)}
     except httpx.HTTPError:raise HTTPException(502,'Wikimedia Commons did not answer. Try again in a moment.')
+class ArtIdeasBody(StrictModel):
+    title:str=Field(min_length=1,max_length=300);author:str=Field(default='',max_length=300);about:str=Field(default='',max_length=4000)
+    themes:list[str]=Field(default=[],max_length=12);language:str=Field(default='English',max_length=30)
+@app.post('/api/art/ideas')
+async def art_ideas(body:ArtIdeasBody,user:dict=Depends(ai_user)):
+    try:return await artwork.ideas(body.title,body.author,body.about,body.themes,body.language,user_credentials(user),GEMINI)
+    except httpx.HTTPError:raise HTTPException(502,'Gemini or Wikimedia Commons did not answer. Try again in a moment.')
 class SlideBody(StrictModel):
     mode:Literal['none','cover','art'];file:str|None=Field(default=None,max_length=240)
 @app.put('/api/library/{book_id}/slide')

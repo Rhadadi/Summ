@@ -64,3 +64,30 @@ def slide(book_id:str)->dict:
     return out
 def remove(book_id:str):
     for p in (_dir()/book_id,_dir()/(book_id+'.json')):p.unlink(missing_ok=True)
+IDEAS='''You are a museum curator choosing a painting to hang beside a book on a reading website.
+Book: "{title}"{by}.
+What it is about: {about}
+Themes: {themes}
+Suggest 8 specific, well-known paintings or prints whose subject, mood or symbolism fits this book. Every work must be in the public domain: made before 1930 by an artist who died before 1955. Prefer works whose images are on Wikimedia Commons. Mix famous and less obvious choices, and favour works that look striking when shown very large behind text.
+Return JSON: {{"ideas":[{{"artist":"...","title":"the work's usual English title","why":"one short sentence, in {language}, on why it fits"}}],"moods":["4 short English search words for the mood, such as melancholy or dawn"]}}'''
+async def ideas(title:str,author:str,about:str,themes:list[str],language:str,creds:tuple[str,str],gemini:str)->dict:
+    """A curator's shortlist from Gemini, each idea looked up on Wikimedia Commons so only real public-domain images come back."""
+    import asyncio
+    key,model=creds
+    prompt=IDEAS.format(title=title[:300],by=' by '+author[:200] if author else '',about=' '.join(about.split())[:2000] or 'unknown',themes=', '.join(themes)[:300] or 'unknown',language=language)
+    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseMimeType':'application/json','temperature':0.6,'maxOutputTokens':4096}}
+    async with httpx.AsyncClient(timeout=90) as client:
+        r=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
+    if r.status_code==429:raise accounts.AccountError(429,'Your Gemini quota is exhausted or the model is busy.')
+    if r.status_code>=400:raise accounts.AccountError(502,'Google rejected the request. Check your API key and model in Account.')
+    try:
+        data=json.loads(''.join(p.get('text','') for p in r.json()['candidates'][0]['content']['parts'] if not p.get('thought')))
+        raw=[i for i in data.get('ideas',[]) if isinstance(i,dict) and i.get('title')][:8]
+        moods=[m for m in data.get('moods',[]) if isinstance(m,str)][:6]
+    except (ValueError,KeyError,IndexError,TypeError,AttributeError):raise accounts.AccountError(502,'The curator answer was unreadable. Try again.')
+    async def look(i):
+        try:hits=await search(_plain(str(i.get('artist','')))+' '+_plain(str(i['title'])))
+        except (httpx.HTTPError,accounts.AccountError):hits=[]
+        return {'artist':_plain(str(i.get('artist',''))),'title':_plain(str(i['title'])),'why':_plain(str(i.get('why',''))),'results':hits[:3]}
+    found=await asyncio.gather(*(look(i) for i in raw))
+    return {'ideas':[f for f in found if f['results']],'moods':[_plain(m)[:40] for m in moods]}

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json,re,time
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import quote,urlsplit
 import httpx
 from fastapi import HTTPException
 from pydantic import BaseModel,ConfigDict,Field,field_validator
@@ -12,26 +12,45 @@ def _https(url:str|None)->str|None:
     if not url:return None
     parts=urlsplit(url.strip())
     return url.strip() if parts.scheme=='https' and parts.netloc and len(url)<=600 else None
+_link=lambda v:_https(v)
 class Quote(Strict):
     text:str=Field(min_length=3,max_length=400);who:str=Field(default='',max_length=120);source:str=Field(default='',max_length=120);url:str|None=Field(default=None,max_length=600)
-    _u=field_validator('url')(lambda v:_https(v))
+    _u=field_validator('url')(_link)
 class Source(Strict):
     name:str=Field(min_length=1,max_length=120);url:str=Field(max_length=600)
     _u=field_validator('url')(lambda v:_https(v) or (_ for _ in ()).throw(ValueError('Links must use https.')))
 class Rating(Strict):
     value:float=Field(ge=0,le=5);source:str=Field(max_length=80);count:int|None=Field(default=None,ge=0,le=500_000_000);url:str|None=Field(default=None,max_length=600)
-    _u=field_validator('url')(lambda v:_https(v))
+    _u=field_validator('url')(_link)
 class Similar(Strict):
     title:str=Field(min_length=1,max_length=200);author:str=Field(default='',max_length=200);why:str=Field(default='',max_length=300)
+class Critic(Strict):
+    publication:str=Field(min_length=1,max_length=120);reviewer:str=Field(default='',max_length=120);date:str=Field(default='',max_length=40)
+    headline:str=Field(default='',max_length=200);stance:Literal['positive','mixed','negative','']=''
+    excerpt:str=Field(default='',max_length=400);summary:str=Field(default='',max_length=600);url:str|None=Field(default=None,max_length=600)
+    _u=field_validator('url')(_link)
+class Voice(Strict):
+    name:str=Field(default='',max_length=80);stars:float|None=Field(default=None,ge=0,le=5)
+    excerpt:str=Field(default='',max_length=400);summary:str=Field(default='',max_length=400);url:str|None=Field(default=None,max_length=600)
+    _u=field_validator('url')(_link)
+class Portrait(Strict):
+    url:str=Field(max_length=600);page:str=Field(default='',max_length=600)
+    @field_validator('url')
+    @classmethod
+    def wikimedia(cls,v):
+        if not re.match(r'https://upload\.wikimedia\.org/',v or ''):raise ValueError('Portraits come from Wikimedia only.')
+        return v
 class Review(Strict):
     verdict:str=Field(default='',max_length=800)
-    audience:str=Field(default='',max_length=500);aboutAuthor:str=Field(default='',max_length=900)
+    audience:str=Field(default='',max_length=500);aboutAuthor:str=Field(default='',max_length=900);authorImage:Portrait|None=None
     themes:list[str]=Field(default=[],max_length=8);similar:list[Similar]=Field(default=[],max_length=6)
-    rating:Rating|None=None
+    rating:Rating|None=None;ratings:list[Rating]=Field(default=[],max_length=5)
+    critics:list[Critic]=Field(default=[],max_length=8);readers:list[Voice]=Field(default=[],max_length=6)
+    awards:list[str]=Field(default=[],max_length=8);impact:str=Field(default='',max_length=900)
     pros:list[str]=Field(default=[],max_length=8);cons:list[str]=Field(default=[],max_length=8)
     quotes:list[Quote]=Field(default=[],max_length=8);sources:list[Source]=Field(default=[],max_length=12)
     model:str=Field(default='',max_length=100);createdAt:float=0
-    @field_validator('pros','cons','themes')
+    @field_validator('pros','cons','themes','awards')
     @classmethod
     def short(cls,v):
         if any(not isinstance(x,str) or len(x)>300 for x in v):raise ValueError('Each point must be short.')
@@ -40,20 +59,22 @@ class ResearchRequest(Strict):
     title:str=Field(min_length=1,max_length=300);author:str=Field(default='',max_length=300);year:str=Field(default='',max_length=20)
     language:Literal['en','fa','de','ar','es','fr','tr','zh']='en'
 LANGS={'en':'English','fa':'Persian','de':'German','ar':'Arabic','es':'Spanish','fr':'French','tr':'Turkish','zh':'Chinese'}
-PROMPT='''Use Google Search to research how readers and critics received the book "{title}"{by}{year}.
-Find: (1) the average reader rating and its number of ratings on Goodreads or another large reader site; (2) what well-known reviewers and publications such as The New York Times, The Guardian, academic journals or other respected outlets said; (3) praise and criticism that recur among readers.
-Return ONE JSON object and nothing else, with this shape:
-{{"verdict": one or two sentences summarizing the reception, in {language},
- "rating": {{"value": number from 0 to 5, "source": "Goodreads", "count": integer or null, "url": "https://..."}} or null,
- "audience": one or two sentences on who this book is for and who may not enjoy it, in {language},
- "aboutAuthor": two or three sentences about the author's background and standing, in {language},
- "themes": up to 6 short theme labels, in {language},
- "similar": up to 4 objects {{"title": a related book, "author": its author, "why": a few words on the link, in {language}}},
- "pros": up to 6 short strengths readers and critics name, in {language},
- "cons": up to 6 short weaknesses they name, in {language},
- "quotes": up to 6 objects {{"text": a SHORT verbatim excerpt of at most 25 words copied from a page you found, in its original language, "who": reviewer or reader name, "source": publication or site, "url": "https://..." of the page}},
+PROMPT='''Use Google Search thoroughly to research how critics and readers received the book "{title}"{by}{year}. Search Goodreads, The New York Times, The Guardian, The Washington Post, Kirkus Reviews, Publishers Weekly, The New Yorker, the Financial Times, academic journals and other respected outlets, plus reader sites such as Goodreads, Amazon and The StoryGraph.
+Return ONE JSON object and nothing else, with this shape (write the descriptive fields in {language}; keep excerpts verbatim in their original language):
+{{"verdict": two or three sentences capturing the overall reception, vivid and specific,
+ "ratings": up to 3 objects {{"value": average from 0 to 5, "source": site name such as "Goodreads", "count": number of ratings or null, "url": "https://..."}},
+ "critics": up to 6 objects, one per published review {{"publication": outlet, "reviewer": critic's name, "date": when, "headline": the review's headline, "stance": "positive" | "mixed" | "negative", "excerpt": a verbatim sentence from the review of at most 35 words, "summary": two sentences on the critic's argument, "url": "https://..." of the review}},
+ "readers": up to 4 objects from well-liked reader reviews {{"name": reviewer's display name, "stars": their rating 0-5 or null, "excerpt": a verbatim line of at most 35 words, "summary": one sentence, "url": "https://..."}},
+ "pros": up to 6 strengths that critics and readers name,
+ "cons": up to 6 weaknesses they name,
+ "audience": two sentences on who this book is for and who may not enjoy it,
+ "aboutAuthor": three sentences about the author's background, other books and standing,
+ "themes": up to 6 short theme labels,
+ "awards": up to 6 prizes, lists or honours the book received,
+ "impact": two or three sentences on the book's influence, sales or legacy,
+ "similar": up to 4 objects {{"title": a related book, "author": its author, "why": a few words on the link}},
  "sources": up to 8 objects {{"name": publication or site, "url": "https://..."}}}}
-Rules: use only what the search results show. Never invent a quote, number, reviewer or link. If you cannot find a rating, set "rating" to null. Prefer excerpts from named critics and top reader reviews. Every url must be a page you actually found.'''
+Rules: use only what the search results show. Never invent a quote, number, reviewer, prize or link; leave a field empty or an array short rather than guess. Every url must be a page you actually found.'''
 def _json(text:str)->dict:
     text=re.sub(r'^```(?:json)?|```$','',text.strip(),flags=re.M).strip()
     start=text.find('{');end=text.rfind('}')
@@ -62,32 +83,66 @@ def _json(text:str)->dict:
     if not isinstance(data,dict):raise ValueError('not an object')
     return data
 def _host(url:str)->str:return (urlsplit(url).hostname or '').lower().removeprefix('www.')
+_text=lambda v,n:' '.join(str(v or '').split())[:n]
+def _verbatim(v)->str:
+    """An excerpt survives only when it is short; long "quotes" are usually paraphrase."""
+    t=_text(v,400).strip('"“”« »')
+    return t if 4<=len(t.split())<=40 else ''
+def _stars(v):
+    try:
+        x=float(v);return round(x,2) if 0<x<=5 else None
+    except (TypeError,ValueError):return None
 def clean(raw:dict,grounded:set[str],model:str)->Review:
-    """Keep only what the search actually touched: a link survives only when its site appeared in the search results."""
+    """Keep only what the search actually touched: a link survives only when its site appeared in the search results,
+    and an excerpt survives only beside such a link."""
     ok=lambda url:bool(url) and any(_host(url)==d or _host(url).endswith('.'+d) or d.endswith('.'+_host(url)) for d in grounded)
-    def link(url):return url if _https(url) and ok(url) else None
+    def link(url):return url if isinstance(url,str) and _https(url) and ok(url) else None
+    items=lambda key:[x for x in (raw.get(key) or []) if isinstance(x,dict)]
+    ratings=[]
+    for r in items('ratings')+([raw['rating']] if isinstance(raw.get('rating'),dict) else []):
+        value=_stars(r.get('value'))
+        if value and not any(x['source']==_text(r.get('source'),80) for x in ratings):
+            count=r.get('count');ratings.append({'value':value,'source':_text(r.get('source'),80),'count':int(count) if isinstance(count,(int,float)) and count>=0 else None,'url':link(r.get('url'))})
+    critics=[]
+    for c in items('critics'):
+        url=link(c.get('url'));stance=c.get('stance') if c.get('stance') in ('positive','mixed','negative') else ''
+        if not _text(c.get('publication'),120):continue
+        critics.append({'publication':_text(c.get('publication'),120),'reviewer':_text(c.get('reviewer'),120),'date':_text(c.get('date'),40),'headline':_text(c.get('headline'),200),'stance':stance,
+                        'excerpt':_verbatim(c.get('excerpt')) if url else '','summary':_text(c.get('summary'),600),'url':url})
+    readers=[]
+    for v in items('readers'):
+        url=link(v.get('url'));excerpt=_verbatim(v.get('excerpt')) if url else ''
+        if excerpt or _text(v.get('summary'),400):readers.append({'name':_text(v.get('name'),80),'stars':_stars(v.get('stars')),'excerpt':excerpt,'summary':_text(v.get('summary'),400),'url':url})
     quotes=[]
-    for q in raw.get('quotes') or []:
-        if not isinstance(q,dict) or not isinstance(q.get('text'),str):continue
-        text=' '.join(q['text'].split()).strip('"“” ')
-        if len(text.split())>28 or len(text)<8 or not str(q.get('who') or q.get('source') or '').strip():continue
-        quotes.append({'text':text,'who':str(q.get('who') or '')[:120],'source':str(q.get('source') or '')[:120],'url':link(q.get('url'))})
-    sources=[{'name':str(s.get('name') or _host(s['url']))[:120],'url':s['url']} for s in raw.get('sources') or [] if isinstance(s,dict) and isinstance(s.get('url'),str) and link(s['url'])]
-    rating=None;r=raw.get('rating')
-    if isinstance(r,dict):
-        try:
-            value=float(r.get('value'))
-            if 0<value<=5:rating={'value':round(value,2),'source':str(r.get('source') or '')[:80],'count':int(r['count']) if isinstance(r.get('count'),(int,float)) and r['count']>=0 else None,'url':link(r.get('url'))}
-        except (TypeError,ValueError):rating=None
-    similar=[{'title':str(x.get('title') or '')[:200],'author':str(x.get('author') or '')[:200],'why':str(x.get('why') or '')[:300]} for x in raw.get('similar') or [] if isinstance(x,dict) and str(x.get('title') or '').strip()][:6]
-    points=lambda v:[' '.join(x.split())[:300] for x in (v or []) if isinstance(x,str) and x.strip()][:8]
-    return Review(audience=' '.join(str(raw.get('audience') or '').split())[:500],aboutAuthor=' '.join(str(raw.get('aboutAuthor') or '').split())[:900],themes=[' '.join(t.split())[:80] for t in (raw.get('themes') or []) if isinstance(t,str) and t.strip()][:8],similar=similar,verdict=' '.join(str(raw.get('verdict') or '').split())[:800],rating=rating,pros=points(raw.get('pros')),cons=points(raw.get('cons')),quotes=quotes[:8],sources=sources[:12],model=model,createdAt=time.time())
+    for q in items('quotes'):
+        text=_verbatim(q.get('text'))
+        if text and _text(q.get('who') or q.get('source'),120):quotes.append({'text':text,'who':_text(q.get('who'),120),'source':_text(q.get('source'),120),'url':link(q.get('url'))})
+    sources=[{'name':_text(s.get('name'),120) or _host(s['url']),'url':s['url']} for s in items('sources') if isinstance(s.get('url'),str) and link(s['url'])]
+    for c in critics:
+        if c['url'] and not any(s['url']==c['url'] for s in sources):sources.append({'name':c['publication'],'url':c['url']})
+    similar=[{'title':_text(x.get('title'),200),'author':_text(x.get('author'),200),'why':_text(x.get('why'),300)} for x in items('similar') if _text(x.get('title'),200)]
+    points=lambda key,n=300:[_text(x,n) for x in (raw.get(key) or []) if isinstance(x,str) and x.strip()][:8]
+    return Review(verdict=_text(raw.get('verdict'),800),audience=_text(raw.get('audience'),500),aboutAuthor=_text(raw.get('aboutAuthor'),900),
+                  themes=points('themes',80),similar=similar[:6],rating=ratings[0] if ratings else None,ratings=ratings[:5],critics=critics[:8],readers=readers[:6],
+                  awards=points('awards',200),impact=_text(raw.get('impact'),900),pros=points('pros'),cons=points('cons'),quotes=quotes[:8],sources=sources[:12],model=model,createdAt=time.time())
+async def portrait(author:str)->dict|None:
+    """The author's photograph from Wikipedia, when the article has a free image."""
+    name=author.split(',')[0].strip()
+    if not name:return None
+    try:
+        async with httpx.AsyncClient(timeout=10,headers={'User-Agent':'InklingReader/0.4 (https://booksumm.duckdns.org)'}) as client:
+            r=await client.get('https://en.wikipedia.org/api/rest_v1/page/summary/'+quote(name.replace(' ','_')))
+        if r.status_code!=200:return None
+        data=r.json();src=((data.get('thumbnail') or {}).get('source') or '')
+        if data.get('type')!='standard' or not src.startswith('https://upload.wikimedia.org/'):return None
+        return {'url':src,'page':((data.get('content_urls') or {}).get('desktop') or {}).get('page','')}
+    except (httpx.HTTPError,ValueError):return None
 async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Review:
     key,model=creds
     prompt=PROMPT.format(title=request.title,by=' by '+request.author if request.author else '',year=' ('+request.year+')' if request.year else '',language=LANGS[request.language])
-    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'tools':[{'google_search':{}}],'generationConfig':{'temperature':0.2,'maxOutputTokens':8192}}
+    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'tools':[{'google_search':{}}],'generationConfig':{'temperature':0.2,'maxOutputTokens':16384}}
     try:
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=240) as client:
             response=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
         if response.status_code==429:raise HTTPException(429,'Your Gemini quota is exhausted or the model is busy.')
         if response.status_code in (400,401,403,404):raise HTTPException(502,'Google rejected the request. Check your API key and model in Account (the model must support Google Search).')
@@ -96,7 +151,9 @@ async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Rev
         chunks=[c['web'] for c in (candidate.get('groundingMetadata') or {}).get('groundingChunks',[]) if c.get('web')]
         # Search results name their site by domain, for example "goodreads.com".
         grounded={t.lower().removeprefix('www.') for t in (c.get('title','') for c in chunks) if '.' in t and '/' not in t and ' ' not in t}
-        return clean(_json(text),grounded,model)
+        review=clean(_json(text),grounded,model)
     except HTTPException:raise
     except (httpx.HTTPError,ValueError,KeyError,IndexError,TypeError):
         raise HTTPException(502,'The research answer was incomplete or unreadable. Try again.') from None
+    photo=await portrait(request.author) if request.author else None
+    return review.model_copy(update={'authorImage':Portrait(**photo)}) if photo else review

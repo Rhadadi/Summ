@@ -9,7 +9,7 @@ const fa:Record<string,string>={
  'More sections: front matter, index':'بخش‌های بیشتر: پیش‌گفتار و نمایه','Show':'نمایش','Hide':'پنهان کردن','front matter, notes and index':'پیش‌گفتار، یادداشت‌ها و نمایه',
  'Looking the book up…':'در حال جست‌وجوی کتاب…','No public record was found for this book.':'اطلاعات عمومی برای این کتاب پیدا نشد.','Summary version':'نسخهٔ خلاصه',
  'ratings':'رأی','chapter':'فصل','chapters':'فصل','key chapters':'فصل کلیدی','pages':'صفحه','min of summaries':'دقیقه خلاصه','min':'دقیقه','by':'نوشتهٔ',
- 'Who it is for':'این کتاب برای چه کسانی است','About the author':'دربارهٔ نویسنده','If you liked this':'اگر این کتاب را دوست داشتید','Chapter':'فصل','of':'از','Back to the book':'بازگشت به کتاب','Save':'ذخیره','Options':'گزینه‌ها','Close':'بستن','Publisher description via Google Books':'معرفی ناشر از Google Books',
+ 'Who it is for':'این کتاب برای چه کسانی است','About the author':'دربارهٔ نویسنده','If you liked this':'اگر این کتاب را دوست داشتید','What the critics said':'منتقدان چه گفتند','What readers said':'خوانندگان چه گفتند','Read the review':'خواندن نقد','Praised':'ستایش','Mixed':'دوگانه','Critical':'انتقادی','What others say':'دیگران چه می‌گویند','Find it on':'این کتاب در','From Wikipedia':'از ویکی‌پدیا','Chapter':'فصل','of':'از','Back to the book':'بازگشت به کتاب','Save':'ذخیره','Options':'گزینه‌ها','Close':'بستن','Publisher description via Google Books':'معرفی ناشر از Google Books',
 };
 export const rtl=(lang?:string)=>lang==='fa'||lang==='ar';
 export const tr=(lang:string|undefined,text:string)=>lang==='fa'?fa[text]??text:text;
