@@ -20,11 +20,10 @@ export default function HomePage({published,canEdit,onOpenPublished,books,covers
  const first=(b:PubBook)=>b.title.split(':')[0];
  const books_=published||[];
  // The first slide always says what this place is; each published book then gets a painting of its own.
- const slides:Slide[]=[
-  {key:'welcome',art:art.hokusai,eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'Short, beautifully written summaries of serious books. Read them, hear them, and take the ideas with you, in your own language.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]},
-  ...books_.slice(0,5).map((b,i):Slide=>({key:b.id,art:rotation[i%rotation.length],eyebrow:'New in the library'+(b.languages.length>1?' · '+b.languages.length+' languages':''),title:first(b),by:displayName(b.author),text:b.blurb||'A summary of every chapter, with page references and a narrated version.',cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),actions:[{label:'Read the summary',primary:true,onClick:()=>onOpenPublished(b)},{label:'See the library',onClick:()=>navigate('/library')}]})),
-  {key:'language',art:art.layla,eyebrow:'In the language you think in',title:'Persian, English, and more.',text:'Every chapter, summarized in the language you read best, with the chapter titles to match.',actions:[{label:'Choose a book',primary:true,onClick:()=>navigate('/library')}]},
- ];
+ const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
+ const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
+ const slides:Slide[]=books_.length?books_.slice(0,6).map((b,i):Slide=>({key:b.id,art:rotation[i%rotation.length],eyebrow:'Featured · No. '+(i+1),title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||'Every chapter summarized, with page references and a narrated version.'),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:b.rating||undefined,facts:[b.chapters+(b.chapters===1?' chapter':' chapters'),b.languages.map(l=>names[l]||l).join(' · ')],actions:[{label:'Read the summary',primary:true,onClick:()=>onOpenPublished(b)},{label:'See the library',onClick:()=>navigate('/library')}]}))
+  :[{key:'welcome',art:art.hokusai,eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const ways=[
   {art:art.spitzweg,title:'Read in minutes',text:'Every chapter in a few calm paragraphs, with the page numbers to check them against the book.'},
   {art:art.hammershoi,title:'Listen anywhere',text:'A narrated version of each summary, ready to play while you walk, cook or wait.'},

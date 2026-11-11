@@ -72,11 +72,17 @@ def _blurb(d:dict)->str:
     if len(text)<=240:return text
     cut=text[:240];end=max(cut.rfind('. '),cut.rfind('؟ '),cut.rfind('。'))
     return cut[:end+1] if end>120 else cut[:cut.rfind(' ')]+'…'
+def _rating(d:dict):
+    """The best-known public rating the owner's lookup found, shown as a score on the home page."""
+    rs=[r for r in ((d.get('info') or {}).get('ratings') or []) if r.get('rating')]
+    if not rs:return None
+    r=max(rs,key=lambda x:x.get('count') or 0)
+    return {'source':r.get('source',''),'rating':r['rating'],'count':r.get('count')}
 def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover' if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)

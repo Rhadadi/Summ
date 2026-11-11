@@ -31,6 +31,6 @@ export interface PubPara{heading?:string;text:string;pages?:number[];chapters?:s
 export interface PubVersion{language:string;type:string;label:string;model?:string;createdAt?:number;overview?:{paragraphs:PubPara[];takeaways?:PubPara[]};guide?:{type_label:string;sections:{kind:string;title:string;items:PubPara[]}[]};chapters:Record<string,{paragraphs:PubPara[];review?:PubPara[]}>}
 export interface PubChapter{id:string;title:Record<string,string>;group:'main'|'front'|'back'}
 export interface PubDoc{title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
-export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;doc?:PubDoc}
+export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;rating?:{source:string;rating:number;count:number|null}|null;year?:string;doc?:PubDoc}
 export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string}[]}
 export interface AppConfig{google_client_id:string;signup:boolean}

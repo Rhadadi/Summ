@@ -1,11 +1,12 @@
 import{useEffect,useRef,useState}from'react';
-import{ArrowBackRounded,ArrowForwardRounded}from'@mui/icons-material';
+import{ArrowBackRounded,ArrowForwardRounded,StarRounded,StarHalfRounded,StarBorderRounded}from'@mui/icons-material';
 import{useMediaQuery}from'@mui/material';
 import{artUrl,type Art}from'./art';
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
-export interface Slide{key:string;art:Art;eyebrow:string;title:string;by?:string;text:string;cover?:string|null;rtl?:boolean;actions:{label:string;onClick:()=>void;primary?:boolean}[]}
+export interface Slide{key:string;art:Art;eyebrow:string;title:string;by?:string;text:string;cover?:string|null;rtl?:boolean;score?:{rating:number;count:number|null;source:string};facts?:string[];actions:{label:string;onClick:()=>void;primary?:boolean}[]}
 const EVERY=8000;
+const Stars=({value}:{value:number})=><span className="m-stars" role="img" aria-label={value.toFixed(1)+' out of 5'}>{[1,2,3,4,5].map(i=>value>=i-.25?<StarRounded key={i}/>:value>=i-.75?<StarHalfRounded key={i}/>:<StarBorderRounded key={i}/>)}</span>;
 export default function MuseumHero({slides}:{slides:Slide[]}){
  const[at,setAt]=useState(0),[hold,setHold]=useState(false);
  const reduce=useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -28,6 +29,7 @@ export default function MuseumHero({slides}:{slides:Slide[]}){
      <h1 dir="auto">{s.title}</h1>
      {s.by&&<p className="m-by" dir="auto">{s.by}</p>}
      <p className="m-lead" dir="auto">{s.text}</p>
+     {(s.score||s.facts?.length)&&<div className="m-meta">{s.score&&<span className="m-score"><Stars value={s.score.rating}/><b>{s.score.rating.toFixed(1)}</b><small>{s.score.source}{s.score.count?' · '+s.score.count.toLocaleString()+' ratings':''}</small></span>}{s.facts?.map(f=><span key={f} className="m-fact">{f}</span>)}</div>}
      <div className="m-actions">{s.actions.map(a=><button key={a.label} className={'m-btn'+(a.primary?' primary':'')} onClick={a.onClick} tabIndex={i===at?0:-1}>{a.label}{a.primary&&<ArrowForwardRounded/>}</button>)}</div>
     </div>
     {s.cover&&<button className="m-cover" tabIndex={i===at?0:-1} aria-label={'Open '+s.title} onClick={s.actions[0]?.onClick}><img src={s.cover} alt="" loading="lazy"/></button>}
