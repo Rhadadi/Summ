@@ -1,7 +1,7 @@
-import{useEffect,useMemo,useRef,useState}from'react';
+import{lazy,Suspense,useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,ToggleButton,ToggleButtonGroup}from'@mui/material';
-import{AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,DownloadRounded,EditOutlined,ExpandMoreRounded,GraphicEqRounded,ImageOutlined,OpenInNewRounded,PauseRounded,PlayArrowRounded,StarRounded,TuneRounded}from'@mui/icons-material';
-import type{Account,Block,Book,BookInfo,BookReport,Chapter,Depth,GoogleBookEdition,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
+import{AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,DownloadRounded,EditOutlined,ExpandMoreRounded,FileUploadOutlined,GraphicEqRounded,ImageOutlined,OpenInNewRounded,PauseRounded,PlayArrowRounded,StarRounded,TuneRounded}from'@mui/icons-material';
+import type{Account,Block,Book,BookInfo,BookReport,Chapter,Depth,GoogleBookEdition,ImportedSummaries,ImportedSummary,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,narrate,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
@@ -10,6 +10,9 @@ import{costRange,estimateChapter,money,usageCost}from'./cost';
 import type{Price}from'./cost';
 import Cover from'./Cover';import{Logo}from'./Header';
 import GoogleBooksDialog from'./GoogleBooksDialog';
+
+const SummaryImportDialog=lazy(()=>import('./SummaryImportDialog'));
+const ImportedSummaryView=lazy(()=>import('./ImportedSummaryView'));
 
 interface Props{
  book:Book;chapter:Chapter;settings:Settings;account:Account|null;price:Price|null;saved:SavedPassage[];cover:string;reportVersion:number;
@@ -34,7 +37,9 @@ async function downscale(blob:Blob){
 }
 export default function BookPage({book,chapter,settings,account,price,saved,cover,reportVersion,summary,generating,generationError,onCover,onCreate,onAccount,onPreferences,onGenerate,onCancel,onBookmark,onEvidence,onChoose,onExport,onEditContents,onFinished,onRebuild}:Props){
  const[report,setReport]=useState<BookReport>(),[info,setInfo]=useState<BookInfo|null>(null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>('loading');
- const[tab,setTab]=useState<'guide'|'text'>('guide'),[section,setSection]=useState('overview'),[reportLoaded,setReportLoaded]=useState(false),[coverMenu,setCoverMenu]=useState<HTMLElement|null>(null),[rebuilding,setRebuilding]=useState(false);
+ const[tab,setTab]=useState<'guide'|'text'|'imported'>('guide'),[section,setSection]=useState('overview'),[reportLoaded,setReportLoaded]=useState(false),[coverMenu,setCoverMenu]=useState<HTMLElement|null>(null),[rebuilding,setRebuilding]=useState(false);
+ const[importedSummaries,setImportedSummaries]=useState<ImportedSummaries|null>(null),[selectedImport,setSelectedImport]=useState('');
+ const[summaryImportMode,setSummaryImportMode]=useState<'edit'|'new'|null>(null);
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false);
  const[editionOpen,setEditionOpen]=useState(false);
  const[navOpen,setNavOpen]=useState({guide:true,chapters:true,front:false,back:false}),[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
@@ -42,7 +47,25 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
  const[engine,setEngine]=useState<'offline'|'elevenlabs'>('offline'),[queue,setQueue]=useState<{title:string;text:string}[]>([]),[track,setTrack]=useState(0),[ready,setReady]=useState<string[]>([]),[playing,setPlaying]=useState(false);
  const audio=useRef<HTMLAudioElement>(null),narration=useRef<AbortController|null>(null);
  const language=report?.language||settings.language;
+ const importLanguage=selectedImport||importedSummaries?.latestLanguage||settings.language;
+ const importedSummary=importedSummaries?.versions[importLanguage];
+ const importLanguages=Object.keys(importedSummaries?.versions??{});
  useEffect(()=>{let live=true;store.latestReport(book.id).then(key=>key?store.report(key):undefined).then(r=>{if(live){setReport(r);setReportLoaded(true);}}).catch(()=>{});return()=>{live=false;};},[book.id,reportVersion]);
+ useEffect(()=>{let live=true;store.importedSummaries(book.id).then(value=>{if(live){setImportedSummaries(value);if(value)setTab(current=>current==='guide'?'imported':current);}}).catch(()=>{});return()=>{live=false;};},[book.id]);
+ async function openSummaryImport(mode:'edit'|'new'){
+  try{setImportedSummaries(await store.importedSummaries(book.id));setSummaryImportMode(mode);}
+  catch{setError('Could not open the saved summary on this device.');}
+ }
+ function showImportedSummary(){
+  setTab('imported');
+  requestAnimationFrame(()=>tabs.current?.scrollIntoView({block:'start'}));
+ }
+ async function saveImportedSummary(value:ImportedSummary,language:string){
+  setImportedSummaries(await store.saveImportedSummary(book.id,language,value));
+  setSelectedImport(language);
+  setSummaryImportMode(null);
+  showImportedSummary();
+ }
  async function useOnlineCover(url:string){await onCover(await coverImage(url),'online',url);}
  async function showInfo(result:BookInfo,replace=false){
   setInfo(result);setInfoState('ready');
@@ -155,6 +178,7 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
     {info?.description&&<p className="book-blurb" dir="auto">{info.description.slice(0,260)}{info.description.length>260?'…':''}</p>}
     <div className="book-actions">
      {complete?<Button variant="contained" startIcon={busy==='pdf'?<CircularProgress size={16} color="inherit"/>:<DownloadRounded/>} disabled={!!busy} onClick={downloadPdf}>{busy==='pdf'?'Typesetting…':'Download PDF'}</Button>:<Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{chapters.length?'Finish the study guide':'Create study guide'}</Button>}
+     <Button variant="outlined" startIcon={<FileUploadOutlined/>} onClick={importedSummary?showImportedSummary:()=>void openSummaryImport('new')}>{importedSummary?'Read imported summary':'Import summary'}</Button>
      {chapters.length>0&&<Button variant="outlined" startIcon={<GraphicEqRounded/>} onClick={listen}>Listen</Button>}
      <IconButton className="ring" aria-label="Edit contents" title="Edit contents" onClick={onEditContents}><EditOutlined/></IconButton>
      <IconButton className="ring" aria-label="Export notes" title="Export notes" onClick={onExport}><DownloadRounded/></IconButton>
@@ -164,14 +188,21 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
   </section>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
   {outdated&&!rebuilding&&reportLoaded&&(report||saved.some(x=>x.bookId===book.id))&&<Alert severity="info" action={<Button onClick={()=>{setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}}>Re-read file</Button>}>Cleaner text extraction is available for this book. Re-reading it resets its summaries and saved passages.</Alert>}
-  <div className="book-tabs" role="tablist" ref={tabs}><button role="tab" aria-selected={tab==='guide'} className={tab==='guide'?'on':''} onClick={()=>setTab('guide')}>Study guide</button><button role="tab" aria-selected={tab==='text'} className={tab==='text'?'on':''} onClick={()=>setTab('text')}>Original text</button></div>
+  <div className="book-tabs" role="tablist" ref={tabs}><button role="tab" aria-selected={tab==='guide'} className={tab==='guide'?'on':''} onClick={()=>setTab('guide')}>Study guide</button><button role="tab" aria-selected={tab==='text'} className={tab==='text'?'on':''} onClick={()=>setTab('text')}>Original text</button>{importedSummary&&<button role="tab" aria-selected={tab==='imported'} className={tab==='imported'?'on':''} onClick={()=>setTab('imported')}>Imported summary</button>}</div>
   {error&&<Alert severity="error" sx={{mt:2}} onClose={()=>setError('')}>{error}</Alert>}
   {queue.length>0&&<div className="guide-player" role="region" aria-label="Narration">
    <Button aria-label={playing?'Pause narration':'Play narration'} variant="contained" onClick={()=>{if(!audio.current)return;if(playing){audio.current.pause();setPlaying(false);}else if(ready[track]){audio.current.src||=ready[track];audio.current.play().then(()=>setPlaying(true)).catch(()=>{});}}}>{playing?<PauseRounded/>:<PlayArrowRounded/>}</Button>
    <div><strong dir="auto">{queue[track]?.title}</strong><span>Part {track+1} of {queue.length} · {ready.length<queue.length?'preparing '+(ready.length+1)+' of '+queue.length+'…':'all parts ready'}</span><LinearProgress variant="determinate" value={ready.length/queue.length*100}/></div>
    <audio ref={audio} onEnded={next} onPause={()=>setPlaying(false)} onPlay={()=>setPlaying(true)}/>
   </div>}
-  <div className="book-body">
+  {tab==='imported'&&importedSummary?<div className="book-body imported-summary-body">
+   <div className="summary-file-actions">
+    {importLanguages.length>1&&<TextField select size="small" label="Imported summary language" value={importLanguage} onChange={event=>setSelectedImport(event.target.value)}>{languages.filter(option=>importLanguages.includes(option.code)).map(option=><MenuItem key={option.code} value={option.code}>{option.label}</MenuItem>)}</TextField>}
+    <Button startIcon={<EditOutlined/>} onClick={()=>void openSummaryImport('edit')}>Edit imported summary</Button>
+    <Button onClick={()=>void openSummaryImport('new')}>Add another language</Button>
+   </div>
+   <Suspense fallback={<CircularProgress aria-label="Opening imported summary"/>}><ImportedSummaryView key={importLanguage} summary={importedSummary} language={importLanguage} expectedChapters={groups.find(group=>group.key==='chapters')?.items.length??0}/></Suspense>
+  </div>:<div className="book-body">
    <nav className="doc-nav" aria-label="Sections">
     {tab==='guide'&&<><button className="nav-head" aria-expanded={navOpen.guide} onClick={()=>setNavOpen({...navOpen,guide:!navOpen.guide})}>Study guide<ExpandMoreRounded className={navOpen.guide?'open':''}/></button>
      {navOpen.guide&&guideSections.map(s=><button key={s.id} className={'nav-item'+(section===s.id?' on':'')} onClick={()=>setSection(s.id)} dir="auto">{s.label}</button>)}</>}
@@ -196,7 +227,7 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
      {!book.demo&&(editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>)}
      {!book.demo&&<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button>}
     </>}
-    {guideSection&&<div dir={rtl(report?.language)}><h2 dir="auto">{guideSection.title}</h2>{summaryParagraphs(guideSection.items)}</div>}
+    {tab==='guide'&&guideSection&&<div dir={rtl(report?.language)}><h2 dir="auto">{guideSection.title}</h2>{summaryParagraphs(guideSection.items)}</div>}
     {tab==='guide'&&current&&<>
      <h2 dir="auto">{strip(current.title)}</h2>
      {chapterSummary?<>
@@ -214,7 +245,8 @@ export default function BookPage({book,chapter,settings,account,price,saved,cove
     </>}
     {tab==='text'&&<><h2 dir="auto">{strip(chapter.title)}</h2>{original(chapter)}{pager(chapter)}</>}
    </article>
-  </div>
+  </div>}
+  {summaryImportMode&&<Suspense fallback={<LinearProgress aria-label="Opening summary importer"/>}><SummaryImportDialog book={book} language={summaryImportMode==='edit'?importLanguage:[settings.language,'fa','en'].find(code=>!importLanguages.includes(code))??settings.language} initial={summaryImportMode==='edit'?importedSummary??null:null} existingLanguages={importLanguages} onClose={()=>setSummaryImportMode(null)} onSave={saveImportedSummary}/></Suspense>}
   {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   <Menu anchorEl={coverMenu} open={!!coverMenu} onClose={()=>setCoverMenu(null)}>

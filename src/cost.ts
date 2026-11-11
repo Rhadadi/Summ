@@ -6,13 +6,15 @@ import{bodyChapter}from'./core.ts';
 // Output prices include thinking tokens. Users can override them in Account.
 export interface Price{input:number;output:number;note?:string}
 const flash=(d:Date):Price=>d<new Date('2027-01-01T00:00:00Z')?{input:.75,output:3.75}:{input:1.5,output:7.5};
+const pro:Price={input:2,output:12};
 const table:{pattern:RegExp;price:(d:Date)=>Price}[]=[
  {pattern:/^gemini-flash-latest$/,price:d=>({...flash(d),note:'Assumes the alias points to Gemini 3.8 Flash.'})},
  {pattern:/^gemini-flash-lite-latest$/,price:()=>({input:.3,output:2.5,note:'Assumes the alias points to Gemini 3.5 Flash-Lite.'})},
+ {pattern:/^gemini-pro-latest$/,price:()=>({...pro,note:'Assumes Gemini 3.1 Pro Preview rates for prompts up to 200,000 tokens.'})},
  {pattern:/^gemini-3\.[68]-flash(?!-lite)/,price:flash},
  {pattern:/^gemini-3\.5-flash-lite/,price:()=>({input:.3,output:2.5})},
  {pattern:/^gemini-3\.1-flash-lite/,price:()=>({input:.25,output:1.5})},
- {pattern:/^gemini-3\.1-pro/,price:()=>({input:2,output:12})},
+ {pattern:/^gemini-3\.1-pro/,price:()=>({...pro})},
  {pattern:/^gemini-3-flash/,price:()=>({input:.5,output:3})},
  {pattern:/^gemini-2\.5-flash-lite/,price:()=>({input:.1,output:.4})},
  {pattern:/^gemini-2\.5-flash/,price:()=>({input:.3,output:2.5})},

@@ -16,6 +16,17 @@ test('list prices follow the published table and its January 2027 change',()=>{
  assert.deepEqual(effectivePrice({hint:'abcd',model:'gemini-3.8-flash',price_in:1,price_out:2}),{input:1,output:2,note:'Using the prices you entered.'});
 });
 
+test('Gemini Pro Latest shows a whole-book dollar estimate and accepts custom rates',()=>{
+ const key={hint:'abcd',model:'gemini-pro-latest',price_in:null,price_out:null};
+ const price=effectivePrice(key);
+ assert.ok(price);
+ assert.equal(price.input,2);
+ assert.equal(price.output,12);
+ const range=costRange({input:914036,output:170921},price);
+ assert.deepEqual([range.likely,range.low,range.high].map(money),['$4.70','$3.70','$6.20']);
+ assert.deepEqual(effectivePrice({...key,price_in:1,price_out:8}),{input:1,output:8,note:'Using the prices you entered.'});
+});
+
 test('non-Latin text counts as more tokens per character',()=>{
  assert.equal(estimateTokens('abcd'.repeat(100)),100);
  assert.ok(estimateTokens('این یک مثال است'.repeat(20))>estimateTokens('this is a test!'.repeat(20)));

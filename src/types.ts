@@ -2,7 +2,7 @@ export type Depth='glance'|'overview'|'detailed'|'close';
 export interface Block{id:string;text:string;location:string;page?:number;note?:boolean}
 export interface Chapter{id:string;title:string;blocks:Block[]}
 export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string;importVersion?:number}
-export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night'}
+export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
 export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[]}
@@ -12,6 +12,9 @@ export interface SummarySection{id:string;title:string;paragraphs:SummaryParagra
 export interface GuideSection{kind:string;title:string;items:SummaryParagraph[]}
 export interface Guide{type:string;type_label:string;sections:GuideSection[];model:string;usage?:Usage}
 export interface BookReport{model:string;language:string;createdAt:number;updatedAt:number;parts:Record<string,Summary>;chapters:Record<string,Summary>;overview?:Overview;guide?:Guide}
+export interface SummaryImage{path:string;type:string;data:ArrayBuffer}
+export interface ImportedSummary{markdown:string;sourcePath:string;images:SummaryImage[]}
+export interface ImportedSummaries{latestLanguage:string;versions:Record<string,ImportedSummary>}
 export interface Rating{source:string;rating:number;count:number|null;url:string|null}
 export interface GoogleBookEdition{id:string;title:string;subtitle:string;authors:string[];publisher:string;published_date:string;language:string;pages:number|null;isbns:string[];url:string;preview_url:string|null;cover:string|null}
 export interface BookInfo{title:string;authors:string[];year:string;pages:number|null;categories:string[];description:string;ratings:Rating[];readers:number|null;wikipedia:{title:string;extract:string;url:string;license:string}|null;covers:string[];links:{name:string;url:string}[];google_edition?:GoogleBookEdition|null}

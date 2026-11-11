@@ -1,4 +1,5 @@
-import type{Book,BookInfo,SavedPassage,Settings,Summary,BookReport}from './types';
+import type{Book,BookInfo,SavedPassage,Settings,Summary,BookReport,ImportedSummaries,ImportedSummary}from './types';
+import{importedSummaryVersions}from './summary-import';
 export const defaults:Settings={depth:'detailed',purpose:'understand',review:'off',language:'en',fontSize:19,theme:'paper'};
 const database=new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('summ-reader',2);r.onupgradeneeded=()=>{for(const n of ['books','files','passages','summaries','covers','audio'])if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n);};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
 interface StoredFile{version:1;data:ArrayBuffer;type:string}
@@ -14,6 +15,27 @@ export const store={
  passages:()=>request<SavedPassage[]>('passages','getAll'),savePassage:(p:SavedPassage)=>request('passages','put',p.id,p),deletePassage:(id:string)=>request('passages','delete',id),
  summary:(id:string)=>request<Summary|undefined>('summaries','get',id),saveSummary:(id:string,s:Summary)=>request('summaries','put',id,s),
  report:(id:string)=>request<BookReport|undefined>('summaries','get',id),saveReport:(id:string,r:BookReport)=>request('summaries','put',id,r),
+ async importedSummaries(bookId:string){return importedSummaryVersions(await request<ImportedSummaries|ImportedSummary|undefined>('summaries','get',bookId+':imported-summary'));},
+ async saveImportedSummary(bookId:string,language:string,summary:ImportedSummary){
+  const db=await database;
+  return new Promise<ImportedSummaries>((resolve,reject)=>{
+   const tx=db.transaction(['books','summaries'],'readwrite');
+   const book=tx.objectStore('books').getKey(bookId);
+   const summaries=tx.objectStore('summaries'),key=bookId+':imported-summary';
+   let result:ImportedSummaries;
+   book.onsuccess=()=>{
+    if(book.result===undefined){reject(new Error('This source is no longer in your library.'));return;}
+    const current=summaries.get(key);
+    current.onsuccess=()=>{
+     const existing=importedSummaryVersions(current.result);
+     result={latestLanguage:language,versions:{...existing?.versions,[language]:summary}};
+     summaries.put(result,key);
+    };
+   };
+   tx.oncomplete=()=>resolve(result);
+   tx.onabort=()=>reject(tx.error||new Error('Could not save the summary on this device.'));
+  });
+ },
  // The study guide page opens the most recent whole-book report for a book.
  latestReport:(bookId:string)=>request<string|undefined>('summaries','get',bookId+':latest-report'),setLatestReport:(bookId:string,key:string)=>request('summaries','put',bookId+':latest-report',key),
  info:(bookId:string)=>request<BookInfo|undefined>('summaries','get',bookId+':info'),
