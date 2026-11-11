@@ -3,9 +3,9 @@ import{Alert,Button,Checkbox,CircularProgress,Dialog,DialogActions,DialogContent
 import{ContentCopyRounded,OpenInNewRounded}from'@mui/icons-material';
 import type{ArtResult,Book,BookInfo,LocalReview,NarrationStatus}from'./types';
 import type{BookData}from'./bookData';
-import{artSearch,narrationStatus,publishBook,setSlide,startNarration,unpublishBook,uploadCover}from'./api';
+import{artSearch,narrationStatus,publishBook,setSlide,startNarration,unpublishBook,uploadCover,uploadFigure}from'./api';
 import{store}from'./storage';
-import{availableVersions,buildDoc,coverBlob,versionData,type Entry}from'./publish';
+import{availableVersions,buildDoc,collectFigures,coverBlob,figureBlob,versionData,type Entry}from'./publish';
 import{depthLabels,displayName,languages,sectionKind}from'./core';
 import{chapterTitle}from'./bookData';
 
@@ -28,6 +28,7 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
  const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artQuery,setArtQuery]=useState(''),[artHits,setArtHits]=useState<ArtResult[]|null>(null),[artPick,setArtPick]=useState<ArtResult|null>(null),[artBusy,setArtBusy]=useState(false),[ideas,setIdeas]=useState<string[]>([]);
  useEffect(()=>{store.info(book.id).then(info=>{const stop=new Set('the a an of and to in on for with can could how why what is are be your you our their this that from beyond studies study about into'.split(' '));const words=[...(info?.categories||[]).flatMap(c=>c.split(/[\s&,/]+/)),...book.title.split(/[\s:,.?!]+/)].map(w=>w.toLowerCase()).filter(w=>w.length>3&&!stop.has(w)&&/^\p{Script=Latin}+$/u.test(w));const list=[...new Set(words)].slice(0,6);setIdeas(list);setArtQuery(q=>q||list.slice(0,2).join(' '));}).catch(()=>{});},[book.id]);
  async function findArt(q=artQuery){setArtBusy(true);setError('');try{setArtHits(await artSearch(q));}catch(e){setError((e as Error).message);}finally{setArtBusy(false);}}
+ const[withPages,setWithPages]=useState(false),[withFigures,setWithFigures]=useState(true);
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
  useEffect(()=>{store.review(book.id).then(r=>setLocalReview(r||null)).catch(()=>{});},[book.id]);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
@@ -41,10 +42,12 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
   setBusy('publish');setError('');
   try{
    const info:BookInfo|null=(await store.info(book.id).catch(()=>undefined))||null;
-   const doc=buildDoc(book,entries,info,title,author,include,localReview?.approved&&withReview?localReview.review:null);
+   const figures=withFigures?collectFigures(entries,include):{names:new Map<string,string>(),files:[]};
+   const doc=buildDoc(book,entries,info,title,author,include,localReview?.approved&&withReview?localReview.review:null,{pages:withPages,figures:figures.names});
    const result=await publishBook({id:book.published?.id,doc,visibility});
    const cover=(await store.cover(book.id).catch(()=>undefined))?.blob;
    if(cover)await uploadCover(result.id,await coverBlob(cover)).catch(()=>setError('Published, but the cover could not be uploaded.'));
+   for(const f of figures.files)await uploadFigure(result.id,f.name,await figureBlob(f.image)).catch(()=>setError('Published, but a figure could not be uploaded.'));
    if(slide!=='keep')await setSlide(result.id,slide,artPick?.file).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
    setDone({slug:result.slug,id:result.id});onPublished({id:result.id,slug:result.slug,visibility,at:Date.now()});
    if(narrate)for(const e of entries.filter(x=>VOICES.includes(x.choice.language)))setStatus(await startNarration(result.id,e.choice.language,e.choice.type).catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
@@ -70,6 +73,8 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
     <h4 className="pub-h">Chapters to include ({[...include].filter(id=>withSummary.some(c=>c.id===id)).length} of {withSummary.length} summarized)</h4>
     <div className="pub-chapters">{withSummary.map(c=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={include.has(c.id)} onChange={e=>setInclude(s=>{const n=new Set(s);e.target.checked?n.add(c.id):n.delete(c.id);return n;})}/>} label={<span dir="auto">{chapterTitle(data,c)}{kinds[book.chapters.indexOf(c)]!=='main'?' · '+kinds[book.chapters.indexOf(c)]+' matter':''}</span>}/>)}</div>
     {!withSummary.length&&<Alert severity="warning">No chapter has a summary in this language yet.</Alert>}
+    <FormControlLabel control={<Checkbox checked={withPages} onChange={e=>setWithPages(e.target.checked)}/>} label="Show page numbers beside paragraphs"/>
+    {entries.some(e=>(e.data.version?.images||[]).length>0)&&<FormControlLabel control={<Checkbox checked={withFigures} onChange={e=>setWithFigures(e.target.checked)}/>} label="Include figures and maps from the summary (make sure you may publish them)"/>}
     <p className="settings-help">{hasOverview?'The overview, takeaways and study guide are included.':'No whole-book overview in this language yet; only chapter summaries are published.'}</p>
     {localReview?.approved&&<FormControlLabel control={<Checkbox checked={withReview} onChange={e=>setWithReview(e.target.checked)}/>} label="Include the approved reception: rating, praise and criticism, quotes"/>}
     <h4 className="pub-h">Home page slide</h4>

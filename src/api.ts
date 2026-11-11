@@ -53,3 +53,4 @@ export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
 export const setSlide=(id:string,mode:'none'|'cover'|'art',file?:string)=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file}});
 export const researchReview=(body:{title:string;author:string;year:string;language:string})=>call<Review>('review/research',{body,signal:AbortSignal.timeout(200000)});
+export const uploadFigure=(id:string,name:string,blob:Blob)=>binary('library/'+id+'/figure/'+name,{method:'PUT',headers:{'Content-Type':blob.type||'image/png','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});

@@ -5,7 +5,7 @@ export interface Book{id:string;title:string;author:string;format:string;categor
 export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
-export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[];pages?:number[];image?:{path:string;alt:string};table?:string[][]}
+export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[];pages?:number[];image?:{path:string;alt:string};table?:string[][];quote?:boolean}
 export interface Summary{paragraphs:SummaryParagraph[];review:SummaryParagraph[];processed_blocks:number;total_blocks:number;language:string;mode:'ai';checked:boolean;model?:string;usage?:Usage}
 export interface Overview{paragraphs:SummaryParagraph[];takeaways:SummaryParagraph[];checked:boolean;language:string;model:string;usage?:Usage}
 export interface SummarySection{id:string;title:string;paragraphs:SummaryParagraph[]}
@@ -27,10 +27,10 @@ export interface Account{user:{name:string;email:string};role:Role;editorRequest
 export interface Person{id:string;name:string;email:string;message?:string;created?:number}
 export interface People{pending:Person[];editors:Person[]}
 // A published book carries summaries, never the original text or file.
-export interface PubPara{heading?:string;text:string;pages?:number[];chapters?:string[]}
+export interface PubPara{heading?:string;text:string;pages?:number[];chapters?:string[];quote?:boolean;table?:string[][];image?:{name:string;alt:string}}
 export interface PubVersion{language:string;type:string;label:string;model?:string;createdAt?:number;overview?:{paragraphs:PubPara[];takeaways?:PubPara[]};guide?:{type_label:string;sections:{kind:string;title:string;items:PubPara[]}[]};chapters:Record<string,{paragraphs:PubPara[];review?:PubPara[]}>}
 export interface PubChapter{id:string;title:Record<string,string>;group:'main'|'front'|'back'}
-export interface Review{verdict:string;rating:{value:number;source:string;count:number|null;url:string|null}|null;pros:string[];cons:string[];quotes:{text:string;who:string;source:string;url:string|null}[];sources:{name:string;url:string}[];model:string;createdAt:number}
+export interface Review{verdict:string;audience?:string;aboutAuthor?:string;themes?:string[];similar?:{title:string;author:string;why:string}[];rating:{value:number;source:string;count:number|null;url:string|null}|null;pros:string[];cons:string[];quotes:{text:string;who:string;source:string;url:string|null}[];sources:{name:string;url:string}[];model:string;createdAt:number}
 export interface LocalReview{review:Review;approved:boolean}
 export interface PubDoc{review?:Review|null;title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
 export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;slide?:{mode:'none'|'cover'|'art';art?:string;credit?:{title:string;artist:string;year:string;page:string}};rating?:{source:string;rating:number;count:number|null}|null;year?:string;doc?:PubDoc}

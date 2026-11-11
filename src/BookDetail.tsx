@@ -10,6 +10,7 @@ import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
 import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 import ReviewSection from'./ReviewSection';
+import{num,rtl,tr}from'./i18n';
 
 interface Props{
  book:Book;cover:string;data:BookData;saved:SavedPassage[];
@@ -76,9 +77,10 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
  const firstUnread=main.find(c=>!book.completed.includes(c.id))||main[0]||book.chapters[0];
  const startAt=book.lastRead?book.chapterIndex:book.chapters.indexOf(firstUnread);
  const row=(c:Chapter)=>{const s=summaries[c.id];const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1]||(main.includes(c)?String(main.indexOf(c)+1):'');
-  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?'Summary · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
+  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?L('Summary')+' · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
  const fileCover=book.format==='PDF'||book.format==='EPUB';
- return <div className="detail">
+ const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
+ return <div className="detail" dir={rtl(lang)?'rtl':undefined}>
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{backLabel||'My library'}</button>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
   {outdated&&!rebuilding&&data.loaded&&(report||Object.keys(summaries).length>0||saved.some(x=>x.bookId===book.id))&&<Alert severity="info" action={<Button onClick={()=>{setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}}>Re-read file</Button>}>Cleaner text extraction is available for this book. Re-reading it resets its summaries and saved passages.</Alert>}
@@ -93,19 +95,19 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
      </div>}
     </div>
     <div className="hero-text">
-     <span className="kicker">Study guide{report?.guide?' · '+report.guide.type_label:''}</span>
+     <span className="kicker">{L('Study guide')}{report?.guide?' · '+report.guide.type_label:''}</span>
      <h1 dir="auto">{title}</h1>
-     {author&&<p className="hero-author" dir="auto">by {author}</p>}
+     {author&&<p className="hero-author" dir="auto">{lang==='fa'?'نوشتهٔ ':'by '}{author}</p>}
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}
      <div className="stats">
-      {info?.ratings[0]&&<span><StarRounded/>{info.ratings[0].rating.toFixed(1)}{info.ratings[0].count?' ('+info.ratings[0].count.toLocaleString()+' ratings)':''}</span>}
-      <span><AccessTimeRounded/>{readOnly?minutes(Object.values(summaries).reduce((n,x)=>n+x.paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0),0))+' min of summaries':readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
-      <span><LightbulbOutlined/>{main.length} key chapters</span>
-      {pages&&<span><DescriptionOutlined/>{pages} pages</span>}
+      {info?.ratings[0]&&<span><StarRounded/>{num(lang,+info.ratings[0].rating.toFixed(1))}{info.ratings[0].count?' ('+num(lang,info.ratings[0].count)+' '+L('ratings')+')':''}</span>}
+      <span><AccessTimeRounded/>{readOnly?num(lang,minutes(Object.values(summaries).reduce((n,x)=>n+x.paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0),0)))+' '+L('min of summaries'):readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
+      <span><LightbulbOutlined/>{num(lang,main.length)} {L('key chapters')}</span>
+      {pages&&<span><DescriptionOutlined/>{num(lang,pages)} {L('pages')}</span>}
      </div>
-     <Button className="big" variant="contained" startIcon={<MenuBookRounded/>} onClick={()=>onRead(startAt)}>{book.lastRead?'Continue reading':'Start reading'}</Button>
+     <Button className="big" variant="contained" startIcon={<MenuBookRounded/>} onClick={()=>onRead(startAt)}>{L(book.lastRead?'Continue reading':'Start reading')}</Button>
      {!readOnly&&!!onImport&&<Button className="big" variant="outlined" startIcon={<FileUploadOutlined/>} onClick={onImport}>{data.versions.length?'Add another summary':'Prepare or import a summary'}</Button>}
-     <Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable&&!readOnly} onClick={()=>onListen()}>{readOnly?'Listen':listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>
+     <Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable&&!readOnly} onClick={()=>onListen()}>{readOnly?L('Listen'):listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>
      {!readOnly&&!!onPublish&&<Button className="big" variant="text" startIcon={<PublicOutlined/>} onClick={onPublish}>{book.published?'Published · manage':'Publish this summary'}</Button>}
     </div>
    </div>
@@ -117,23 +119,23 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
    </div>}
   </section>
   <section className="about">
-   <h2>What’s it about?</h2>
+   <h2>{L('What’s it about?')}</h2>
    {(report?.guide||info?.categories.length)?<div className="chips">{[report?.guide?.type_label,...(info?.categories||[]).slice(0,4)].filter(Boolean).map(t=><span key={t}>{t}</span>)}</div>:null}
-   {report?.overview?<><p dir="auto">{report.overview.paragraphs[0]?.text}</p><button className="text-link2" onClick={()=>onRead(undefined,'overview')}>Read the overview and key takeaways <ChevronRightRounded/></button></>
+   {report?.overview?<><p dir="auto">{report.overview.paragraphs[0]?.text}</p><button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button></>
     :info?.description?<><p dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
     :intro?<><p dir="auto">{intro.text.length>520?intro.text.slice(0,intro.text.lastIndexOf(' ',520))+'…':intro.text}</p><small>From the book, p. {intro.page}</small></>:null}
   </section>
   <section className="chapters">
-   <h2>Chapters</h2>
+   <h2>{L('Chapters')}</h2>
    {data.versions.length>1&&!!onVersion&&<div className="version-chips" role="group" aria-label="Summary version">{data.versions.map(v=><button key={v.id} className={'version-chip'+(data.version?.id===v.id?' on':'')} aria-pressed={data.version?.id===v.id} onClick={()=>onVersion(v.id)}>{v.label} · {languages.find(l=>l.code===v.language)?.label.replace(/ ·.*/,'')||v.language}</button>)}</div>}
    {main.map(row)}
    {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'Show'} front matter, notes and index</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
   </section>
   {(!book.demo||readOnly)&&<section className="reception">
-   <h2>Reception</h2>
-   {review&&<ReviewSection review={review} title={book.title} author={author} draft={!reviewApproved&&!readOnly}/>}
+   <h2>{L('Reception')}</h2>
+   {review&&<ReviewSection lang={lang} review={review} title={book.title} author={author} draft={!reviewApproved&&!readOnly}/>}
    {infoState==='loading'?<p className="muted"><CircularProgress size={16}/> Looking the book up…</p>:!info||infoState==='none'?<p className="muted">No public record was found for this book.</p>:<>
-    <dl className="facts">{info.year&&<div><dt>Published</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.google_edition?.publisher&&<div><dt>Publisher</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>Open Library readers</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
+    <dl className="facts">{info.year&&<div><dt>{L('Published')}</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.google_edition?.publisher&&<div><dt>{L('Publisher')}</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>{L('Open Library readers')}</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
     {info.wikipedia&&<><p dir="auto">{info.wikipedia.extract}</p><small>From <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">Wikipedia</a> · {info.wikipedia.license}</small></>}
     <div className="links">{info.links.map(l=><a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div></>}
    {!readOnly&&<div className="reception-actions">{!!onReview&&<Button variant={review?'text':'outlined'} startIcon={<AutoAwesomeRounded/>} onClick={onReview}>{review?'Edit the reception':'Research reviews and ratings'}</Button>}{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}

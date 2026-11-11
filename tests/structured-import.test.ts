@@ -63,11 +63,11 @@ import{buildPrompt,defaultOptions}from '../src/prompt-builder.ts';
 import{buildVersion,pickVersion}from '../src/imports.ts';
 test('the prompt changes with every choice',()=>{
  const book={title:'Law',author:'A. Writer',chapters:[{id:'a',title:'Contents',blocks:[]},{id:'b',title:'Duty',blocks:[{id:'1',text:'x',location:'',page:12},{id:'2',text:'y',location:'',page:30}]},{id:'c',title:'Rights',blocks:[]}]};
- const base={...defaultOptions({code:'en',name:'English'}),chapters:[1,2]};
+ const base={...defaultOptions({code:'en',name:'English'}),chapterMode:'list' as const,chapters:[1,2]};
  const a=buildPrompt(book,base);
  assert.match(a,/3\. Rights/);assert.match(a,/2\. Duty \(pp\. 12–30\)/);assert.doesNotMatch(a,/Contents/);assert.match(a,/type=detailed; language=en/);
  const b=buildPrompt(book,{...base,chapters:[2],types:['short'.replace('short','glance'),'academic'],languages:[{code:'fa',name:'Persian'}],pageRefs:false,quotes:true,notes:'Focus on ethics'});
- assert.doesNotMatch(b,/Duty/);assert.match(b,/type=glance; language=fa/);assert.match(b,/type=academic; language=fa/);assert.match(b,/Persian/);assert.doesNotMatch(b,/\[p\. 143\]/);assert.match(b,/short phrases/);assert.match(b,/Focus on ethics/);assert.match(b,/continue/);
+ assert.doesNotMatch(b,/Duty/);assert.match(b,/type=glance; language=fa/);assert.match(b,/type=academic; language=fa/);assert.match(b,/Persian/);assert.doesNotMatch(b,/\[p\. 143\]/);assert.match(b,/pull-quote/);assert.doesNotMatch(buildPrompt(book,{...base,quotes:false}),/pull-quote/);assert.match(buildPrompt(book,{...base,chapterMode:'ai'}),/work out the book's real chapters yourself/i);assert.doesNotMatch(a,/\d+–\d+ words/);assert.match(b,/Focus on ethics/);assert.match(b,/continue/);
  assert.notEqual(a,b);
 });
 test('an imported version carries translated titles and is chosen by language',()=>{
@@ -91,6 +91,21 @@ test('figures and tables stay with the chapter they were written in',()=>{
 test('the prompt asks for a ZIP with images only when figures are wanted',()=>{
  const book={title:'T',author:'A',chapters:[{id:'a',title:'1',blocks:[]}]};
  const o={...defaultOptions({code:'fa',name:'Persian (Farsi)'}),chapters:[0]};
- assert.match(buildPrompt(book,o),/inkling-summary\.zip/);assert.match(buildPrompt(book,o),/1\. Chapter 1/);
+ assert.match(buildPrompt(book,o),/inkling-summary\.zip/);assert.match(buildPrompt(book,{...o,chapterMode:"list"}),/1\. Chapter 1/);
  assert.doesNotMatch(buildPrompt(book,{...o,figures:false}),/zip named/i);
+});
+test('chapter page ranges, original titles and pull-quotes are read',()=>{
+ const b=parseBlock('# T\n\n## 1. Facing death (pp. 15–48)\n\nOriginal title: Facing Death\n\nA case history [p. 20].\n\n> “Death is the mother of beauty.” — Stevens, p. 30\n\nMore.\n',null,'en');
+ const c=b.chapters[0];
+ assert.equal(c.title,'Facing death');assert.deepEqual(c.range,[15,48]);assert.equal(c.original,'Facing Death');
+ assert.deepEqual(c.paragraphs.map(p=>!!p.quote),[false,true,false]);
+ const fa=parseBlock('# T\n\n## ۲. مواجهه با مرگ (ص ۱۵–۴۸)\n\nمتن.\n',null,'fa');assert.deepEqual(fa.chapters[0].range,[15,48]);assert.equal(fa.chapters[0].title,'مواجهه با مرگ');
+});
+import{rechapter}from '../src/rechapter.ts';
+test('a book is cut into the chapters a summary found, by page',()=>{
+ const blocks=[1,2,5,9,12,20,30].map(p=>({id:'b'+p,text:'x',location:'',page:p}));
+ const book={chapters:[{id:'all',title:'1',blocks}]};
+ const plan=rechapter(book,[{title:'Two',start:10,end:25},{title:'One',original:'Uno',start:4,end:9}])!;
+ assert.deepEqual(plan.chapters.map(c=>[c.title,c.blocks.length]),[['Front matter',2],['Uno',2],['Two',2],['Notes and index',1]]);
+ assert.equal(plan.main.length,2);assert.equal(rechapter({chapters:[{id:'a',title:'t',blocks:[{id:'x',text:'',location:''}]}]},[{title:'a',start:1,end:2},{title:'b',start:3,end:4}]),null);
 });

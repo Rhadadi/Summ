@@ -11,14 +11,20 @@ MAX_DOC=4_000_000
 SCHEMA='''CREATE TABLE IF NOT EXISTS library(id TEXT PRIMARY KEY,slug TEXT UNIQUE NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL DEFAULT '',doc TEXT NOT NULL,visibility TEXT NOT NULL,cover_type TEXT,created REAL NOT NULL,updated REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS narration(book_id TEXT NOT NULL REFERENCES library(id) ON DELETE CASCADE,language TEXT NOT NULL,status TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,total INTEGER NOT NULL DEFAULT 0,tracks TEXT NOT NULL DEFAULT '[]',error TEXT NOT NULL DEFAULT '',updated REAL NOT NULL,PRIMARY KEY(book_id,language));'''
 class Strict(BaseModel):model_config=ConfigDict(extra='forbid')
+class Figure(Strict):
+    name:str=Field(pattern=r'^[a-z0-9][a-z0-9._-]{0,60}\.(?:png|jpe?g|webp)$');alt:str=Field(default='',max_length=300)
 class Para(Strict):
     heading:str|None=Field(default=None,max_length=200)
     text:str=Field(min_length=1,max_length=12000)
     pages:list[int]=Field(default=[],max_length=60)
     chapters:list[str]=Field(default=[],max_length=60)
+    quote:bool=False
+    table:list[list[str]]|None=Field(default=None,max_length=60)
+    image:'Figure|None'=None
     @model_validator(mode='after')
     def sane(self):
         if any(p<1 or p>50000 for p in self.pages) or any(len(c)>200 for c in self.chapters):raise ValueError('Invalid reference.')
+        if self.table and any(len(r)>20 or any(len(c)>500 for c in r) for r in self.table):raise ValueError('Table too large.')
         return self
 class Section(Strict):
     kind:str=Field(max_length=40);title:str=Field(min_length=1,max_length=200);items:list[Para]=Field(max_length=200)
@@ -121,7 +127,7 @@ def remove(book_id:str):
     import shutil
     from . import artwork
     artwork.remove(book_id)
-    for sub in ('covers','audio'):
+    for sub in ('covers','audio','figures'):
         target=_dir(sub)/book_id
         if target.is_dir():shutil.rmtree(target,ignore_errors=True)
         elif target.exists():target.unlink()
@@ -133,6 +139,17 @@ def save_cover(book_id:str,data:bytes)->str:
     kind=next((t for sig,t in IMAGE_TYPES.items() if data.startswith(sig)),None)
     if not kind or len(data)>1_500_000 or len(data)<500:raise accounts.AccountError(422,'Use a JPEG, PNG, or WebP cover under 1.5 MB.')
     (_dir('covers')/book_id).write_bytes(data);q('UPDATE library SET cover_type=? WHERE id=?',(kind,book_id));return kind
+FIGURE_NAME=re.compile(r'^[a-z0-9][a-z0-9._-]{0,60}\.(?:png|jpe?g|webp)$')
+def save_figure(book_id:str,name:str,data:bytes):
+    kind=next((t for sig,t in IMAGE_TYPES.items() if data.startswith(sig)),None)
+    if not FIGURE_NAME.match(name) or not kind or len(data)>1_500_000 or len(data)<100:raise accounts.AccountError(422,'Use a PNG, JPEG or WebP figure under 1.5 MB.')
+    folder=_dir('figures')/book_id;folder.mkdir(parents=True,exist_ok=True)
+    if len(list(folder.iterdir()))>=120 and not (folder/name).exists():raise accounts.AccountError(422,'Too many figures for one book.')
+    (folder/name).write_bytes(data)
+def figure(book_id:str,name:str)->tuple[bytes,str]|None:
+    path=_dir('figures')/book_id/name
+    if not FIGURE_NAME.match(name) or not path.is_file():return None
+    data=path.read_bytes();return data,next((t for sig,t in IMAGE_TYPES.items() if data.startswith(sig)),'application/octet-stream')
 def cover(book_id:str)->tuple[bytes,str]|None:
     rows=q('SELECT cover_type FROM library WHERE id=?',(book_id,));path=_dir('covers')/book_id
     return (path.read_bytes(),rows[0][0]) if rows and rows[0][0] and path.exists() else None

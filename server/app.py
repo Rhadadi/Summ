@@ -450,6 +450,14 @@ async def library_visibility(book_id:str,body:VisibilityBody,user:dict=Depends(e
 @app.put('/api/library/{book_id}/cover')
 async def library_cover_upload(book_id:str,request:Request,user:dict=Depends(editor_user)):
     own_or_owner(user,book_id);library.save_cover(book_id,await request.body());return {'ok':True}
+@app.put('/api/library/{book_id}/figure/{name}')
+async def library_figure_upload(book_id:str,name:str,request:Request,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);throttle('fig:'+user['id'],200);library.save_figure(book_id,name,await request.body());return {'ok':True}
+@app.get('/api/library/{book_id}/figure/{name}')
+async def library_figure(book_id:str,name:str):
+    found=library.figure(book_id,name)
+    if not found:raise HTTPException(404,'No figure.')
+    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
 @app.get('/api/library/{book_id}/cover')
 async def library_cover(book_id:str):
     found=library.cover(book_id)

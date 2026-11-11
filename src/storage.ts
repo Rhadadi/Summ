@@ -18,7 +18,7 @@ export const store={
  review:(bookId:string)=>request<LocalReview|undefined>('summaries','get',bookId+':review'),saveReview:(bookId:string,value:LocalReview)=>request('summaries','put',bookId+':review',value),
  imports:async(bookId:string)=>(await request<ImportedVersion[]|undefined>('summaries','get',bookId+':imports'))||[],
  // Re-importing the same language and style replaces that version.
- async saveImports(bookId:string,versions:ImportedVersion[]){
+ async saveImports(bookId:string,versions:ImportedVersion[],replace=false){
   const db=await database;
   return new Promise<ImportedVersion[]>((resolve,reject)=>{
    const tx=db.transaction(['books','summaries'],'readwrite'),key=bookId+':imports';let result:ImportedVersion[]=[];
@@ -26,7 +26,7 @@ export const store={
    book.onsuccess=()=>{
     if(book.result===undefined){reject(new Error('This source is no longer in your library.'));return;}
     const current=tx.objectStore('summaries').get(key);
-    current.onsuccess=()=>{const old:ImportedVersion[]=current.result||[];result=[...old.filter(o=>!versions.some(v=>v.id===o.id)),...versions];tx.objectStore('summaries').put(result,key);};
+    current.onsuccess=()=>{const old:ImportedVersion[]=current.result||[];result=[...(replace?[]:old.filter(o=>!versions.some(v=>v.id===o.id))),...versions];tx.objectStore('summaries').put(result,key);};
    };
    tx.oncomplete=()=>resolve(result);tx.onabort=()=>reject(tx.error||new Error('Could not save the summary on this device.'));
   });

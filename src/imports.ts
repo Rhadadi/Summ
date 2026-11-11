@@ -11,6 +11,7 @@ export function buildVersion(block:ParsedBlock,mapped:Mapping[],language:string,
  const paragraph=(p:ParaIn):SummaryParagraph=>{
   const out:SummaryParagraph={...(p.heading?{heading:p.heading}:{}),text:p.text,evidence_ids:[],...(p.pages?.length?{pages:p.pages}:{})};
   if(p.table)out.table=p.table;
+  if(p.quote)out.quote=true;
   if(p.image){
    const path=summaryImagePath(files.sourcePath,p.image.src),found=path?files.images.find(i=>i.path===path):undefined;
    if(found){used.set(found.path,found);out.image={path:found.path,alt:p.image.alt};}

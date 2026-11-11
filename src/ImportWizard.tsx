@@ -1,14 +1,16 @@
 import{useMemo,useRef,useState}from'react';
-import{Alert,Button,Checkbox,Chip,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,IconButton,MenuItem,Step,StepButton,Stepper,TextField}from'@mui/material';
+import{Alert,Button,Checkbox,Chip,Radio,RadioGroup,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,IconButton,MenuItem,Step,StepButton,Stepper,TextField}from'@mui/material';
 import{AutoAwesomeRounded,CheckRounded,CloseRounded,ContentCopyRounded,FileUploadOutlined}from'@mui/icons-material';
 import type{Book,ImportedVersion,SummaryImage}from'./types';
 import{chapterWords,languages,minutes,sectionKind}from'./core';
 import{audiences,buildPrompt,chapterLabel,defaultOptions,summaryTypes,tones,type PromptOptions}from'./prompt-builder';
 import{mapChapters,parseBlock,splitBlocks}from'./structured-import';
 import{buildVersion,versionLabel}from'./imports';
+import{rechapter}from'./rechapter';
+import{mainChapters}from'./bookData';
 import{readSummaryFiles,summaryMarkdown}from'./summary-import';
 
-interface Props{book:Book;language:string;existing:ImportedVersion[];canGenerate:boolean;startAt?:number;onClose:()=>void;onSave:(versions:ImportedVersion[])=>Promise<void>;onGenerate:()=>void}
+interface Props{book:Book;language:string;existing:ImportedVersion[];canGenerate:boolean;startAt?:number;onClose:()=>void;onSave:(versions:ImportedVersion[],chapters?:Book['chapters'])=>Promise<void>;onGenerate:()=>void}
 // Several files in one ZIP become one list of summaries; a file without a delimiter line takes its style from its name.
 const joinDocuments=(docs:{name:string;markdown:string}[])=>docs.length===1?docs[0].markdown:docs.map(d=>{
  const type=summaryTypes.find(t=>d.name.toLowerCase().includes(t.id))?.id;
@@ -24,7 +26,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  const[step,setStep]=useState(startAt);
  const[opts,setOpts]=useState<PromptOptions>(()=>({...defaultOptions({code:language,name:nativeName(language)}),chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')}));
  const[raw,setRaw]=useState(''),[files,setFiles]=useState<{sourcePath:string;images:SummaryImage[]}>({sourcePath:'',images:[]}),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
- const[skipped,setSkipped]=useState<Set<number>>(new Set());
+ const[restructure,setRestructure]=useState<boolean|null>(null),[skipped,setSkipped]=useState<Set<number>>(new Set());
  const[overrides,setOverrides]=useState<Record<number,{type?:string;language?:string}>>({});
  const file=useRef<HTMLInputElement>(null);
  const set=(patch:Partial<PromptOptions>)=>{setOpts(o=>({...o,...patch}));setCopied(false);};
@@ -41,32 +43,43 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
    return{block,lang,type,result};
   });
  },[raw,book,language,overrides]);
- const chosen=opts.chapters.length,picked=parsed.map((p,i)=>({...p,i})).filter(p=>!skipped.has(p.i)),ready=picked.length>0&&picked.every(p=>p.result.mapped.length>0);
+ // A summary that names its chapters with page numbers can replace the book's contents, which the app may have cut badly.
+ const lead=parsed.find((p,i)=>!skipped.has(i)&&p.block.chapters.length>=2&&p.block.chapters.every(c=>c.range));
+ const plan=useMemo(()=>lead?rechapter(book,lead.block.chapters.map(c=>({title:c.title,original:c.original,start:c.range![0],end:c.range![1]}))):null,[lead,book]);
+ const suggest=!!plan&&!!lead&&(lead.result.mapped.length<lead.block.chapters.length||mainChapters(book).length<Math.ceil(lead.block.chapters.length*.7));
+ const useNew=!!plan&&(restructure??suggest);
+ const mapFor=(p:(typeof parsed)[number])=>useNew&&plan?mapChapters(p.block.chapters,plan.main,'position'):p.result;
+ const chosen=opts.chapters.length,picked=parsed.map((p,i)=>({...p,i,result:mapFor(p)})).filter(p=>!skipped.has(p.i)),ready=picked.length>0&&picked.every(p=>p.result.mapped.length>0);
  async function save(){
   setBusy(true);setError('');
   try{
    const versions=picked.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
    if(new Set(versions.map(v=>v.id)).size!==versions.length)throw Error('Two of the summaries share a language and style. Change one of them below.');
-   await onSave(versions);
+   await onSave(versions,useNew&&plan?plan.chapters:undefined);
   }catch(e){setError(e instanceof Error?e.message:'Could not save the summary.');setBusy(false);}
  }
- const summaryLine=[chosen+(chosen===1?' chapter':' chapters'),opts.types.length+(opts.types.length===1?' style':' styles'),opts.languages.map(l=>l.name.replace(/ \(.*/,'')).join(', ')].join(' · ');
+ const summaryLine=[opts.chapterMode==='ai'?'Chapters found by the AI':chosen+(chosen===1?' chapter':' chapters'),opts.types.length+(opts.types.length===1?' style':' styles'),opts.languages.map(l=>l.name.replace(/ \(.*/,'')).join(', ')].join(' · ');
  return <Dialog open onClose={()=>{if(!busy)onClose();}} fullWidth maxWidth="md" aria-labelledby="wizard-title" scroll="paper">
   <DialogTitle id="wizard-title" className="dialog-heading"><span>Prepare a summary of <em dir="auto">{book.title.split(':')[0]}</em></span><IconButton aria-label="Close" disabled={busy} onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard">
    <Stepper nonLinear activeStep={step} className="wizard-steps">{STEPS.map((label,i)=><Step key={label} completed={i<step}><StepButton onClick={()=>setStep(i)}>{label}</StepButton></Step>)}</Stepper>
    {step===0&&<section>
-    <p className="dialog-lead">Which parts of the book should the summary cover? Front matter and back matter are left out unless you tick them.</p>
+    <p className="dialog-lead">Books often come with a table of contents the app cannot read well. Let the AI find the real chapters, or follow the list below.</p>
+    <RadioGroup value={opts.chapterMode} onChange={e=>set({chapterMode:e.target.value as PromptOptions['chapterMode']})} sx={{mb:1.5}}>
+     <FormControlLabel value="ai" control={<Radio/>} label={<span><strong>Let the AI find the chapters</strong> (recommended) — it reads the book's own contents and gives each chapter its pages</span>}/>
+     <FormControlLabel value="list" control={<Radio/>} label={<span><strong>Use the chapters below</strong> — the AI summarizes exactly the ones you tick</span>}/>
+    </RadioGroup>
+    {opts.chapterMode==='list'&&<>
     <div className="wizard-bar"><strong>{chosen} of {book.chapters.length} selected</strong>
      <Button size="small" onClick={()=>set({chapters:book.chapters.map((_,i)=>i)})}>All</Button>
      <Button size="small" onClick={()=>set({chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')})}>Chapters only</Button>
      <Button size="small" onClick={()=>set({chapters:[]})}>None</Button></div>
-    <div className="wizard-chapters">{book.chapters.map((c,i)=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={opts.chapters.includes(i)} onChange={()=>set({chapters:toggle(opts.chapters,i)})}/>} label={<span className="wizard-row"><span dir="auto">{i+1}. {chapterLabel(c.title)}</span><small>{kinds[i]!=='main'&&<Chip size="small" label={kinds[i]+' matter'}/>} {minutes(chapterWords(c))} min</small></span>}/>)}</div>
+    <div className="wizard-chapters">{book.chapters.map((c,i)=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={opts.chapters.includes(i)} onChange={()=>set({chapters:toggle(opts.chapters,i)})}/>} label={<span className="wizard-row"><span dir="auto">{i+1}. {chapterLabel(c.title)}</span><small>{kinds[i]!=='main'&&<Chip size="small" label={kinds[i]+' matter'}/>} {minutes(chapterWords(c))} min</small></span>}/>)}</div></>}
    </section>}
    {step===1&&<section>
     <p className="dialog-lead">Pick one style or several. Each one becomes its own summary of every chapter you chose.</p>
     <h4 className="pub-h">Summary styles</h4>
-    <div className="wizard-types">{summaryTypes.map(t=><label key={t.id} className={'wizard-type'+(opts.types.includes(t.id)?' on':'')}><Checkbox size="small" checked={opts.types.includes(t.id)} onChange={()=>set({types:toggle(opts.types,t.id)})}/><span><strong>{t.label}</strong><small>{t.hint} · ~{t.words} words</small></span></label>)}</div>
+    <div className="wizard-types">{summaryTypes.map(t=><label key={t.id} className={'wizard-type'+(opts.types.includes(t.id)?' on':'')}><Checkbox size="small" checked={opts.types.includes(t.id)} onChange={()=>set({types:toggle(opts.types,t.id)})}/><span><strong>{t.label}</strong><small>{t.hint}</small></span></label>)}</div>
     <h4 className="pub-h">Languages</h4>
     <div className="wizard-langs">{languages.map(l=><FormControlLabel key={l.code} control={<Checkbox size="small" checked={opts.languages.some(x=>x.code===l.code)} onChange={()=>{const has=opts.languages.some(x=>x.code===l.code);if(has&&opts.languages.length===1)return;set({languages:has?opts.languages.filter(x=>x.code!==l.code):[...opts.languages,{code:l.code,name:nativeName(l.code)}]});}}/>} label={l.label}/>)}</div>
     <div className="settings-grid" style={{marginTop:16}}>
@@ -89,9 +102,9 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
    {step===2&&<section>
     <p className="dialog-lead">{canGenerate?'Copy this prompt into ChatGPT, Claude or Gemini with the book attached — or let the app write the summary with your own API key.':'Copy this prompt into ChatGPT, Claude or Gemini with the book attached, then bring the answer back.'}</p>
     <div className="wizard-bar"><Chip label={summaryLine}/>
-     <Button variant="contained" startIcon={copied?<CheckRounded/>:<ContentCopyRounded/>} disabled={!chosen||!opts.types.length} onClick={async()=>{try{await navigator.clipboard.writeText(prompt);setCopied(true);setError('');}catch{setError('Select the prompt text below and copy it by hand.');}}}>{copied?'Copied':'Copy prompt'}</Button>
+     <Button variant="contained" startIcon={copied?<CheckRounded/>:<ContentCopyRounded/>} disabled={(opts.chapterMode==='list'&&!chosen)||!opts.types.length} onClick={async()=>{try{await navigator.clipboard.writeText(prompt);setCopied(true);setError('');}catch{setError('Select the prompt text below and copy it by hand.');}}}>{copied?'Copied':'Copy prompt'}</Button>
      {canGenerate&&<Button startIcon={<AutoAwesomeRounded/>} onClick={onGenerate}>Write it here instead</Button>}</div>
-    {(!chosen||!opts.types.length)&&<Alert severity="warning">Choose at least one chapter and one style first.</Alert>}
+    {((opts.chapterMode==='list'&&!chosen)||!opts.types.length)&&<Alert severity="warning">Choose at least one chapter and one style first.</Alert>}
     <pre className="wizard-prompt" aria-label="Generated prompt">{prompt}</pre>
    </section>}
    {step===3&&<section>
@@ -101,15 +114,20 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
      {files.images.length>0&&<small>{files.images.length} {files.images.length===1?'image':'images'} found in the ZIP</small>}
      {existing.length>0&&<small>Already saved: {existing.map(v=>v.label+' · '+languageName(v.language)).join(', ')}</small>}</div>
     <TextField fullWidth multiline minRows={6} maxRows={14} label="Summary" placeholder="Paste the Markdown here" value={raw} onChange={e=>{setRaw(e.target.value);setOverrides({});setSkipped(new Set());if(files.images.length)setFiles({sourcePath:'',images:[]});}} slotProps={{htmlInput:{maxLength:2*1024*1024,dir:'auto'}}}/>
-    {parsed.map((p,i)=>{const{mapped,missing,extra}=p.result;return <div className={'wizard-found'+(skipped.has(i)?' off':'')} key={i}>
+    {plan&&lead&&<Alert severity={suggest?'warning':'info'} sx={{mt:2}} icon={false}>
+     <FormControlLabel control={<Checkbox checked={useNew} onChange={e=>setRestructure(e.target.checked)}/>} label={<strong>Use this summary's {plan.main.length} chapters as the book's contents</strong>}/>
+     <div className="settings-help" style={{margin:'0 0 6px'}}>{suggest?'The app found only '+mainChapters(book).length+' chapter'+(mainChapters(book).length===1?'':'s')+' in this file, so the summary\'s own chapters are probably more accurate. ':''}The original text is cut again by the page numbers the summary gave. Summaries made earlier for the old sections are replaced.</div>
+     {useNew&&<ol className="wizard-map">{plan.main.map(c=><li key={c.id}><span dir="auto">{c.title}</span><small>{c.blocks[0]?.page&&c.blocks[c.blocks.length-1]?.page?'pp. '+c.blocks[0].page+'–'+c.blocks[c.blocks.length-1].page+' · ':''}{minutes(c.blocks.reduce((n,b)=>n+b.text.split(/\s+/).length,0))} min</small></li>)}</ol>}
+    </Alert>}
+    {parsed.map((p,i)=>{const{mapped,missing,extra}=mapFor(p);return <div className={'wizard-found'+(skipped.has(i)?' off':'')} key={i}>
      <div className="wizard-found-head">{parsed.length>1?<FormControlLabel className="wizard-pick" control={<Checkbox checked={!skipped.has(i)} onChange={()=>setSkipped(set=>{const n=new Set(set);n.has(i)?n.delete(i):n.add(i);return n;})}/>} label={<strong>Summary {i+1} of {parsed.length}{skipped.has(i)?' · left out':''}</strong>}/>:<strong>Found a summary</strong>}
       <TextField select size="small" label="Style" value={p.type} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],type:e.target.value}}))}>{summaryTypes.map(t=><MenuItem key={t.id} value={t.id}>{t.label}</MenuItem>)}{!summaryTypes.some(t=>t.id===p.type)&&<MenuItem value={p.type}>{versionLabel(p.type)}</MenuItem>}</TextField>
       <TextField select size="small" label="Language" value={p.lang} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],language:e.target.value}}))}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField></div>
      <p className="settings-help">{mapped.length} of {mapped.length+extra.length} chapters matched{p.block.overview.length?' · overview':''}{p.block.takeaways.length?' · key takeaways':''}{p.block.sections.length?' · '+p.block.sections.length+' more sections':''}{existing.some(v=>v.id===p.lang+':'+p.type)?' · replaces your saved '+versionLabel(p.type)+' summary':''}</p>
      {(p.block.overview[0]||p.block.chapters[0]?.paragraphs[0])&&<blockquote className="wizard-peek" dir="auto">{(p.block.overview[0]||p.block.chapters[0].paragraphs[0]).text.slice(0,260)}…<small>{p.block.chapters[0]?.paragraphs.reduce((n,x)=>n+x.text.split(/\s+/).length,0)} words in the first chapter</small></blockquote>}
-     <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=book.chapters.find(x=>x.id===m.chapterId)!;return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{chapterLabel(c.title)}</small></li>;})}</ol>
+     <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=(useNew&&plan?plan.chapters:book.chapters).find(x=>x.id===m.chapterId);return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{c?chapterLabel(c.title):''}</small></li>;})}</ol>
      {extra.length>0&&<Alert severity="warning">{extra.length} chapter{extra.length===1?'':'s'} in the summary could not be matched to the book: {extra.slice(0,4).map(e=>e.title).join('; ')}.</Alert>}
-     {mapped.length>0&&missing.length>0&&opts.chapters.some(i=>missing.some(c=>c.id===book.chapters[i].id))&&<small className="settings-help">Not covered: {missing.filter(c=>opts.chapters.includes(book.chapters.indexOf(c))).slice(0,6).map(c=>c.title.replace(/^\d+[.\s]+/,'')).join('; ')}</small>}
+     {!useNew&&opts.chapterMode==='list'&&mapped.length>0&&missing.length>0&&opts.chapters.some(i=>missing.some(c=>c.id===book.chapters[i].id))&&<small className="settings-help">Not covered: {missing.filter(c=>opts.chapters.includes(book.chapters.indexOf(c))).slice(0,6).map(c=>c.title.replace(/^\d+[.\s]+/,'')).join('; ')}</small>}
      {mapped.length===0&&<Alert severity="error">No chapters were recognised. Each chapter needs a heading such as “## 1. Title” (or “## Chapter 1: Title”).</Alert>}
     </div>;})}
     {raw.trim()&&!parsed.length&&<Alert severity="error" sx={{mt:2}}>Nothing to import yet.</Alert>}
@@ -119,7 +137,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
   <DialogActions sx={{px:3,pb:2}}>
    <Button onClick={onClose} disabled={busy}>Cancel</Button><span style={{flex:1}}/>
    {step>0&&<Button disabled={busy} onClick={()=>setStep(step-1)}>Back</Button>}
-   {step<3?<Button variant="contained" disabled={step===0&&!chosen||step===1&&!opts.types.length} onClick={()=>setStep(step+1)}>{step===2?'I have the answer':'Next'}</Button>
+   {step<3?<Button variant="contained" disabled={step===0&&opts.chapterMode==='list'&&!chosen||step===1&&!opts.types.length} onClick={()=>setStep(step+1)}>{step===2?'I have the answer':'Next'}</Button>
     :<Button variant="contained" disabled={busy||!ready} onClick={save}>{busy?'Saving…':picked.length>1?'Add '+picked.length+' summaries':'Add to this book'}</Button>}
   </DialogActions>
  </Dialog>;

@@ -22,7 +22,9 @@ export default function App(){
  const[evidence,setEvidence]=useState<{block:Block;text:string;chapter:Chapter}|null>(null),[sourceUrl,setSourceUrl]=useState('');
  const[editing,setEditing]=useState<Book|null>(null),[splits,setSplits]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<Book|null>(null);
  const[account,setAccount]=useState<Account|null>(null),[appConfig,setAppConfig]=useState<AppConfig|null>(),[accountOpen,setAccountOpen]=useState(false),[costRequest,setCostRequest]=useState<CostRequest|null>(null);
- const role=account?.role||'reader',canEdit=role==='owner'||role==='editor';
+ const role=account?.role||'reader',isEditor=role==='owner'||role==='editor';
+ // Editors can look at the site as a visitor would without signing out.
+ const[asVisitor,setAsVisitor]=useState(false),canEdit=isEditor&&!asVisitor;
  const[published,setPublished]=useState<PubBook[]|null>(null),[publishOpen,setPublishOpen]=useState(false);
  const refreshPublished=()=>libraryList().then(setPublished).catch(()=>setPublished(old=>old??[]));
  useEffect(()=>{refreshPublished();},[]);
@@ -101,9 +103,10 @@ export default function App(){
   player.load(b,items,language,engine,chapterId);
  }
  // Imported summaries join the normal chapter list: the book switches to their language and opens on its chapters.
- async function saveVersions(versions:ImportedVersion[]){
+ async function saveVersions(versions:ImportedVersion[],chapters?:Chapter[]){
   if(!active||!versions.length)return;
-  await store.saveImports(active.id,versions);
+  if(chapters)await updateBook({...active,chapters,chapterIndex:0,completed:[],importVersion:Math.max(active.importVersion||1,2)});
+  await store.saveImports(active.id,versions,!!chapters);
   const next={...settings,language:versions[0].language};setSettings(next);saveSettings(next);setDraft(next);setPick(versions[0].type);setReportVersion(v=>v+1);setWizard(null);
   navigate('/book/'+active.id);setToast(versions.length===1?'Summary added: '+versions[0].label+'.':versions.length+' summaries added.');
  }
@@ -148,7 +151,7 @@ export default function App(){
  {error&&<Alert severity="error">{error}</Alert>}
  {isRead&&active&&chapter&&!loading?<ReaderPage key={active.id} book={active} chapter={chapter} section={readSection} settings={settings} account={account} price={price} saved={saved} data={data} summary={summary} generating={generating} generationError={generationError} onPreferences={preferences} onGenerate={generate} onCancel={()=>{abort.current?.abort();setGenerating(false);}} onBookmark={bookmark} onEvidence={(block,text,c)=>setEvidence({block,text,chapter:c})} onChoose={async i=>{await chooseChapter(i);navigate('/read/'+active.id);}} onSection={section=>navigate('/read/'+active.id+'/'+encodeURIComponent(section))} onBack={()=>navigate('/book/'+active.id)} onFinished={()=>updateBook({...active,completed:active.completed.includes(chapter.id)?active.completed.filter(id=>id!==chapter.id):[...active.completed,chapter.id]}).catch(()=>setToast('Could not save progress.'))} onListen={id=>listen(active,id)} onCreate={()=>setBookSummaryOpen(true)}/>
  :isPub&&pubRead&&!loading?<PublishedBook key={pubSlug} slug={pubSlug} mode="read" section={pubSection} settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences}/>
- :<Shell ref={searchInput} route={route} account={account} query={query} onQuery={value=>{setQuery(value);if(route!=='/library'&&route!=='/workspace')navigate(canEdit?'/workspace':'/library');}} canEdit={canEdit} navigate={navigate} onAdd={beginImport} onSettings={openSettings} onAccount={()=>setAccountOpen(true)}>{view}</Shell>}
+ :<Shell ref={searchInput} route={route} isEditor={isEditor} asVisitor={asVisitor} onToggleVisitor={()=>{setAsVisitor(v=>!v);navigate('/');}} account={account} query={query} onQuery={value=>{setQuery(value);if(route!=='/library'&&route!=='/workspace')navigate(canEdit?'/workspace':'/library');}} canEdit={canEdit} navigate={navigate} onAdd={beginImport} onSettings={openSettings} onAccount={()=>setAccountOpen(true)}>{view}</Shell>}
  </div>
  <PlayerBar player={player} cover={player.state?(player.state.book.id.startsWith('pub:')?'/api/library/'+player.state.book.id.slice(4)+'/cover':covers[player.state.book.id]):undefined} onOpen={chapterId=>{
   const src=player.state?.book;if(!src)return;

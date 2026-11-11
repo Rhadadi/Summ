@@ -11,7 +11,7 @@ export function pickVersion(doc:PubDoc,preferred?:string,language?:string){
 export function adaptPublished(pub:PubBook,doc:PubDoc,version:PubVersion,position:{index:number;completed:string[];lastRead:number}):{book:Book;data:BookData}{
  const lang=version.language;
  const titleOf=(t:Record<string,string>)=>t[lang]||t[doc.originalLanguage]||Object.values(t)[0]||'';
- const toPara=(p:PubPara,chapter?:Chapter):SummaryParagraph=>({heading:p.heading,text:p.text,evidence_ids:chapter?(p.pages||[]).map(pageId):(p.chapters||[])});
+ const toPara=(p:PubPara,chapter?:Chapter):SummaryParagraph=>({heading:p.heading,text:p.text,evidence_ids:chapter?(p.pages||[]).map(pageId):(p.chapters||[]),...(p.quote?{quote:true}:{}),...(p.table?{table:p.table}:{}),...(p.image?{image:{path:'/api/library/'+pub.id+'/figure/'+p.image.name,alt:p.image.alt}}:{})});
  const chapters:Chapter[]=doc.chapters.map(c=>{
   const body=version.chapters[c.id];const pages=new Set<number>();
   for(const p of[...(body?.paragraphs||[]),...(body?.review||[])])for(const n of p.pages||[])pages.add(n);

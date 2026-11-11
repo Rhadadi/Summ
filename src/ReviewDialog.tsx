@@ -29,6 +29,11 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
    {review&&<div className="rv-edit">
     <Alert severity="warning" sx={{mb:2}}>Generated from web search. Quotes must be short and attributed; remove anything you cannot confirm at its link.</Alert>
     <TextField fullWidth multiline minRows={2} label="Verdict" value={review.verdict} onChange={e=>set({verdict:e.target.value})} slotProps={{htmlInput:{maxLength:800,dir:'auto'}}}/>
+    <div className="settings-grid">
+     <TextField multiline minRows={2} label="Who it is for" value={review.audience||''} onChange={e=>set({audience:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}}/>
+     <TextField multiline minRows={2} label="About the author" value={review.aboutAuthor||''} onChange={e=>set({aboutAuthor:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}}/>
+    </div>
+    <TextField fullWidth size="small" sx={{mt:2}} label="Themes (comma separated)" value={(review.themes||[]).join(', ')} onChange={e=>set({themes:e.target.value.split(/[,،]/).map(x=>x.trim()).filter(Boolean).slice(0,8)})} slotProps={{htmlInput:{dir:'auto'}}}/>
     <div className="settings-grid" style={{margin:'16px 0'}}>
      <TextField size="small" type="number" label="Rating (0–5)" value={review.rating?.value??''} onChange={e=>{const v=e.target.value;set({rating:v===''?null:{value:Math.max(0,Math.min(5,Number(v))),source:review.rating?.source||'Goodreads',count:review.rating?.count??null,url:review.rating?.url??null}});}} slotProps={{htmlInput:{min:0,max:5,step:.01}}}/>
      <TextField size="small" label="Rating source" value={review.rating?.source??''} disabled={!review.rating} onChange={e=>review.rating&&set({rating:{...review.rating,source:e.target.value}})}/>

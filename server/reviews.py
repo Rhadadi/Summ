@@ -21,13 +21,17 @@ class Source(Strict):
 class Rating(Strict):
     value:float=Field(ge=0,le=5);source:str=Field(max_length=80);count:int|None=Field(default=None,ge=0,le=500_000_000);url:str|None=Field(default=None,max_length=600)
     _u=field_validator('url')(lambda v:_https(v))
+class Similar(Strict):
+    title:str=Field(min_length=1,max_length=200);author:str=Field(default='',max_length=200);why:str=Field(default='',max_length=300)
 class Review(Strict):
     verdict:str=Field(default='',max_length=800)
+    audience:str=Field(default='',max_length=500);aboutAuthor:str=Field(default='',max_length=900)
+    themes:list[str]=Field(default=[],max_length=8);similar:list[Similar]=Field(default=[],max_length=6)
     rating:Rating|None=None
     pros:list[str]=Field(default=[],max_length=8);cons:list[str]=Field(default=[],max_length=8)
     quotes:list[Quote]=Field(default=[],max_length=8);sources:list[Source]=Field(default=[],max_length=12)
     model:str=Field(default='',max_length=100);createdAt:float=0
-    @field_validator('pros','cons')
+    @field_validator('pros','cons','themes')
     @classmethod
     def short(cls,v):
         if any(not isinstance(x,str) or len(x)>300 for x in v):raise ValueError('Each point must be short.')
@@ -41,6 +45,10 @@ Find: (1) the average reader rating and its number of ratings on Goodreads or an
 Return ONE JSON object and nothing else, with this shape:
 {{"verdict": one or two sentences summarizing the reception, in {language},
  "rating": {{"value": number from 0 to 5, "source": "Goodreads", "count": integer or null, "url": "https://..."}} or null,
+ "audience": one or two sentences on who this book is for and who may not enjoy it, in {language},
+ "aboutAuthor": two or three sentences about the author's background and standing, in {language},
+ "themes": up to 6 short theme labels, in {language},
+ "similar": up to 4 objects {{"title": a related book, "author": its author, "why": a few words on the link, in {language}}},
  "pros": up to 6 short strengths readers and critics name, in {language},
  "cons": up to 6 short weaknesses they name, in {language},
  "quotes": up to 6 objects {{"text": a SHORT verbatim excerpt of at most 25 words copied from a page you found, in its original language, "who": reviewer or reader name, "source": publication or site, "url": "https://..." of the page}},
@@ -71,8 +79,9 @@ def clean(raw:dict,grounded:set[str],model:str)->Review:
             value=float(r.get('value'))
             if 0<value<=5:rating={'value':round(value,2),'source':str(r.get('source') or '')[:80],'count':int(r['count']) if isinstance(r.get('count'),(int,float)) and r['count']>=0 else None,'url':link(r.get('url'))}
         except (TypeError,ValueError):rating=None
+    similar=[{'title':str(x.get('title') or '')[:200],'author':str(x.get('author') or '')[:200],'why':str(x.get('why') or '')[:300]} for x in raw.get('similar') or [] if isinstance(x,dict) and str(x.get('title') or '').strip()][:6]
     points=lambda v:[' '.join(x.split())[:300] for x in (v or []) if isinstance(x,str) and x.strip()][:8]
-    return Review(verdict=' '.join(str(raw.get('verdict') or '').split())[:800],rating=rating,pros=points(raw.get('pros')),cons=points(raw.get('cons')),quotes=quotes[:8],sources=sources[:12],model=model,createdAt=time.time())
+    return Review(audience=' '.join(str(raw.get('audience') or '').split())[:500],aboutAuthor=' '.join(str(raw.get('aboutAuthor') or '').split())[:900],themes=[' '.join(t.split())[:80] for t in (raw.get('themes') or []) if isinstance(t,str) and t.strip()][:8],similar=similar,verdict=' '.join(str(raw.get('verdict') or '').split())[:800],rating=rating,pros=points(raw.get('pros')),cons=points(raw.get('cons')),quotes=quotes[:8],sources=sources[:12],model=model,createdAt=time.time())
 async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Review:
     key,model=creds
     prompt=PROMPT.format(title=request.title,by=' by '+request.author if request.author else '',year=' ('+request.year+')' if request.year else '',language=LANGS[request.language])

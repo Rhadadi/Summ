@@ -5,6 +5,7 @@ import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,Summa
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
 import{costRange,estimateChapter,money,usageCost}from'./cost';
 import type{Price}from'./cost';
+import{num,rtl as isRtl,tr}from'./i18n';
 import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
 
 interface Props{
@@ -23,8 +24,9 @@ export default function ReaderPage(p:Props){
  useEffect(()=>{top.current?.scrollIntoView({block:'start'});window.scrollTo({top:0});},[chapter.id,section]);
  const main=mainChapters(book),kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const report=data.report;
+ const lang=p.readOnly?(data.version?.language||report?.language||Object.values(data.summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
 
- const guideItems=[...(report?.overview?[{id:'overview',label:'Overview and key takeaways'}]:[]),...(report?.guide?.sections||[]).map(s=>({id:'g:'+s.kind,label:s.title}))];
+ const guideItems=[...(report?.overview?[{id:'overview',label:L('Overview and key takeaways')}]:[]),...(report?.guide?.sections||[]).map(s=>({id:'g:'+s.kind,label:s.title}))];
  const isChapter=!section;
  const summary=isChapter?(p.summary||data.summaries[chapter.id]||null):null;
  const index=main.indexOf(chapter);
@@ -36,10 +38,19 @@ export default function ReaderPage(p:Props){
  // Pictures that came with an imported summary live in this browser; each gets a temporary address while the page is open.
  const pictures=useMemo(()=>Object.fromEntries((data.version?.images||[]).map(i=>[i.path,URL.createObjectURL(new Blob([i.data],{type:i.type}))])),[data.version]);
  useEffect(()=>()=>{for(const u of Object.values(pictures))URL.revokeObjectURL(u);},[pictures]);
+ // Neighbouring pages become one chip ("pp. 16–24") so a long passage does not trail a row of numbers.
+ function refs(x:SummaryParagraph,c?:Chapter){
+  if(!c)return <span className="refs">{x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}</span>;
+  const found=[...new Map([...x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)),...(x.pages||[]).map(n=>c.blocks.find(y=>y.page===n&&!y.note))].filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].sort((a,b)=>(a.page??1e9)-(b.page??1e9));
+  const groups:Block[][]=[];for(const b of found){const g=groups[groups.length-1];if(g&&b.page&&g[g.length-1].page&&b.page-g[g.length-1].page!<=1)g.push(b);else groups.push([b]);}
+  const shown=(x.pages||[]).filter(n=>!found.some(b=>b.page===n));
+  return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
+ }
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=>x.image&&pictures[x.image.path]?<figure className="r2-fig" key={i}><img src={pictures[x.image.path]} alt={x.image.alt}/><figcaption dir="auto">{x.text}</figcaption></figure>
+  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><img src={pictures[x.image.path]||x.image.path} alt={x.image.alt} loading="lazy"/><figcaption dir="auto">{x.text}</figcaption></figure>
+   :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h3>{x.heading}</h3>}{x.text}{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
-   :<div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}<span className="refs">{c?[...new Map(x.evidence_ids.map(id=>c.blocks.find(b=>b.id===id)).filter((b):b is Block=>!!b).map(b=>[b.page??b.id,b])).values()].map(b=>p.readOnly?<span className="pg-chip" key={b.id}>{b.page?'p. '+b.page:'¶'}</span>:<button key={b.id} onClick={()=>p.onEvidence(b,b.text,c)}>{b.page?'p. '+b.page:'¶'}</button>):x.evidence_ids.map(id=>{const ch=book.chapters.find(y=>y.id===id);return ch?<button key={id} onClick={()=>choose(ch)}>{strip(ch.title).slice(0,40)}</button>:null;})}{c&&(x.pages||[]).map(n=>{const b=c.blocks.find(y=>y.page===n&&!y.note);return b&&!p.readOnly?<button key={'p'+n} onClick={()=>p.onEvidence(b,b.text,c)}>p. {n}</button>:<span className="pg-chip" key={'p'+n}>p. {n}</span>;})}</span></p></div>);
+   :<div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){
@@ -56,32 +67,32 @@ export default function ReaderPage(p:Props){
  const row=(c:Chapter)=>{const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1];const on=isChapter&&c.id===chapter.id;return <button key={c.id} className={'r2-row'+(on?' on':'')+(book.completed.includes(c.id)?' done':'')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n||''}</span><span className="t" dir="auto">{chapterTitle(data,c)}{data.summaries[c.id]&&<i className="dot" aria-label="Summarized"/>}</span><ChevronRightRounded/></button>;};
  const panel=<nav className="r2-list" aria-label="Contents">
   <IconButton className="r2-back" aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton>
-  {guideItems.length>0&&<><p className="r2-head"><LightbulbOutlined/>Study guide</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span><ChevronRightRounded/></button>)}</>}
-  <p className="r2-head"><FormatListBulletedRounded/>Chapters</p>
+  {guideItems.length>0&&<><p className="r2-head"><LightbulbOutlined/>{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span><ChevronRightRounded/></button>)}</>}
+  <p className="r2-head"><FormatListBulletedRounded/>{L('Chapters')}</p>
   {main.map(row)}
-  {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'More sections'}: front matter, index</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
+  {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
- return <div className="r2">
+ return <div className="r2" dir={isRtl(lang)?'rtl':undefined}>
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article className="r2-main" ref={top}>
-   <div className="r2-mobilebar"><IconButton aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?'Chapter '+(index+1)+' of '+main.length:'Section'):'Study guide'}</span><IconButton aria-label="Contents" onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
+   <div className="r2-mobilebar"><IconButton aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label="Contents" onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
-    <p className="r2-kicker">STUDY GUIDE</p><h1>Overview</h1>
+    <p className="r2-kicker">{L('Study guide')}</p><h1>{L('Overview')}</h1>
     {paragraphs(report.overview.paragraphs)}
     <div className="r2-box"><strong>Key takeaways</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
    </div>}
-   {guideSection&&<div dir={rtl(report?.language)}><p className="r2-kicker">STUDY GUIDE</p><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
+   {guideSection&&<div dir={rtl(report?.language)}><p className="r2-kicker">{L('Study guide')}</p><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
-    <div className="r2-top"><p className="r2-kicker">{index>=0?'CHAPTER '+(index+1)+' OF '+main.length:'SECTION'}</p>
-     {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>Summary</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>Original</button></div>}
+    <div className="r2-top"><p className="r2-kicker">{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'CHAPTER '+(index+1)+' OF '+main.length):L('Section')}</p>
+     {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
     </div>
     <h1 dir="auto">{chapterTitle(data,chapter)}</h1>
     {view==='summary'&&(summary?<>
-     <div className="r2-meta"><span title={summary.model||undefined}>{summary.model==='imported'&&data.version?data.version.label+' summary':'AI summary'}{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
-      <Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>Listen</Button>
+     <div className="r2-meta"><span title={summary.model||undefined}>{summary.model==='imported'&&data.version?data.version.label:L('AI summary')}{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
+      <Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>
       {!p.readOnly&&summary.model!=='imported'&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
       <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>
@@ -97,7 +108,7 @@ export default function ReaderPage(p:Props){
      {main.length>1&&!data.report&&<p className="muted small">Want every chapter? <button className="text-link2 inline" onClick={p.onCreate}>Create the whole study guide</button></p>}
     </div>)}
     {view==='original'&&original(chapter)}
-    <nav className="doc-pager" aria-label="Chapters">{prev?<button className="pg prev" onClick={()=>choose(prev)}><small>Previous</small><span dir="auto">{chapterTitle(data,prev)}</span></button>:<span/>}{next?<button className="pg next" onClick={()=>choose(next)}><small>Next</small><span dir="auto">{chapterTitle(data,next)}</span></button>:<span/>}<button className="pg-read" onClick={p.onFinished}>{book.completed.includes(chapter.id)?'Marked as read ✓':'Mark this chapter as read'}</button></nav>
+    <nav className="doc-pager" aria-label="Chapters">{prev?<button className="pg prev" onClick={()=>choose(prev)}><small>{L('Previous')}</small><span dir="auto">{chapterTitle(data,prev)}</span></button>:<span/>}{next?<button className="pg next" onClick={()=>choose(next)}><small>{L('Next')}</small><span dir="auto">{chapterTitle(data,next)}</span></button>:<span/>}<button className="pg-read" onClick={p.onFinished}>{L(book.completed.includes(chapter.id)?'Marked as read ✓':'Mark this chapter as read')}</button></nav>
    </>}
   </article>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>

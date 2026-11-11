@@ -49,6 +49,20 @@ class AccessTests(RolesTest):
         anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
         self.assertEqual(anon.get('/api/library').json()['books'][0]['slide']['mode'],'cover')
         self.assertEqual(anon.get('/api/library/'+book['id']+'/art').status_code,404)
+    def test_figures_quotes_and_tables_are_published_and_served(self):
+        owner,_=self.owner()
+        d=doc();d['versions'][0]['chapters']['c1']['paragraphs']=[{'text':'Caption','image':{'name':'f1.png','alt':'A map'}},{'text':'A quote','quote':True},{'text':'a · b','table':[['a','b'],['1','2']]}]
+        book=owner.post('/api/library',json={'doc':d,'visibility':'public'});self.assertEqual(book.status_code,200,book.text);bid=book.json()['id']
+        png=b'\x89PNG'+b'0'*400
+        self.assertEqual(owner.put('/api/library/'+bid+'/figure/f1.png',content=png,headers={'Content-Type':'image/png'}).status_code,200)
+        self.assertIn(owner.put('/api/library/'+bid+'/figure/..%2Fx.png',content=png).status_code,(404,405,422))
+        self.assertEqual(owner.put('/api/library/'+bid+'/figure/f2.png',content=b'not an image'*50).status_code,422)
+        anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
+        r=anon.get('/api/library/'+bid+'/figure/f1.png');self.assertEqual((r.status_code,r.headers['content-type']),(200,'image/png'))
+        self.assertEqual(anon.get('/api/library/'+bid+'/figure/nope.png').status_code,404)
+        self.assertEqual(self.reader().put('/api/library/'+bid+'/figure/f3.png',content=png).status_code,403)
+        bad=doc();bad['versions'][0]['chapters']['c1']['paragraphs']=[{'text':'x','image':{'name':'../evil.png','alt':''}}]
+        self.assertEqual(owner.post('/api/library',json={'doc':bad,'visibility':'public'}).status_code,422)
     def test_editor_request_approval_flow(self):
         owner,_=self.owner();r=self.reader('asker')
         self.assertEqual(r.post('/api/editor-request',json={'message':'I translate books.'}).json()['editorRequest']['status'],'pending')

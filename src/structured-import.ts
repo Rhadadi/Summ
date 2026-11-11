@@ -4,8 +4,9 @@ import{detectSummaryLanguage,importedChapterHeadings}from'./summary-import.ts';
 // Turns an AI-written Markdown summary into per-chapter summaries. The language, translated chapter titles,
 // overview, takeaways and extra guide sections are all recovered from the headings.
 // Figures and tables that came with the summary are kept beside the text.
-export interface ParaIn extends PubPara{image?:{src:string;alt:string};table?:string[][]}
-export interface ParsedChapter{n:number|null;title:string;paragraphs:ParaIn[]}
+export interface ParaIn extends Omit<PubPara,'image'|'table'|'quote'>{image?:{src:string;alt:string};table?:string[][];quote?:boolean}
+// "range" is the chapter's first and last page and "original" its title as the book prints it, when the summary says so.
+export interface ParsedChapter{n:number|null;title:string;paragraphs:ParaIn[];range?:[number,number];original?:string}
 export interface ParsedBlock{type:string|null;language:string;bookTitle:string;overview:ParaIn[];takeaways:ParaIn[];sections:{title:string;items:ParaIn[]}[];chapters:ParsedChapter[]}
 const DIGITS:Record<string,string>={'۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
 export const latinDigits=(text:string)=>text.replace(/[۰-۹٠-٩]/g,d=>DIGITS[d]);
@@ -35,9 +36,13 @@ function paragraphs(lines:string[]):ParaIn[]{
   const p:ParaIn={text};if(heading){p.heading=heading;heading=undefined;}if(pages.length)p.pages=pages;out.push(p);
  };
  const flush=()=>{if(pending.length)push(pending.join(' '));pending=[];};
+ let quote:string[]=[];
+ const flushQuote=()=>{if(!quote.length)return;const raw=inline(quote.join(' '));quote=[];if(!raw)return;const{text,pages}=extractPages(raw);if(!text)return;const p:ParaIn={text,quote:true};if(heading){p.heading=heading;heading=undefined;}if(pages.length)p.pages=pages;out.push(p);};
  const flushTable=()=>{if(!rows.length)return;const p:ParaIn={text:rows.map(r=>r.join(' · ')).join('\n'),table:rows};if(heading){p.heading=heading;heading=undefined;}out.push(p);rows=[];};
  for(const line of lines){
   if(/^\s*\|/.test(line)){flush();const cells=line.trim().replace(/^\||\|$/g,'').split('|').map(c=>inline(c));if(!cells.every(c=>/^:?-{2,}:?$/.test(c)||!c))rows.push(cells);continue;}
+  if(/^\s*>/.test(line)){flush();quote.push(line.replace(/^\s*>\s?/,'').trim());continue;}
+  flushQuote();
   flushTable();
   const h=line.match(headingLine);
   if(h){flush();heading=inline(h[2]);continue;}
@@ -48,7 +53,7 @@ function paragraphs(lines:string[]):ParaIn[]{
   if(bullet){flush();pending=[bullet[1]];flush();continue;}
   pending.push(line.replace(/^\s*>\s?/,'').trim());
  }
- flush();flushTable();return out;
+ flush();flushQuote();flushTable();return out;
 }
 // A pasted answer can hold several summaries, each introduced by a line like "=== INKLING: type=short; language=fa ===".
 export function splitBlocks(markdown:string):{type:string|null;language:string|null;text:string}[]{
@@ -78,7 +83,12 @@ export function parseBlock(text:string,type:string|null=null,fallbackLanguage='e
   if(chapterAt.has(i)){
    const n=latinDigits(h.title).match(numbered);
    const title=h.title.replace(/^(?:(?:chapter|section|part|فصل|بخش)\s*)?[\d۰-۹٠-٩]+\s*[.،:–—)-]*\s*/iu,'').replace(worded,'').trim()||h.title;
-   block.chapters.push({n:n?+n[1]:null,title,paragraphs:paragraphs(body(i,false))});used=endOf(i,false);continue;
+   const span=latinDigits(title).match(/\s*[(\[]\s*(?:pp?|pages?|ص|صفحه|صفحات)\.?\s*(\d+)\s*[–—-]\s*(\d+)\s*[)\]]\s*$/i);
+   const body_=paragraphs(body(i,false));
+   const orig=body_[0]&&!body_[0].heading&&body_[0].text.match(/^(?:original title|عنوان اصلی)\s*[:：]\s*(.+)$/i);
+   if(orig)body_.shift();
+   const range:[number,number]|undefined=span&&+span[1]>0&&+span[2]>=+span[1]?[+span[1],+span[2]]:undefined;
+   block.chapters.push({n:n?+n[1]:null,title:span?title.slice(0,title.length-(latinDigits(title).length-latinDigits(title).replace(span[0],'').length)).trim()||title:title,paragraphs:body_,...(range?{range}:{}),...(orig?{original:orig[1].trim()}:{})});used=endOf(i,false);continue;
   }
   if(i===0&&h.level===1&&heads.length>1&&heads[1].level>1&&heads.filter(x=>x.level===1).length===1){block.bookTitle=h.title.replace(/^(?:summary|study guide|خلاصه(?:ٔ)?)\s*[:：—–-]\s*/i,'');continue;}
   // "Chapter-by-chapter summary" only groups the chapters beneath it.
