@@ -1,4 +1,4 @@
-import type{Book,BookInfo,SavedPassage,Settings,Summary,BookReport,ImportedSummaries,ImportedSummary,ImportedVersion}from './types';
+import type{Book,BookInfo,SavedPassage,Settings,Summary,BookReport,ImportedSummaries,ImportedSummary,ImportedVersion,LocalReview}from './types';
 import{importedSummaryVersions}from './summary-import';
 export const defaults:Settings={depth:'detailed',purpose:'understand',review:'off',language:'en',fontSize:19,theme:'paper'};
 const database=new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('summ-reader',2);r.onupgradeneeded=()=>{for(const n of ['books','files','passages','summaries','covers','audio'])if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n);};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
@@ -15,6 +15,7 @@ export const store={
  passages:()=>request<SavedPassage[]>('passages','getAll'),savePassage:(p:SavedPassage)=>request('passages','put',p.id,p),deletePassage:(id:string)=>request('passages','delete',id),
  summary:(id:string)=>request<Summary|undefined>('summaries','get',id),saveSummary:(id:string,s:Summary)=>request('summaries','put',id,s),
  report:(id:string)=>request<BookReport|undefined>('summaries','get',id),saveReport:(id:string,r:BookReport)=>request('summaries','put',id,r),
+ review:(bookId:string)=>request<LocalReview|undefined>('summaries','get',bookId+':review'),saveReview:(bookId:string,value:LocalReview)=>request('summaries','put',bookId+':review',value),
  imports:async(bookId:string)=>(await request<ImportedVersion[]|undefined>('summaries','get',bookId+':imports'))||[],
  // Re-importing the same language and style replaces that version.
  async saveImports(bookId:string,versions:ImportedVersion[]){

@@ -1,7 +1,7 @@
 import{useEffect,useMemo,useState}from'react';
 import{Alert,Button,Checkbox,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,LinearProgress,MenuItem,Radio,RadioGroup,TextField}from'@mui/material';
 import{ContentCopyRounded,OpenInNewRounded}from'@mui/icons-material';
-import type{ArtResult,Book,BookInfo,NarrationStatus}from'./types';
+import type{ArtResult,Book,BookInfo,LocalReview,NarrationStatus}from'./types';
 import type{BookData}from'./bookData';
 import{artSearch,narrationStatus,publishBook,setSlide,startNarration,unpublishBook,uploadCover}from'./api';
 import{store}from'./storage';
@@ -28,6 +28,8 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
  const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artQuery,setArtQuery]=useState(''),[artHits,setArtHits]=useState<ArtResult[]|null>(null),[artPick,setArtPick]=useState<ArtResult|null>(null),[artBusy,setArtBusy]=useState(false),[ideas,setIdeas]=useState<string[]>([]);
  useEffect(()=>{store.info(book.id).then(info=>{const stop=new Set('the a an of and to in on for with can could how why what is are be your you our their this that from beyond studies study about into'.split(' '));const words=[...(info?.categories||[]).flatMap(c=>c.split(/[\s&,/]+/)),...book.title.split(/[\s:,.?!]+/)].map(w=>w.toLowerCase()).filter(w=>w.length>3&&!stop.has(w)&&/^\p{Script=Latin}+$/u.test(w));const list=[...new Set(words)].slice(0,6);setIdeas(list);setArtQuery(q=>q||list.slice(0,2).join(' '));}).catch(()=>{});},[book.id]);
  async function findArt(q=artQuery){setArtBusy(true);setError('');try{setArtHits(await artSearch(q));}catch(e){setError((e as Error).message);}finally{setArtBusy(false);}}
+ const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
+ useEffect(()=>{store.review(book.id).then(r=>setLocalReview(r||null)).catch(()=>{});},[book.id]);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const hasOverview=entries.some(e=>!!e.data.report?.overview&&e.data.report.language===e.choice.language);
  const link=done?location.origin+location.pathname.replace(/index\.html$/,'')+'#/b/'+done.slug:'';
@@ -39,7 +41,7 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
   setBusy('publish');setError('');
   try{
    const info:BookInfo|null=(await store.info(book.id).catch(()=>undefined))||null;
-   const doc=buildDoc(book,entries,info,title,author,include);
+   const doc=buildDoc(book,entries,info,title,author,include,localReview?.approved&&withReview?localReview.review:null);
    const result=await publishBook({id:book.published?.id,doc,visibility});
    const cover=(await store.cover(book.id).catch(()=>undefined))?.blob;
    if(cover)await uploadCover(result.id,await coverBlob(cover)).catch(()=>setError('Published, but the cover could not be uploaded.'));
@@ -69,6 +71,7 @@ export default function PublishDialog({book,data,defaultLanguage,defaultType,onC
     <div className="pub-chapters">{withSummary.map(c=><FormControlLabel key={c.id} control={<Checkbox size="small" checked={include.has(c.id)} onChange={e=>setInclude(s=>{const n=new Set(s);e.target.checked?n.add(c.id):n.delete(c.id);return n;})}/>} label={<span dir="auto">{chapterTitle(data,c)}{kinds[book.chapters.indexOf(c)]!=='main'?' · '+kinds[book.chapters.indexOf(c)]+' matter':''}</span>}/>)}</div>
     {!withSummary.length&&<Alert severity="warning">No chapter has a summary in this language yet.</Alert>}
     <p className="settings-help">{hasOverview?'The overview, takeaways and study guide are included.':'No whole-book overview in this language yet; only chapter summaries are published.'}</p>
+    {localReview?.approved&&<FormControlLabel control={<Checkbox checked={withReview} onChange={e=>setWithReview(e.target.checked)}/>} label="Include the approved reception: rating, praise and criticism, quotes"/>}
     <h4 className="pub-h">Home page slide</h4>
     <RadioGroup value={slide} onChange={e=>setSlideMode(e.target.value as typeof slide)}>
      {book.published&&<FormControlLabel value="keep" control={<Radio/>} label="Keep the current slide"/>}

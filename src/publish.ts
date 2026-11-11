@@ -1,4 +1,4 @@
-import type{Book,BookInfo,Chapter,ImportedVersion,PubChapter,PubDoc,PubPara,PubVersion,Summary,SummaryParagraph}from'./types';
+import type{Book,BookInfo,Chapter,ImportedVersion,Review,PubChapter,PubDoc,PubPara,PubVersion,Summary,SummaryParagraph}from'./types';
 import type{BookData}from'./bookData';
 import{depthLabels,sectionKind}from'./core';
 
@@ -26,7 +26,7 @@ export function availableVersions(data:BookData):string[]{
 // The data a single imported version contributes, shaped like the book's current data.
 export const versionData=(data:BookData,v:ImportedVersion):BookData=>({...data,report:v.report,summaries:v.report.chapters,titles:v.titles,version:v});
 // One published book can carry several languages and styles; chapter titles are kept per language.
-export function buildDoc(book:Book,entries:Entry[],info:BookInfo|null,title:string,author:string,include:Set<string>):PubDoc{
+export function buildDoc(book:Book,entries:Entry[],info:BookInfo|null,title:string,author:string,include:Set<string>,review:Review|null=null):PubDoc{
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const original=guessLanguage(book.title);
  const forEntry=({data,choice}:Entry)=>book.chapters.filter(c=>include.has(c.id)&&data.summaries[c.id]&&data.summaries[c.id].language===choice.language);
@@ -48,7 +48,7 @@ export function buildDoc(book:Book,entries:Entry[],info:BookInfo|null,title:stri
   return version;
  });
  const{covers:_c,links:_l,google_edition:_g,...safeInfo}=(info||{}) as BookInfo;
- return{title:titles,author:author.trim(),originalLanguage:original,chapters,versions,info:info?{...safeInfo,links:info.links}:null};
+ return{title:titles,author:author.trim(),originalLanguage:original,chapters,versions,info:info?{...safeInfo,links:info.links}:null,...(review?{review}:{})};
 }
 // Covers are published as modest JPEGs; the server accepts up to 1.5 MB.
 export async function coverBlob(blob:Blob):Promise<Blob>{

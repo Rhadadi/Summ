@@ -1,4 +1,4 @@
-import type{ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
@@ -52,3 +52,4 @@ export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>(
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
 export const setSlide=(id:string,mode:'none'|'cover'|'art',file?:string)=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file}});
+export const researchReview=(body:{title:string;author:string;year:string;language:string})=>call<Review>('review/research',{body,signal:AbortSignal.timeout(200000)});

@@ -40,3 +40,11 @@ test('oversized compressed Markdown is rejected before it can be saved',async()=
  assert.ok(file.size<4000);
  await assert.rejects(readSummaryFile(file),/exceeds the Markdown or image size limit/);
 });
+
+test('a ZIP may hold several summaries, which are read separately',async()=>{
+ const{readSummaryFiles}=await import('../src/summary-import.ts');
+ const file=await archive({'summary-detailed.md':'# A\n\n## 1. One\n\nx','summary-academic.md':'# B\n\n## 1. One\n\ny','images/f.png':'png'});
+ const r=await readSummaryFiles(file);
+ assert.deepEqual(r.documents.map(d=>d.name).sort(),['summary-academic.md','summary-detailed.md']);assert.equal(r.images.length,1);
+ await assert.rejects(readSummaryFile(file),/exactly one/);
+});

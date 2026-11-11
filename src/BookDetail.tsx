@@ -1,7 +1,7 @@
 import{useEffect,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
 import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
-import type{Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
+import type{Review,Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
@@ -9,12 +9,13 @@ import{bodyChapter,bookWords,chapterWords,displayName,languages,minutes,readingT
 import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
 import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
+import ReviewSection from'./ReviewSection';
 
 interface Props{
  book:Book;cover:string;data:BookData;saved:SavedPassage[];
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
- onImport?:()=>void;onVersion?:(id:string)=>void;
+ onImport?:()=>void;onVersion?:(id:string)=>void;review?:Review|null;reviewApproved?:boolean;onReview?:()=>void;
  readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
@@ -24,7 +25,7 @@ async function downscale(blob:Blob){
  return canvas.toDataURL('image/jpeg',.85);
 }
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
+export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false),[editionOpen,setEditionOpen]=useState(false);
@@ -130,11 +131,12 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
   </section>
   {(!book.demo||readOnly)&&<section className="reception">
    <h2>Reception</h2>
+   {review&&<ReviewSection review={review} title={book.title} author={author} draft={!reviewApproved&&!readOnly}/>}
    {infoState==='loading'?<p className="muted"><CircularProgress size={16}/> Looking the book up…</p>:!info||infoState==='none'?<p className="muted">No public record was found for this book.</p>:<>
     <dl className="facts">{info.year&&<div><dt>Published</dt><dd>{info.google_edition?.published_date||info.year}</dd></div>}{info.google_edition?.publisher&&<div><dt>Publisher</dt><dd dir="auto">{info.google_edition.publisher}</dd></div>}{!!info.google_edition?.isbns.length&&<div><dt>ISBN</dt><dd>{info.google_edition.isbns.join(' · ')}</dd></div>}{info.readers&&<div><dt>Open Library readers</dt><dd>{info.readers.toLocaleString()}</dd></div>}{info.ratings.map(r=><div key={r.source}><dt>{r.source}</dt><dd>{r.rating.toFixed(2)} / 5{r.count?' · '+r.count.toLocaleString():''}</dd></div>)}</dl>
     {info.wikipedia&&<><p dir="auto">{info.wikipedia.extract}</p><small>From <a href={info.wikipedia.url} target="_blank" rel="noopener noreferrer">Wikipedia</a> · {info.wikipedia.license}</small></>}
     <div className="links">{info.links.map(l=><a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div></>}
-   {!readOnly&&<div className="reception-actions">{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}
+   {!readOnly&&<div className="reception-actions">{!!onReview&&<Button variant={review?'text':'outlined'} startIcon={<AutoAwesomeRounded/>} onClick={onReview}>{review?'Edit the reception':'Research reviews and ratings'}</Button>}{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}
   </section>}
   {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}
   <Menu anchorEl={coverMenu} open={!!coverMenu} onClose={()=>setCoverMenu(null)}>

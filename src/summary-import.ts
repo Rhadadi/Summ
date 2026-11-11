@@ -137,10 +137,12 @@ function readZipEntry(entry:JSZip.JSZipObject,limit:number):Promise<ArrayBuffer>
  });
 }
 
-export async function readSummaryFile(file:File):Promise<ImportedSummary>{
+export interface SummaryDocument{name:string;markdown:string}
+// A ZIP may hold several summaries (one Markdown file per style or language); the images are shared.
+export async function readSummaryFiles(file:File):Promise<{documents:SummaryDocument[];images:SummaryImage[]}>{
  if(markdownFile.test(file.name)){
   if(file.size>MAX_MARKDOWN)throw Error('The Markdown summary must be 2 MB or smaller.');
-  return{markdown:summaryMarkdown(await file.text()),sourcePath:'',images:[]};
+  return{documents:[{name:file.name,markdown:summaryMarkdown(await file.text())}],images:[]};
  }
  if(!/\.zip$/i.test(file.name))throw Error('Choose a Markdown (.md or .markdown) or ZIP file.');
  if(file.size>50*1024*1024)throw Error('The ZIP must be 50 MB or smaller.');
@@ -148,11 +150,15 @@ export async function readSummaryFile(file:File):Promise<ImportedSummary>{
  const zip=await Zip.loadAsync(await file.arrayBuffer());
  const files=Object.values(zip.files).filter(entry=>!entry.dir&&!entry.name.startsWith('__MACOSX/'));
  const documents=files.filter(entry=>markdownFile.test(entry.name));
- if(documents.length!==1)throw Error('The ZIP must contain exactly one Markdown summary.');
+ if(!documents.length)throw Error('The ZIP has no Markdown summary in it.');
+ if(documents.length>12)throw Error('The ZIP holds more than 12 Markdown files.');
  const assets=files.filter(entry=>imageType(entry.name));
  if(assets.length>MAX_IMAGE_COUNT)throw Error('The ZIP must contain 200 images or fewer.');
- const document=documents[0];
- const markdown=summaryMarkdown(new TextDecoder().decode(await readZipEntry(document,MAX_MARKDOWN)));
+ const texts:SummaryDocument[]=[];let budget=MAX_MARKDOWN*2;
+ for(const document of documents){
+  const data=await readZipEntry(document,Math.min(MAX_MARKDOWN,budget));budget-=data.byteLength;
+  texts.push({name:document.name,markdown:summaryMarkdown(new TextDecoder().decode(data))});
+ }
  const images:SummaryImage[]=[];
  let remaining=MAX_IMAGES;
  for(const asset of assets){
@@ -160,5 +166,10 @@ export async function readSummaryFile(file:File):Promise<ImportedSummary>{
   remaining-=data.byteLength;
   images.push({path:asset.name,type:imageType(asset.name),data});
  }
- return{markdown,sourcePath:document.name,images};
+ return{documents:texts,images};
+}
+export async function readSummaryFile(file:File):Promise<ImportedSummary>{
+ const{documents,images}=await readSummaryFiles(file);
+ if(documents.length!==1)throw Error('The ZIP must contain exactly one Markdown summary.');
+ return{markdown:documents[0].markdown,sourcePath:documents[0].name,images};
 }

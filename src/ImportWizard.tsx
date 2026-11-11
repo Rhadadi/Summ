@@ -6,9 +6,14 @@ import{chapterWords,languages,minutes,sectionKind}from'./core';
 import{audiences,buildPrompt,chapterLabel,defaultOptions,summaryTypes,tones,type PromptOptions}from'./prompt-builder';
 import{mapChapters,parseBlock,splitBlocks}from'./structured-import';
 import{buildVersion,versionLabel}from'./imports';
-import{readSummaryFile,summaryMarkdown}from'./summary-import';
+import{readSummaryFiles,summaryMarkdown}from'./summary-import';
 
 interface Props{book:Book;language:string;existing:ImportedVersion[];canGenerate:boolean;startAt?:number;onClose:()=>void;onSave:(versions:ImportedVersion[])=>Promise<void>;onGenerate:()=>void}
+// Several files in one ZIP become one list of summaries; a file without a delimiter line takes its style from its name.
+const joinDocuments=(docs:{name:string;markdown:string}[])=>docs.length===1?docs[0].markdown:docs.map(d=>{
+ const type=summaryTypes.find(t=>d.name.toLowerCase().includes(t.id))?.id;
+ return /^\s*={3,}\s*INKLING\b/m.test(d.markdown)||!type?d.markdown:'=== INKLING: type='+type+' ===\n'+d.markdown;
+}).join('\n\n');
 const STEPS=['Chapters','Style','Prompt','Bring it back'];
 const languageName=(code:string)=>languages.find(l=>l.code===code)?.label.replace(/ ·.*|\s*\(.*/,'')||code;
 const nativeName=(code:string)=>({fa:'Persian (Farsi)',ar:'Arabic',en:'English',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'} as Record<string,string>)[code]||languageName(code);
@@ -19,6 +24,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  const[step,setStep]=useState(startAt);
  const[opts,setOpts]=useState<PromptOptions>(()=>({...defaultOptions({code:language,name:nativeName(language)}),chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')}));
  const[raw,setRaw]=useState(''),[files,setFiles]=useState<{sourcePath:string;images:SummaryImage[]}>({sourcePath:'',images:[]}),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
+ const[skipped,setSkipped]=useState<Set<number>>(new Set());
  const[overrides,setOverrides]=useState<Record<number,{type?:string;language?:string}>>({});
  const file=useRef<HTMLInputElement>(null);
  const set=(patch:Partial<PromptOptions>)=>{setOpts(o=>({...o,...patch}));setCopied(false);};
@@ -35,11 +41,11 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
    return{block,lang,type,result};
   });
  },[raw,book,language,overrides]);
- const chosen=opts.chapters.length,ready=parsed.length>0&&parsed.every(p=>p.result.mapped.length>0);
+ const chosen=opts.chapters.length,picked=parsed.map((p,i)=>({...p,i})).filter(p=>!skipped.has(p.i)),ready=picked.length>0&&picked.every(p=>p.result.mapped.length>0);
  async function save(){
   setBusy(true);setError('');
   try{
-   const versions=parsed.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
+   const versions=picked.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
    if(new Set(versions.map(v=>v.id)).size!==versions.length)throw Error('Two of the summaries share a language and style. Change one of them below.');
    await onSave(versions);
   }catch(e){setError(e instanceof Error?e.message:'Could not save the summary.');setBusy(false);}
@@ -89,17 +95,18 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     <pre className="wizard-prompt" aria-label="Generated prompt">{prompt}</pre>
    </section>}
    {step===3&&<section>
-    <p className="dialog-lead">Paste the AI's answer or choose its Markdown or ZIP file (with the images). Chapter titles, overview and summaries are split out and matched to the book's chapters.</p>
+    <p className="dialog-lead">Paste the AI's answer or choose its Markdown or ZIP file (with the images). If it holds several summaries, tick the ones to keep. Chapter titles, overview and summaries are split out and matched to the book's chapters.</p>
     <div className="wizard-bar"><Button variant="outlined" startIcon={<FileUploadOutlined/>} onClick={()=>file.current?.click()}>Choose a file</Button>
-     <input ref={file} hidden type="file" accept=".md,.markdown,.zip" onChange={async e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value='';if(!f)return;try{const r=await readSummaryFile(f);setRaw(r.markdown);setFiles({sourcePath:r.sourcePath,images:r.images});setOverrides({});setError('');}catch(x){setError((x as Error).message);}}}/>
+     <input ref={file} hidden type="file" accept=".md,.markdown,.zip" onChange={async e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value='';if(!f)return;try{const r=await readSummaryFiles(f);setRaw(joinDocuments(r.documents));setFiles({sourcePath:r.documents[0].name,images:r.images});setOverrides({});setSkipped(new Set());setError('');}catch(x){setError((x as Error).message);}}}/>
      {files.images.length>0&&<small>{files.images.length} {files.images.length===1?'image':'images'} found in the ZIP</small>}
      {existing.length>0&&<small>Already saved: {existing.map(v=>v.label+' · '+languageName(v.language)).join(', ')}</small>}</div>
-    <TextField fullWidth multiline minRows={6} maxRows={14} label="Summary" placeholder="Paste the Markdown here" value={raw} onChange={e=>{setRaw(e.target.value);setOverrides({});if(files.images.length)setFiles({sourcePath:'',images:[]});}} slotProps={{htmlInput:{maxLength:2*1024*1024,dir:'auto'}}}/>
-    {parsed.map((p,i)=>{const{mapped,missing,extra}=p.result;return <div className="wizard-found" key={i}>
-     <div className="wizard-found-head"><strong>Found a summary</strong>
+    <TextField fullWidth multiline minRows={6} maxRows={14} label="Summary" placeholder="Paste the Markdown here" value={raw} onChange={e=>{setRaw(e.target.value);setOverrides({});setSkipped(new Set());if(files.images.length)setFiles({sourcePath:'',images:[]});}} slotProps={{htmlInput:{maxLength:2*1024*1024,dir:'auto'}}}/>
+    {parsed.map((p,i)=>{const{mapped,missing,extra}=p.result;return <div className={'wizard-found'+(skipped.has(i)?' off':'')} key={i}>
+     <div className="wizard-found-head">{parsed.length>1?<FormControlLabel className="wizard-pick" control={<Checkbox checked={!skipped.has(i)} onChange={()=>setSkipped(set=>{const n=new Set(set);n.has(i)?n.delete(i):n.add(i);return n;})}/>} label={<strong>Summary {i+1} of {parsed.length}{skipped.has(i)?' · left out':''}</strong>}/>:<strong>Found a summary</strong>}
       <TextField select size="small" label="Style" value={p.type} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],type:e.target.value}}))}>{summaryTypes.map(t=><MenuItem key={t.id} value={t.id}>{t.label}</MenuItem>)}{!summaryTypes.some(t=>t.id===p.type)&&<MenuItem value={p.type}>{versionLabel(p.type)}</MenuItem>}</TextField>
       <TextField select size="small" label="Language" value={p.lang} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],language:e.target.value}}))}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField></div>
      <p className="settings-help">{mapped.length} of {mapped.length+extra.length} chapters matched{p.block.overview.length?' · overview':''}{p.block.takeaways.length?' · key takeaways':''}{p.block.sections.length?' · '+p.block.sections.length+' more sections':''}{existing.some(v=>v.id===p.lang+':'+p.type)?' · replaces your saved '+versionLabel(p.type)+' summary':''}</p>
+     {(p.block.overview[0]||p.block.chapters[0]?.paragraphs[0])&&<blockquote className="wizard-peek" dir="auto">{(p.block.overview[0]||p.block.chapters[0].paragraphs[0]).text.slice(0,260)}…<small>{p.block.chapters[0]?.paragraphs.reduce((n,x)=>n+x.text.split(/\s+/).length,0)} words in the first chapter</small></blockquote>}
      <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=book.chapters.find(x=>x.id===m.chapterId)!;return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{chapterLabel(c.title)}</small></li>;})}</ol>
      {extra.length>0&&<Alert severity="warning">{extra.length} chapter{extra.length===1?'':'s'} in the summary could not be matched to the book: {extra.slice(0,4).map(e=>e.title).join('; ')}.</Alert>}
      {mapped.length>0&&missing.length>0&&opts.chapters.some(i=>missing.some(c=>c.id===book.chapters[i].id))&&<small className="settings-help">Not covered: {missing.filter(c=>opts.chapters.includes(book.chapters.indexOf(c))).slice(0,6).map(c=>c.title.replace(/^\d+[.\s]+/,'')).join('; ')}</small>}
@@ -113,7 +120,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
    <Button onClick={onClose} disabled={busy}>Cancel</Button><span style={{flex:1}}/>
    {step>0&&<Button disabled={busy} onClick={()=>setStep(step-1)}>Back</Button>}
    {step<3?<Button variant="contained" disabled={step===0&&!chosen||step===1&&!opts.types.length} onClick={()=>setStep(step+1)}>{step===2?'I have the answer':'Next'}</Button>
-    :<Button variant="contained" disabled={busy||!ready} onClick={save}>{busy?'Saving…':parsed.length>1?'Add '+parsed.length+' summaries':'Add to this book'}</Button>}
+    :<Button variant="contained" disabled={busy||!ready} onClick={save}>{busy?'Saving…':picked.length>1?'Add '+picked.length+' summaries':'Add to this book'}</Button>}
   </DialogActions>
  </Dialog>;
 }

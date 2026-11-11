@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field,model_validator
 from . import accounts,audio
+from .reviews import Review
 Language=Literal['en','fa','de','ar','es','fr','tr','zh']
 MAX_DOC=4_000_000
 SCHEMA='''CREATE TABLE IF NOT EXISTS library(id TEXT PRIMARY KEY,slug TEXT UNIQUE NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL DEFAULT '',doc TEXT NOT NULL,visibility TEXT NOT NULL,cover_type TEXT,created REAL NOT NULL,updated REAL NOT NULL);
@@ -39,6 +40,7 @@ class Doc(Strict):
     chapters:list[Chapter]=Field(min_length=1,max_length=500)
     versions:list[Version]=Field(min_length=1,max_length=24)
     info:dict|None=None
+    review:Review|None=None
     @model_validator(mode='after')
     def consistent(self):
         ids={c.id for c in self.chapters}
@@ -73,7 +75,9 @@ def _blurb(d:dict)->str:
     cut=text[:240];end=max(cut.rfind('. '),cut.rfind('؟ '),cut.rfind('。'))
     return cut[:end+1] if end>120 else cut[:cut.rfind(' ')]+'…'
 def _rating(d:dict):
-    """The best-known public rating the owner's lookup found, shown as a score on the home page."""
+    """The score shown on the home page: the approved review's rating, else the best-known public one."""
+    rv=(d.get('review') or {}).get('rating')
+    if rv:return {'source':rv.get('source',''),'rating':rv['value'],'count':rv.get('count')}
     rs=[r for r in ((d.get('info') or {}).get('ratings') or []) if r.get('rating')]
     if not rs:return None
     r=max(rs,key=lambda x:x.get('count') or 0)
