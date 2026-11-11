@@ -60,11 +60,23 @@ def _slug(title:str,book_id:str)->str:
     base=re.sub(r'[^a-z0-9]+','-',base).strip('-')[:48] or 'book'
     return base+'-'+book_id[:6]
 def _title(doc:dict)->str:return doc['title'].get(doc.get('originalLanguage','en')) or next(iter(doc['title'].values()))
+def _blurb(d:dict)->str:
+    """One short teaser for the home page: the first overview paragraph, else the publisher or Wikipedia text."""
+    text=''
+    for v in d['versions']:
+        paras=(v.get('overview') or {}).get('paragraphs') or []
+        if paras:text=paras[0]['text'];break
+    info=d.get('info') or {}
+    text=text or info.get('description') or (info.get('wikipedia') or {}).get('extract') or ''
+    text=' '.join(text.split())
+    if len(text)<=240:return text
+    cut=text[:240];end=max(cut.rfind('. '),cut.rfind('؟ '),cut.rfind('。'))
+    return cut[:end+1] if end>120 else cut[:cut.rfind(' ')]+'…'
 def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover' if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)

@@ -1,4 +1,4 @@
-"""Optional Summ service. Browser originals stay local; AI receives the selected chapter and runs on each user's own Gemini key."""
+"""Optional Inkling service. Browser originals stay local; AI receives the selected chapter and runs on each user's own Gemini key."""
 from __future__ import annotations
 import asyncio
 from collections import defaultdict,deque
@@ -23,7 +23,7 @@ COOKIE='summ_session'
 @asynccontextmanager
 async def lifespan(_:FastAPI):
     library.reset_jobs();yield
-app=FastAPI(title='Summ processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
+app=FastAPI(title='Inkling processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
 hits:dict[str,deque]=defaultdict(deque)

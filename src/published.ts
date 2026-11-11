@@ -26,7 +26,7 @@ export function adaptPublished(pub:PubBook,doc:PubDoc,version:PubVersion,positio
   overview:version.overview?{paragraphs:version.overview.paragraphs.map(p=>toPara(p)),takeaways:(version.overview.takeaways||[]).map(p=>toPara(p)),checked:true,language:lang,model:version.model||''}:undefined,
   guide:version.guide?{type:'published',type_label:version.guide.type_label,sections:version.guide.sections.map(s=>({kind:s.kind,title:s.title,items:s.items.map(p=>toPara(p))})),model:version.model||''}:undefined};
  const book:Book={id:'pub:'+pub.id,title:doc.title[lang]||doc.title[doc.originalLanguage]||pub.title,author:doc.author||'Author not supplied',format:'SUMMARY',category:'book',chapters,warnings:[],addedAt:pub.updated*1000,lastRead:position.lastRead,chapterIndex:Math.min(position.index,Math.max(0,chapters.length-1)),completed:position.completed,color:0,hash:'published:'+pub.updated};
- return{book,data:{report,summaries,loaded:true}};
+ return{book,data:{report,summaries,loaded:true,titles:{},versions:[]}};
 }
 // Reading position for published books stays in this browser only.
 export const readPosition=(id:string)=>{try{const v=JSON.parse(localStorage.getItem('summ-pub:'+id)||'{}');return{index:Number(v.index)||0,completed:Array.isArray(v.completed)?v.completed.filter((x:unknown)=>typeof x==='string'):[],lastRead:Number(v.lastRead)||0};}catch{return{index:0,completed:[] as string[],lastRead:0};}};

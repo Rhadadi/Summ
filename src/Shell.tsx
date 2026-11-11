@@ -13,7 +13,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({route,canEdit,acc
  const go=(path:string)=>{setOpen(false);navigate(path);};
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{label}</span></button>;
  const nav=<nav className="side" aria-label="Main">
-  <button className="side-brand" onClick={()=>go('/')}><Logo/><span>Summ</span></button>
+  <button className="side-brand" onClick={()=>go('/')}><Logo/><span>Inkling</span></button>
   {item('/','For you',<HomeOutlined/>,route==='/')}
   {item('/library','Library',<MenuBookOutlined/>,route==='/library'||route.startsWith('/b/'))}
   {canEdit&&<>{item('/workspace','Workspace',<LibraryBooksOutlined/>,route==='/workspace'||route.startsWith('/book/'))}

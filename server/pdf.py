@@ -71,7 +71,7 @@ def render(doc:dict)->bytes:
     sections=''.join('<section class="major" id="'+pid+'"><h2 dir="auto">'+_e(title)+'</h2>'+body+'</section>' for pid,title,body in parts)
     note='<div class="note">'+_e(labels.get('disclaimer','AI-generated from the source text and checked against it automatically. Ratings and descriptions come from the named public sources. Consult the original work.'))+'</div>'
     page=('<!doctype html><html lang="'+_e(lang)+'" dir="'+('rtl' if rtl else 'ltr')+'"><head><meta charset="utf-8"><title>'+_e(book['title'])+'</title><style>'+_css(rtl)+'</style></head><body>'
-          +'<section class="cover">'+cover+'<div class="shade"></div><div class="words"><div class="kicker">'+_e(labels.get('kicker','Summ · Study guide'))+'</div><h1 dir="auto">'+_e(book['title'])+'</h1><div class="author" dir="auto">'+_e(book.get('author'))+'</div><div class="meta">'+_e(doc.get('model'))+' · '+date.today().isoformat()+'</div></div></section>'
+          +'<section class="cover">'+cover+'<div class="shade"></div><div class="words"><div class="kicker">'+_e(labels.get('kicker','Inkling · Study guide'))+'</div><h1 dir="auto">'+_e(book['title'])+'</h1><div class="author" dir="auto">'+_e(book.get('author'))+'</div><div class="meta">'+_e(doc.get('model'))+' · '+date.today().isoformat()+'</div></div></section>'
           +toc+sections+note+'</body></html>')
     return HTML(string=page,base_url=str(FONTS)).write_pdf()
 def cover_payload(data_url:str|None)->tuple[str|None,str]:

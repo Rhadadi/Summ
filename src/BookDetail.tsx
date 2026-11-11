@@ -1,12 +1,12 @@
 import{useEffect,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
 import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
-import type{Book,BookInfo,Chapter,GoogleBookEdition,ImportedSummaries,SavedPassage,SummaryParagraph}from'./types';
+import type{Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
-import{bodyChapter,bookWords,chapterWords,displayName,minutes,readingTime,sectionKind}from'./core';
-import{mainChapters,strip,type BookData}from'./bookData';
+import{bodyChapter,bookWords,chapterWords,displayName,languages,minutes,readingTime,sectionKind}from'./core';
+import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
 import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 
@@ -14,17 +14,17 @@ interface Props{
  book:Book;cover:string;data:BookData;saved:SavedPassage[];
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
- imported:ImportedSummaries|null;onImportSummary:(mode:'edit'|'new')=>void;onReadImported:()=>void;
+ onImport?:()=>void;onVersion?:(id:string)=>void;
  readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
 }
-const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Summ · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
+const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
  const bitmap=await createImageBitmap(blob);const scale=Math.min(1,900/Math.max(bitmap.width,bitmap.height));
  const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);
  return canvas.toDataURL('image/jpeg',.85);
 }
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,imported,onImportSummary,onReadImported,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
+export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false),[editionOpen,setEditionOpen]=useState(false);
@@ -52,7 +52,7 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
  // Books imported before cleaner extraction are re-read automatically when nothing depends on their old passages.
  const outdated=(book.format==='PDF'||book.format==='EPUB')&&!book.demo&&(book.importVersion||1)<2;
  useEffect(()=>{if(!data.loaded||!outdated||rebuilding)return;if(!report&&!Object.keys(summaries).length&&!saved.some(x=>x.bookId===book.id)){setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}},[data.loaded,outdated]);
- const main=mainChapters(book),done=main.filter(c=>summaries[c.id]).length,complete=reportComplete(book,report);
+ const main=mainChapters(book),done=main.filter(c=>summaries[c.id]).length,imported=!!data.version,complete=imported?done>0:reportComplete(book,report);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const author=displayName(info?.authors[0]||(book.author==='Author not supplied'?'':book.author));
  const[title,...rest]=book.title.split(/:\s+/);const subtitle=rest.join(': ');
@@ -68,14 +68,14 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
     info:info?{year:info.year,pages:info.pages,categories:info.categories,ratings:info.ratings,description:info.description,wikipedia:info.wikipedia}:null,
     overview:report.overview?labelled(report.overview.paragraphs):[],takeaways:report.overview?.takeaways.map(t=>({text:t.text}))||[],
     guide:report.guide?{sections:report.guide.sections.map(s=>({title:s.title,items:labelled(s.items)}))}:null,
-    chapters:chapters.map(c=>({title:c.title,paragraphs:labelled(report.chapters[c.id].paragraphs,c),review:labelled(report.chapters[c.id].review,c)})),labels:pdfLabels[report.language]||{}});
+    chapters:chapters.map(c=>({title:data.titles[c.id]||c.title,paragraphs:labelled(report.chapters[c.id].paragraphs,c),review:labelled(report.chapters[c.id].review,c)})),labels:pdfLabels[report.language]||{}});
    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=book.title.replace(/[^\p{L}\p{N}\s-]/gu,'').slice(0,90)+' — Study guide.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(e){if(e instanceof ApiError&&e.status===401)onAccount();setError((e as Error).message);}finally{setBusy('');}
  }
  const firstUnread=main.find(c=>!book.completed.includes(c.id))||main[0]||book.chapters[0];
  const startAt=book.lastRead?book.chapterIndex:book.chapters.indexOf(firstUnread);
- const row=(c:Chapter)=>{const s=summaries[c.id];const n=c.title.match(/^(\d+)[.\s]/)?.[1];
-  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{strip(c.title)}</span><span className={'ch-status'+(s?' has':'')}>{s?'Summary · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
+ const row=(c:Chapter)=>{const s=summaries[c.id];const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1]||(main.includes(c)?String(main.indexOf(c)+1):'');
+  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n||'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?'Summary · '+short(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  return <div className="detail">
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{backLabel||'My library'}</button>
@@ -103,13 +103,13 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
       {pages&&<span><DescriptionOutlined/>{pages} pages</span>}
      </div>
      <Button className="big" variant="contained" startIcon={<MenuBookRounded/>} onClick={()=>onRead(startAt)}>{book.lastRead?'Continue reading':'Start reading'}</Button>
-     {!readOnly&&<Button className="big" variant="outlined" startIcon={imported?<DescriptionOutlined/>:<FileUploadOutlined/>} onClick={imported?onReadImported:()=>onImportSummary('new')}>{imported?'Read your imported summary':'Import a summary you already have'}</Button>}
+     {!readOnly&&!!onImport&&<Button className="big" variant="outlined" startIcon={<FileUploadOutlined/>} onClick={onImport}>{data.versions.length?'Add another summary':'Prepare or import a summary'}</Button>}
      <Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable&&!readOnly} onClick={()=>onListen()}>{readOnly?'Listen':listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>
      {!readOnly&&!!onPublish&&<Button className="big" variant="text" startIcon={<PublicOutlined/>} onClick={onPublish}>{book.published?'Published · manage':'Publish this summary'}</Button>}
     </div>
    </div>
    {!readOnly&&<div className="band">
-    {complete?<><div><strong>Study guide complete</strong><span>Overview, key takeaways{report?.guide?', '+report.guide.sections.map(s=>s.title.toLowerCase()).slice(0,3).join(', '):''} and every chapter.</span></div>
+    {complete?<><div><strong>{imported?data.version!.label+' summary · '+(languages.find(l=>l.code===data.version!.language)?.label.replace(/ ·.*/,'')||data.version!.language):'Study guide complete'}</strong><span>{imported?done+(done===1?' chapter':' chapters')+(report?.overview?' with an overview and key takeaways.':'.'):<>Overview, key takeaways{report?.guide?', '+report.guide.sections.map(s=>s.title.toLowerCase()).slice(0,3).join(', '):''} and every chapter.</>}</span></div>
       <Button variant="contained" className="dark" startIcon={busy==='pdf'?<CircularProgress size={16} color="inherit"/>:<DownloadRounded/>} disabled={!!busy} onClick={downloadPdf}>{busy==='pdf'?'Typesetting…':'Download PDF'}</Button></>
     :<><div><strong>{done} of {main.length} chapters summarized</strong><span>{done?'Finish the study guide to get the overview, key takeaways, themes and a typeset PDF.':'Summarize every chapter, then get the overview, key takeaways, themes and a typeset PDF.'} You see the cost before anything runs.</span></div>
       <Button variant="contained" className="dark" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{done?'Finish the study guide':'Create the study guide'}</Button></>}
@@ -124,6 +124,7 @@ export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRea
   </section>
   <section className="chapters">
    <h2>Chapters</h2>
+   {data.versions.length>1&&!!onVersion&&<div className="version-chips" role="group" aria-label="Summary version">{data.versions.map(v=><button key={v.id} className={'version-chip'+(data.version?.id===v.id?' on':'')} aria-pressed={data.version?.id===v.id} onClick={()=>onVersion(v.id)}>{v.label} · {languages.find(l=>l.code===v.language)?.label.replace(/ ·.*/,'')||v.language}</button>)}</div>}
    {main.map(row)}
    {kinds.some(k=>k!=='main')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'Show'} front matter, notes and index</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
   </section>

@@ -1,4 +1,4 @@
-# Summ
+# Inkling
 
 A source-first reading app with a Google Material Design–inspired interface. Import your own material, choose reading depth, inspect original passages, and save quotations with their locations.
 
@@ -18,7 +18,7 @@ A source-first reading app with a Google Material Design–inspired interface. I
 - A typeset PDF of the study guide (cover, contents with page numbers, running heads; Vazirmatn and right-to-left layout for Persian and Arabic).
 - Light/dark appearance, keyboard navigation, responsive layouts, and Persian/Arabic text support.
 
-Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Summ server, which calls Gemini with the signed-in user's own key.
+Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Inkling server, which calls Gemini with the signed-in user's own key.
 
 ## Who can do what
 

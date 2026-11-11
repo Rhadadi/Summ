@@ -58,6 +58,7 @@ class PublishTests(RolesTest):
         book=pub.json();self.assertEqual(book['languages'],['en']);self.assertTrue(book['slug'].startswith('a-test-book-'))
         anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
         self.assertEqual([b['title'] for b in anon.get('/api/library').json()['books']],['A Test Book'])
+        self.assertIn('blurb',anon.get('/api/library').json()['books'][0])
         self.assertEqual(anon.get('/api/library/'+book['slug']).json()['doc']['chapters'][0]['id'],'c1')
         owner.put('/api/library/'+book['id']+'/visibility',json={'visibility':'unlisted'})
         self.assertEqual(anon.get('/api/library').json()['books'],[]);self.assertEqual(anon.get('/api/library/'+book['slug']).status_code,200)

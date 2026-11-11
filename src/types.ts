@@ -5,7 +5,7 @@ export interface Book{id:string;title:string;author:string;format:string;categor
 export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
-export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[]}
+export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[];pages?:number[]}
 export interface Summary{paragraphs:SummaryParagraph[];review:SummaryParagraph[];processed_blocks:number;total_blocks:number;language:string;mode:'ai';checked:boolean;model?:string;usage?:Usage}
 export interface Overview{paragraphs:SummaryParagraph[];takeaways:SummaryParagraph[];checked:boolean;language:string;model:string;usage?:Usage}
 export interface SummarySection{id:string;title:string;paragraphs:SummaryParagraph[]}
@@ -13,6 +13,8 @@ export interface GuideSection{kind:string;title:string;items:SummaryParagraph[]}
 export interface Guide{type:string;type_label:string;sections:GuideSection[];model:string;usage?:Usage}
 export interface BookReport{model:string;language:string;createdAt:number;updatedAt:number;parts:Record<string,Summary>;chapters:Record<string,Summary>;overview?:Overview;guide?:Guide}
 export interface SummaryImage{path:string;type:string;data:ArrayBuffer}
+// A summary written elsewhere, split into chapters: titles, overview and every chapter in one language and style.
+export interface ImportedVersion{id:string;language:string;type:string;label:string;createdAt:number;bookTitle:string;titles:Record<string,string>;report:BookReport}
 export interface ImportedSummary{markdown:string;sourcePath:string;images:SummaryImage[]}
 export interface ImportedSummaries{latestLanguage:string;versions:Record<string,ImportedSummary>}
 export interface Rating{source:string;rating:number;count:number|null;url:string|null}
@@ -29,6 +31,6 @@ export interface PubPara{heading?:string;text:string;pages?:number[];chapters?:s
 export interface PubVersion{language:string;type:string;label:string;model?:string;createdAt?:number;overview?:{paragraphs:PubPara[];takeaways?:PubPara[]};guide?:{type_label:string;sections:{kind:string;title:string;items:PubPara[]}[]};chapters:Record<string,{paragraphs:PubPara[];review?:PubPara[]}>}
 export interface PubChapter{id:string;title:Record<string,string>;group:'main'|'front'|'back'}
 export interface PubDoc{title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
-export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;doc?:PubDoc}
+export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;doc?:PubDoc}
 export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string}[]}
 export interface AppConfig{google_client_id:string;signup:boolean}

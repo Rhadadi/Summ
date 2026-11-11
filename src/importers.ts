@@ -56,7 +56,7 @@ export async function extractCover(file:Blob,name:string):Promise<Blob|undefined
    }
    if(best&&best.ink>.12){const chosen=best.canvas;return await new Promise<Blob|undefined>(resolve=>chosen.toBlob(blob=>resolve(blob||undefined),'image/jpeg',.86));}
   }finally{await task.destroy();}
- }catch(e){console.warn('Summ could not extract a cover',e);}
+ }catch(e){console.warn('Inkling could not extract a cover',e);}
 }
 async function epubBook(bytes:ArrayBuffer,name:string,notify:(s:string)=>void):Promise<Book>{
  const z=await JSZip.loadAsync(bytes);if(Object.keys(z.files).length>3000)throw Error('This EPUB contains too many files.');

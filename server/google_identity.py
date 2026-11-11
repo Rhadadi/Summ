@@ -1,4 +1,4 @@
-"""Verify Google Identity Services credentials before issuing Summ sessions."""
+"""Verify Google Identity Services credentials before issuing Inkling sessions."""
 
 from functools import partial
 

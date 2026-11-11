@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import{extractPages,mapChapters,parseBlock,splitBlocks}from '../src/structured-import.ts';
+
+const fa=`# خلاصهٔ کتاب قانون
+
+## نمای کلی
+
+این کتاب درباره قانون است. [ص ۱۲]
+
+## نکات کلیدی
+
+- قانون باید روشن باشد.
+- دولت تابع قانون است (ص. ۴۵–۴۶)
+
+## فصل ۱: آغاز قانون
+
+متن فصل اول. [p. 3]
+
+### جزئیات
+
+بخش دوم فصل.
+
+## فصل ۲: پایان
+
+متن فصل دوم.
+
+## مفاهیم کلیدی
+
+اصطلاحات مهم.
+`;
+test('Persian summary yields translated chapter titles, overview, takeaways and sections',()=>{
+ const b=parseBlock(fa,null,'en');
+ assert.equal(b.language,'fa');
+ assert.equal(b.bookTitle,'خلاصهٔ کتاب قانون');
+ assert.deepEqual(b.chapters.map(c=>[c.n,c.title]),[[1,'آغاز قانون'],[2,'پایان']]);
+ assert.deepEqual(b.chapters[0].paragraphs.map(p=>p.heading),[undefined,'جزئیات']);
+ assert.deepEqual(b.chapters[0].paragraphs[0].pages,[3]);
+ assert.equal(b.overview[0].text,'این کتاب درباره قانون است.');assert.deepEqual(b.overview[0].pages,[12]);
+ assert.equal(b.takeaways.length,2);assert.deepEqual(b.takeaways[1].pages,[45,46]);
+ assert.deepEqual(b.sections.map(s=>s.title),['مفاهیم کلیدی']);
+});
+test('chapters grouped under a chapter-by-chapter heading are found',()=>{
+ const b=parseBlock('# Guide\n\n## Overview\n\nHi.\n\n## Chapter-by-chapter summary\n\n### Chapter 1: Start\n\nOne.\n\n### Chapter 2: End\n\nTwo.\n\n## Key takeaways\n\n- A',null,'en');
+ assert.deepEqual(b.chapters.map(c=>c.title),['Start','End']);assert.equal(b.takeaways.length,1);assert.equal(b.sections.length,0);
+});
+test('delimiters split several summaries',()=>{
+ const parts=splitBlocks('=== INKLING: type=short; language=fa ===\n# A\n\nx\n\n=== INKLING: type=detailed; language=fa ===\n# B\n\ny');
+ assert.deepEqual(parts.map(p=>[p.type,p.language]),[['short','fa'],['detailed','fa']]);
+ assert.equal(splitBlocks('# plain').length,1);
+});
+test('chapters map by prompt position or by title number',()=>{
+ const chapters=[{id:'a',title:'Contents',blocks:[]},{id:'b',title:'1. Law',blocks:[]},{id:'c',title:'2. Duty',blocks:[]}];
+ const parsed=parseBlock(fa,null,'fa').chapters;
+ assert.deepEqual(mapChapters(parsed,chapters,'position').mapped.map(m=>m.chapterId),['a','b']);
+ assert.deepEqual(mapChapters(parsed,chapters,'title').mapped.map(m=>m.chapterId),['b','c']);
+ assert.deepEqual(mapChapters(parsed,chapters,'title').missing.map(c=>c.id),['a']);
+});
+test('page markers are removed from the prose',()=>{
+ assert.deepEqual(extractPages('Claim (pp. 10–12, 20).'),{text:'Claim.',pages:[10,11,12,20]});
+});
+import{buildPrompt,defaultOptions}from '../src/prompt-builder.ts';
+import{buildVersion,pickVersion}from '../src/imports.ts';
+test('the prompt changes with every choice',()=>{
+ const book={title:'Law',author:'A. Writer',chapters:[{id:'a',title:'Contents',blocks:[]},{id:'b',title:'Duty',blocks:[{id:'1',text:'x',location:'',page:12},{id:'2',text:'y',location:'',page:30}]},{id:'c',title:'Rights',blocks:[]}]};
+ const base={...defaultOptions({code:'en',name:'English'}),chapters:[1,2]};
+ const a=buildPrompt(book,base);
+ assert.match(a,/3\. Rights/);assert.match(a,/2\. Duty \(pp\. 12–30\)/);assert.doesNotMatch(a,/Contents/);assert.match(a,/type=detailed; language=en/);
+ const b=buildPrompt(book,{...base,chapters:[2],types:['short'.replace('short','glance'),'academic'],languages:[{code:'fa',name:'Persian'}],pageRefs:false,quotes:true,notes:'Focus on ethics'});
+ assert.doesNotMatch(b,/Duty/);assert.match(b,/type=glance; language=fa/);assert.match(b,/type=academic; language=fa/);assert.match(b,/Persian/);assert.doesNotMatch(b,/\[p\. 143\]/);assert.match(b,/short phrases/);assert.match(b,/Focus on ethics/);assert.match(b,/continue/);
+ assert.notEqual(a,b);
+});
+test('an imported version carries translated titles and is chosen by language',()=>{
+ const block=parseBlock(fa,null,'fa');const chapters=[{id:'b',title:'1. Law',blocks:[]},{id:'c',title:'2. Duty',blocks:[]}];
+ const v=buildVersion(block,mapChapters(block.chapters,chapters,'title').mapped,'fa','detailed');
+ assert.deepEqual(v.titles,{b:'آغاز قانون',c:'پایان'});assert.equal(v.report.chapters.b.paragraphs[0].pages?.[0],3);assert.ok(v.report.overview);
+ assert.equal(pickVersion([v],'en')?.id,'fa:detailed');assert.equal(pickVersion([],'fa'),undefined);
+});
+test('a top-level "Summary" heading is the document title, not the overview',()=>{
+ const b=parseBlock('# خلاصهٔ کتاب\n\n## نمای کلی\n\nاین کتاب.\n\n## نکات کلیدی\n\n- پرسش.\n\n## 1. اصل اول\n\nمتن.\n',null,'fa');
+ assert.deepEqual([b.overview.length,b.takeaways.length,b.chapters.length,b.bookTitle],[1,1,1,'خلاصهٔ کتاب']);
+});

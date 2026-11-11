@@ -50,7 +50,7 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
  const[reason,setReason]=useState('');
  const pricesValid=[priceIn,priceOut].every(v=>v.trim()===''||(Number.isFinite(Number(v))&&Number(v)>=0))&&(priceIn.trim()==='')===(priceOut.trim()==='');
  return <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="account-title" slotProps={{paper:{className:'account-sheet'}}}>
-  <DialogTitle id="account-title" className="dialog-heading"><span>{account?'Account':'Sign in to Summ'}</span><IconButton aria-label="Close account" onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
+  <DialogTitle id="account-title" className="dialog-heading"><span>{account?'Account':'Sign in to Inkling'}</span><IconButton aria-label="Close account" onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent>
    {!account?<form className="account-form" onSubmit={e=>{e.preventDefault();act(()=>(mode==='login'?login:register)(username,password).then(onAccount));}}>
     <p className="dialog-lead">Your books stay on this device. Your account holds only your own Gemini key, so summaries are billed to you.</p>
