@@ -1,7 +1,7 @@
 import{useEffect,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
 import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
-import type{Account,Book,BookInfo,Chapter,GoogleBookEdition,ImportedSummaries,SavedPassage,SummaryParagraph}from'./types';
+import type{Book,BookInfo,Chapter,GoogleBookEdition,ImportedSummaries,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
@@ -11,7 +11,7 @@ import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 
 interface Props{
- book:Book;account:Account|null;cover:string;data:BookData;saved:SavedPassage[];language:string;
+ book:Book;cover:string;data:BookData;saved:SavedPassage[];
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  imported:ImportedSummaries|null;onImportSummary:(mode:'edit'|'new')=>void;onReadImported:()=>void;
@@ -23,7 +23,7 @@ async function downscale(blob:Blob){
  return canvas.toDataURL('image/jpeg',.85);
 }
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({book,account,cover,data,saved,language,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,imported,onImportSummary,onReadImported}:Props){
+export default function BookDetail({book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,imported,onImportSummary,onReadImported}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>('loading');
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false),[editionOpen,setEditionOpen]=useState(false);

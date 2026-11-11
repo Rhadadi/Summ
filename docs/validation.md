@@ -1,5 +1,12 @@
 # Validation
 
+## Sidebar layout and cleanup — November 11, 2026
+
+- New layout: sidebar and search, home with Continue reading, book page, reader with chapter list, and one narration player that stays across pages. Checked with the real 366-page PDF in WebKit and Chromium at desktop and phone width, on the home server (live site, no account).
+- Chapter summaries and narration were exercised with a stand-in model and the real offline Piper voice; no real Gemini or ElevenLabs call was made.
+- Cleanup removed the old book page and header and 570 unused CSS selectors (80 KB → 39 KB). A 27-screen visual comparison (light and night themes, dialogs, phone) before and after showed identical pixels except the audio playhead, which also differs between two captures of the same build.
+- 22 frontend and 35 backend tests pass.
+
 ## Study guides, book facts, covers, narration, and typeset PDF — November 10, 2026
 
 - Study guides choose one of five book types (fiction, narrative nonfiction, ideas and argument, academic, poetry or drama) and fill that type's sections from the checked chapter summaries, followed by a separate support check. Unknown types, invented chapter references, and thin guides are rejected.

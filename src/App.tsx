@@ -1,8 +1,8 @@
 import{lazy,Suspense,useEffect,useMemo,useRef,useState}from'react';
-import{Alert,Avatar,Button,ButtonBase,Chip,CircularProgress,CssBaseline,Dialog,DialogActions,DialogContent,DialogTitle,Divider,Drawer,IconButton,LinearProgress,MenuItem,Snackbar,Tab,Tabs,TextField,ThemeProvider,ToggleButton,ToggleButtonGroup,Tooltip,createTheme,useMediaQuery}from'@mui/material';
-import{AddRounded,ArrowBackRounded,ArrowForwardRounded,AutoAwesomeRounded,AutoStoriesRounded,BookmarkBorderRounded,BookmarkRounded,CheckRounded,CloseRounded,ContentCopyRounded,DeleteOutlineRounded,DownloadRounded,EditOutlined,FileUploadOutlined,LibraryBooksRounded,LinkRounded,LockOutlined,MenuBookRounded,MenuRounded,MoreHorizRounded,SearchRounded,SettingsOutlined,ShieldOutlined,VideoLibraryOutlined}from'@mui/icons-material';
+import{Alert,Button,ButtonBase,CircularProgress,CssBaseline,Dialog,DialogActions,DialogContent,DialogTitle,Divider,Drawer,IconButton,LinearProgress,MenuItem,Snackbar,Tab,Tabs,TextField,ThemeProvider,ToggleButton,ToggleButtonGroup,createTheme,useMediaQuery}from'@mui/material';
+import{ArrowForwardRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,CloseRounded,ContentCopyRounded,DeleteOutlineRounded,EditOutlined,FileUploadOutlined,LinkRounded,LockOutlined}from'@mui/icons-material';
 import type{Account,AppConfig,Block,Book,Chapter,ImportedSummaries,ImportedSummary,SavedPassage,Settings,Summary}from'./types';
-import{bookWords,chapterWords,depthLabels,languages,markdownExport,minutes,progress,selectedPassages}from'./core';
+import{depthLabels,languages,markdownExport,selectedPassages}from'./core';
 import{loadSettings,saveSettings,store}from'./storage';
 import{demoBook}from'./demo';import{extractCover,importFile,textBook}from'./importers';
 import{ApiError,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
@@ -14,10 +14,10 @@ function routeValue(){try{return decodeURIComponent(location.hash.slice(1))||'/'
 export default function App(){
  const[books,setBooks]=useState<Book[]>([]),[saved,setSaved]=useState<SavedPassage[]>([]),[settings,setSettings]=useState<Settings>(loadSettings),[draft,setDraft]=useState<Settings>(settings);
  const[route,setRoute]=useState(routeValue),[loading,setLoading]=useState(true),[toast,setToast]=useState(''),[error,setError]=useState(''),[query,setQuery]=useState(''),[filter,setFilter]=useState('all');
- const[mobileNav,setMobileNav]=useState(false),[tocOpen,setTocOpen]=useState(false),[settingsOpen,setSettingsOpen]=useState(false),[importOpen,setImportOpen]=useState(false),[importTab,setImportTab]=useState(0);
+ const[settingsOpen,setSettingsOpen]=useState(false),[importOpen,setImportOpen]=useState(false),[importTab,setImportTab]=useState(0);
  const[bookSummaryOpen,setBookSummaryOpen]=useState(false),[reportVersion,setReportVersion]=useState(0),[covers,setCovers]=useState<Record<string,string>>({});
  const[title,setTitle]=useState(''),[text,setText]=useState(''),[url,setUrl]=useState(''),[importMessage,setImportMessage]=useState(''),[importError,setImportError]=useState('');
- const[readerTab,setReaderTab]=useState(0),[evidence,setEvidence]=useState<{block:Block;text:string;chapter:Chapter}|null>(null),[sourceUrl,setSourceUrl]=useState('');
+ const[evidence,setEvidence]=useState<{block:Block;text:string;chapter:Chapter}|null>(null),[sourceUrl,setSourceUrl]=useState('');
  const[editing,setEditing]=useState<Book|null>(null),[splits,setSplits]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<Book|null>(null);
  const[account,setAccount]=useState<Account|null>(null),[appConfig,setAppConfig]=useState<AppConfig|null>(),[accountOpen,setAccountOpen]=useState(false),[costRequest,setCostRequest]=useState<CostRequest|null>(null);
  const[summary,setSummary]=useState<Summary|null>(null),[generating,setGenerating]=useState(false),[generationError,setGenerationError]=useState('');
@@ -46,7 +46,7 @@ export default function App(){
  }});},[settings.theme]);
  useEffect(()=>{
   let live=true;Promise.all([store.books(),store.passages()]).then(async([list,quotes])=>{if(!list.length&&!localStorage.getItem('summ-seeded')){await store.saveBook(demoBook);list=[demoBook];localStorage.setItem('summ-seeded','true');}if(live){setBooks(list);setSaved(quotes);setLoading(false);for(const b of list)store.cover(b.id).then(c=>{if(c&&live)setCovers(old=>({...old,[b.id]:URL.createObjectURL(c.blob)}));}).catch(()=>{});}}).catch(()=>{if(live){setError('Please allow browser site storage to save your library.');setLoading(false);}});
-  const change=()=>{setRoute(routeValue());setEvidence(null);setReaderTab(0);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
+  const change=()=>{setRoute(routeValue());setEvidence(null);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
   window.addEventListener('hashchange',change);window.addEventListener('keydown',shortcut);
   return()=>{live=false;window.removeEventListener('hashchange',change);window.removeEventListener('keydown',shortcut);};
  },[]);
@@ -54,7 +54,7 @@ export default function App(){
  useEffect(()=>{let live=true;config().then(c=>{if(live)setAppConfig(c);}).catch(()=>{if(live)setAppConfig(null);});me().then(a=>{if(live)setAccount(a);}).catch(()=>{});return()=>{live=false;};},[]);
  useEffect(()=>{let live=true;setSummary(null);setGenerationError('');abort.current?.abort();setGenerating(false);if(key)store.summary(key).then(s=>{if(live)setSummary(s||null);}).catch(()=>{});return()=>{live=false;abort.current?.abort();};},[key]);
  useEffect(()=>{let live=true;let objectUrl='';setSourceUrl('');if(active)store.file(active.id).then(b=>{if(b&&live){objectUrl=URL.createObjectURL(b);setSourceUrl(objectUrl);}}).catch(()=>{});return()=>{live=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};},[active?.id]);
- const navigate=(path:string)=>{location.hash=path;setMobileNav(false);};
+ const navigate=(path:string)=>{location.hash=path;};
  function preferences(patch:Partial<Settings>){const next={...settings,...patch};setSettings(next);try{saveSettings(next);}catch{setToast('Could not save preferences on this device.');}}
  function openSettings(){setDraft(settings);setSettingsOpen(true);}
  // A 401 means the session ended; 412 means no key yet. Both are fixed in the account sheet.
@@ -126,11 +126,10 @@ export default function App(){
   if(summary)value='# '+active.title+'\n\n## '+chapter.title+'\n\nAI-generated summary. Check original passages.\n\n'+summary.paragraphs.map(p=>p.text+'\n\n'+p.evidence_ids.map(id=>{const b=chapter.blocks.find(b=>b.id===id);return b?'['+b.location+'] '+b.text:'';}).join('\n\n')).join('\n\n')+'\n\nSource version: '+active.hash;
   const link=URL.createObjectURL(new Blob([value],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=link;a.download=active.title.replace(/[^\p{L}\p{N}\s-]/gu,'').slice(0,100)+'.md';a.click();setTimeout(()=>URL.revokeObjectURL(link),1000);
  }
- const brand=settings.theme==='night'?'#6cc3d1':'#256673';
  const importedProps=imported?{imported,importLang:importLang||imported.latestLanguage}:{imported:null,importLang:''};
  const view=loading?<div className="center-state"><CircularProgress/><p>Opening your library…</p></div>
   :isReader&&!active?<div className="empty-state"><h2>This book is not on this device.</h2><Button onClick={()=>navigate('/')}>Return to library</Button></div>
-  :isDetail&&active&&chapter?<BookDetail key={active.id} book={active} account={account} cover={covers[active.id]||''} data={data} saved={saved} language={settings.language} onCover={(blob,source,url)=>setCover(active.id,blob,source,url)} onCreate={()=>setBookSummaryOpen(true)} onRead={(i,section)=>readBook(active,i,section)} onListen={id=>listen(active,id)} onExport={exportNotes} onEditContents={()=>{setEditing(structuredClone(active));setSplits({});}} onRebuild={()=>rebuild(active)} onAccount={()=>setAccountOpen(true)} onBack={()=>navigate('/library')} imported={imported} onImportSummary={mode=>setImportMode(mode)} onReadImported={()=>readBook(active,undefined,'imported')}/>
+  :isDetail&&active&&chapter?<BookDetail key={active.id} book={active} cover={covers[active.id]||''} data={data} saved={saved} onCover={(blob,source,url)=>setCover(active.id,blob,source,url)} onCreate={()=>setBookSummaryOpen(true)} onRead={(i,section)=>readBook(active,i,section)} onListen={id=>listen(active,id)} onExport={exportNotes} onEditContents={()=>{setEditing(structuredClone(active));setSplits({});}} onRebuild={()=>rebuild(active)} onAccount={()=>setAccountOpen(true)} onBack={()=>navigate('/library')} imported={imported} onImportSummary={mode=>setImportMode(mode)} onReadImported={()=>readBook(active,undefined,'imported')}/>
   :isSaved?<div className="saved-page"><div className="page-heading"><div className="eyebrow">WORTH KEEPING</div><h1>Ideas to come back to.</h1><p>Your saved passages, with their sources close by.</p></div><div className="saved-grid">{saved.filter(p=>(p.text+' '+p.title).toLowerCase().includes(query.toLowerCase())).map(p=><article className="saved-card" key={p.id}><BookmarkRounded/><blockquote dir="auto">{p.text}</blockquote><div className="saved-source"><strong>{p.title}</strong><span>{p.chapterTitle} · {p.location}</span></div><div className="saved-actions"><Button onClick={async()=>{const b=books.find(b=>b.id===p.bookId);if(b){const index=b.chapters.findIndex(c=>c.id===p.chapterId);await openBook({...b,chapterIndex:Math.max(0,index)});}}}>Open source <ArrowForwardRounded fontSize="small"/></Button><IconButton aria-label="Copy saved passage" onClick={()=>copy(p.text+'\n\n'+p.title+' — '+p.location)}><ContentCopyRounded fontSize="small"/></IconButton><IconButton aria-label="Remove saved passage" onClick={()=>store.deletePassage(p.id).then(()=>setSaved(items=>items.filter(x=>x.id!==p.id))).catch(()=>setToast('Could not remove passage.'))}><DeleteOutlineRounded fontSize="small"/></IconButton></div></article>)}</div>{!saved.length&&<div className="empty-state"><BookmarkBorderRounded/><h2>Keep the words that stay with you.</h2><p>Save a passage while reading. Its original wording and location will be waiting here.</p><Button onClick={()=>navigate('/')}>Explore your library</Button></div>}</div>
   :isLibrary?<LibraryPage books={books} covers={covers} filter={filter} query={query} onFilter={setFilter} onOpen={openBook} onAdd={beginImport} canSearchBooks={!!appConfig} onRemove={setDeleting} onClear={()=>{setQuery('');setFilter('all');}}/>
   :<HomePage books={books} covers={covers} saved={saved} onRead={b=>readBook(b)} onOpen={openBook} onListen={b=>listen(b)} onAdd={beginImport} navigate={navigate}/>;

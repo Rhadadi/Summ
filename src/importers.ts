@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import{chaptersFromText}from './core.ts';import type{Block,Book,Chapter}from './types';
+import{chaptersFromText}from './core.ts';import type{Book,Chapter}from './types';
 import{pdfTextContent}from './pdf-text.ts';
 import{cleanPages}from './pdf-clean.ts';import type{RawParagraph}from './pdf-clean.ts';
 const MAX=12*1024*1024;

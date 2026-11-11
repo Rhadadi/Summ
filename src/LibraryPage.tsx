@@ -4,7 +4,7 @@ import{Button,IconButton}from'@mui/material';
 import type{Book}from'./types';
 import{bodyChapter,bookWords,displayName,minutes}from'./core';
 import Cover from'./Cover';
-import{Logo}from'./Header';
+import{Logo}from'./Shell';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 
 const words=(b:Book)=>bookWords({...b,chapters:b.chapters.map(bodyChapter)});
