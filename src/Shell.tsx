@@ -25,7 +25,9 @@ interface Props{lang:string;onLanguage:(lang:'fa'|'en')=>void;route:string;canEd
 // Sidebar navigation with a search bar on top; the reader uses its own full-screen layout instead.
 const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,route,canEdit,isEditor,asVisitor,onToggleVisitor,account,query,onQuery,navigate,onAdd,onSettings,onAccount,children},search){
  const L=(text:string)=>tr(lang,text);
- const[open,setOpen]=useState(false);
+ const[open,setOpen]=useState(false),[searching,setSearching]=useState(false);
+ // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
+ const topNav=route==='/',here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
@@ -41,10 +43,25 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
   <button className="side-item" onClick={()=>{setOpen(false);onSettings();}}><SettingsOutlined/><span>{L('Settings')}</span></button>
   <button className="side-item" onClick={()=>{setOpen(false);onAccount();}}>{account?<Avatar className="side-avatar">{account.user.name.slice(0,1).toUpperCase()}</Avatar>:<span className="side-avatar empty"/>}<span>{account?account.user.name:L('Log in')}</span></button>
  </nav>;
- return <div className="shell" lang={lang} dir={rtl(lang)?'rtl':'ltr'}>
+ const link=(path:string,label:string,active:boolean)=><button className={'tn-link'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{L(label)}</button>;
+ return <div className={'shell'+(topNav?' topnav':'')} lang={lang} dir={rtl(lang)?'rtl':'ltr'}>
   <aside className="shell-side">{nav}</aside>
   <Drawer open={open} onClose={()=>setOpen(false)} slotProps={{paper:{className:'side-drawer'}}}>{nav}</Drawer>
   <div className="shell-main">
+   {topNav&&<header className="topnav-bar">
+    <button className="tn-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+    <nav className="tn-links" aria-label={L('Main')}>
+     {link('/library','Library',here==='/library'||here.startsWith('/b/'))}
+     {canEdit&&<>{link('/workspace','Workspace',false)}{link('/saved','Saved passages',false)}<button className="tn-link" onClick={onAdd}>{L('Add a book')}</button></>}
+     {isEditor&&<button className="tn-link" onClick={onToggleVisitor}>{asVisitor?L('Back to editing'):L('View as visitor')}</button>}
+    </nav>
+    <span className="tn-grow"/>
+    {searching?<label className="tn-search"><input autoFocus type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)} onBlur={()=>{if(!query)setSearching(false);}} onKeyDown={e=>{if(e.key==='Escape')setSearching(false);}}/></label>:null}
+    <IconButton className="tn-icon" aria-label={L('Search your library')} onClick={()=>setSearching(v=>!v)}><SearchRounded/></IconButton>
+    <button className="tn-link" onClick={onSettings}>{L('Settings')}</button>
+    <button className="tn-link" onClick={()=>onLanguage(lang==='fa'?'en':'fa')} aria-label={lang==='fa'?'Switch to English':'تغییر زبان به فارسی'}>{lang==='fa'?'English':'فارسی'}</button>
+    <button className="tn-account" onClick={onAccount}>{account?<><Avatar className="side-avatar">{account.user.name.slice(0,1).toUpperCase()}</Avatar></>:L('Log in')}</button>
+   </header>}
    <header className="topbar2">
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
     <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>

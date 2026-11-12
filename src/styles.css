@@ -641,3 +641,23 @@ body{background:var(--bg);color:var(--ink)}
 .r2.zen .r2-side,.r2.zen .r2-mobilebar,.r2.zen .r2-bar,.r2.zen .doc-pager,.r2.zen .r2-meta{display:none!important}
 .r2.zen .r2-main{padding-top:48px}
 .zen-exit{display:none}.r2.zen .zen-exit{position:fixed;top:10px;inset-inline-end:10px;z-index:20;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:var(--rmuted);opacity:.35;transition:opacity .2s}.r2.zen .zen-exit:hover,.r2.zen .zen-exit:focus-visible{opacity:1;background:color-mix(in srgb,var(--rink) 10%,transparent)}
+
+/* Home page, wide screens: a slim top bar instead of the side panel */
+.topnav-bar{display:none}
+@media (min-width:900px){
+ .shell.topnav .shell-side{display:none}
+ .shell.topnav .topbar2{display:none}
+ .topnav-bar{display:flex;align-items:center;gap:6px;height:58px;padding:0 28px;background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+ .tn-logo{border:0;background:none;padding:0;display:block}.tn-logo .lockup{width:128px;max-width:128px}
+ .tn-links{display:flex;gap:2px;margin-inline-start:18px}
+ .tn-grow{flex:1}
+ .tn-link{border:0;background:none;color:var(--ink);padding:8px 14px;border-radius:980px;font:500 15px -apple-system,BlinkMacSystemFont,sans-serif;white-space:nowrap}
+ .tn-link:hover,.tn-link.on{background:var(--brand-tint);color:var(--brand)}
+ .tn-icon{color:var(--ink)!important}
+ .tn-search{display:flex;width:min(320px,34vw)}.tn-search input{width:100%;height:38px;border:1px solid var(--line);border-radius:980px;padding:0 16px;background:var(--surface);color:var(--ink);font-size:15px;outline:0}.tn-search input:focus{border-color:var(--brand)}
+ .tn-account{border:0;background:var(--ink);color:var(--bg);padding:7px 18px;border-radius:980px;font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;display:inline-flex;align-items:center;min-height:38px}
+ .tn-account .side-avatar{width:28px;height:28px;font-size:14px}
+ .tn-account:has(.side-avatar){background:none;padding:0}
+ .museum{height:clamp(500px,calc(100vh - 58px),820px)}
+}
+@media (max-width:899px){.topnav-bar{display:none}}
