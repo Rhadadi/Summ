@@ -16,7 +16,7 @@ export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:stri
  const L=(t:string)=>tr(lang,t);
  const[at,setAt]=useState(0),[hold,setHold]=useState(false);
  const reduce=useMediaQuery('(prefers-reduced-motion: reduce)');
- const x=useRef<number|null>(null);
+ const x=useRef<number|null>(null),swiped=useRef(false);
  const n=slides.length,go=(i:number)=>setAt(((i%n)+n)%n);
 
  useEffect(()=>{if(at>=n)setAt(0);},[n,at]);
@@ -25,8 +25,8 @@ export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:stri
  return <section className="museum" role="region" aria-roledescription="carousel" aria-label={L('Featured')} tabIndex={0}
   onMouseEnter={()=>setHold(true)} onMouseLeave={()=>setHold(false)} onFocus={()=>setHold(true)} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setHold(false);}}
   onKeyDown={e=>{if(e.key==='ArrowRight')go(at+1);if(e.key==='ArrowLeft')go(at-1);}}
-  onPointerDown={e=>{x.current=e.clientX;}} onPointerUp={e=>{if(x.current!==null&&Math.abs(e.clientX-x.current)>60)go(at+(e.clientX<x.current?1:-1));x.current=null;}}>
-  {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} {...(i!==at?{inert:true}:{})}>
+  onPointerDown={e=>{x.current=e.clientX;}} onPointerUp={e=>{swiped.current=x.current!==null&&Math.abs(e.clientX-x.current)>60;if(swiped.current)go(at+(e.clientX<x.current!?1:-1));x.current=null;}}>
+  {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} onClick={()=>{if(!swiped.current&&s.cover)s.actions[0]?.onClick();}} style={s.cover?{cursor:'pointer'}:undefined} {...(i!==at?{inert:true}:{})}>
    {/* The painting is shown whole; a blurred copy of it fills the rest of the frame. */}
    <img className="m-fill" src={s.backdrop.url} alt="" aria-hidden="true" loading={i===0?'eager':'lazy'} decoding="async"/>
    <img className={'m-art'+(s.backdrop.blur?' blur':'')} src={s.backdrop.url} alt="" loading={i===0?'eager':'lazy'} decoding="async"/>
@@ -38,7 +38,7 @@ export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:stri
      {s.by&&<p className="m-by" dir="auto">{s.by}</p>}
      <p className="m-lead" dir="auto">{s.text}</p>
      {(s.score||s.facts?.length)&&<div className="m-meta">{s.score&&<span className="m-score"><Stars value={s.score.rating} lang={lang}/><b>{num(lang,s.score.rating)}</b><small>{s.score.source}{s.score.count?' · '+num(lang,s.score.count)+' '+L('ratings'):''}</small></span>}{s.facts?.map(f=><span key={f} className="m-fact">{f}</span>)}</div>}
-     <div className="m-actions">{s.actions.map(a=><button key={a.label} className={'m-btn'+(a.primary?' primary':'')} onClick={a.onClick} tabIndex={i===at?0:-1}>{a.label}{a.primary&&<ArrowForwardRounded/>}</button>)}</div>
+     {!s.cover&&<div className="m-actions">{s.actions.map(a=><button key={a.label} className={'m-btn'+(a.primary?' primary':'')} onClick={a.onClick} tabIndex={i===at?0:-1}>{a.label}{a.primary&&<ArrowForwardRounded/>}</button>)}</div>}
     </div>
     {s.cover&&<button className="m-cover" tabIndex={i===at?0:-1} aria-label={L('Open')+' '+s.title} onClick={s.actions[0]?.onClick}><img src={s.cover} alt="" loading="lazy"/></button>}
    </div>
