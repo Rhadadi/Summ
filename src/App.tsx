@@ -5,10 +5,11 @@ import type{LocalReview,PubBook,Account,AppConfig,Block,Book,Chapter,ImportedVer
 import{depthLabels,languages,markdownExport,selectedPassages}from'./core';
 import{loadSettings,saveSettings,store}from'./storage';
 import{demoBook}from'./demo';import{extractCover,importFile,textBook}from'./importers';
-import{ApiError,libraryList,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
+import{ApiError,libraryList,libraryMine,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
 import{summarizeChapter}from'./book-summary';
 import{effectivePrice,estimateChapter,money,usageCost}from'./cost';
 import BookSummaryDialog from'./BookSummaryDialog';import AccountDialog from'./AccountDialog';import CostDialog from'./CostDialog';import PeoplePanel from'./PeoplePanel';import PublishedBook from'./PublishedBook';import PublicLibrary from'./PublicLibrary';import PublishDialog from'./PublishDialog';import Shell from'./Shell';import HomePage from'./HomePage';import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';import LibraryPage from'./LibraryPage';import Cover from'./Cover';import{PlayerBar,usePlayer}from'./Player';import{loadBookData,narrationItems,useBookData}from'./bookData';import type{CostRequest}from'./CostDialog';
+import PublishedEditor from'./PublishedEditor';
 import{tr}from'./i18n';
 const ImportWizard=lazy(()=>import('./ImportWizard'));
 const ReviewDialog=lazy(()=>import('./ReviewDialog'));
@@ -28,14 +29,15 @@ export default function App(){
  const role=account?.role||'reader',isEditor=role==='owner'||role==='editor';
  // Editors can look at the site as a visitor would without signing out.
  const[asVisitor,setAsVisitor]=useState(false),canEdit=isEditor&&!asVisitor;
- const[published,setPublished]=useState<PubBook[]|null>(null),[publishOpen,setPublishOpen]=useState(false);
+ const[published,setPublished]=useState<PubBook[]|null>(null),[editableBooks,setEditableBooks]=useState<PubBook[]>([]),[publishOpen,setPublishOpen]=useState(false);
  const refreshPublished=()=>libraryList().then(setPublished).catch(()=>setPublished(old=>old??[]));
  useEffect(()=>{refreshPublished();},[]);
+ useEffect(()=>{if(canEdit)libraryMine().then(setEditableBooks).catch(()=>setEditableBooks([]));},[canEdit]);
  const[summary,setSummary]=useState<Summary|null>(null),[generating,setGenerating]=useState(false),[generationError,setGenerationError]=useState('');
  const fileInput=useRef<HTMLInputElement>(null),searchInput=useRef<HTMLInputElement>(null),abort=useRef<AbortController|null>(null);
  const mobile=useMediaQuery('(max-width:899px)');
  // /  home · /library · /saved · /book/:id detail · /read/:id[/section] reader
- const parts=route.split('/'),isDetail=parts[1]==='book',isRead=parts[1]==='read',isReader=isDetail||isRead,isSaved=route==='/saved',isWorkspace=route==='/workspace',isLibrary=parts[1]==='library',isPub=parts[1]==='b',pubSlug=parts[2]||'',pubRead=parts[3]==='read',pubSection=pubRead?decodeURIComponent(parts[4]||''):'';
+ const parts=route.split('/'),isDetail=parts[1]==='book',isRead=parts[1]==='read',isReader=isDetail||isRead,isSaved=route==='/saved',isWorkspace=route==='/workspace',isPublishedEditor=parts[1]==='edit',isLibrary=parts[1]==='library',isPub=parts[1]==='b',pubSlug=parts[2]||'',pubRead=parts[3]==='read',pubSection=pubRead?decodeURIComponent(parts[4]||''):'';
  const readSection=isRead?decodeURIComponent(parts[3]||''):'';
  const active=isReader?books.find(b=>b.id===parts[2]):undefined;
  const chapter=active?.chapters[Math.min(active.chapterIndex,active.chapters.length-1)];
@@ -147,7 +149,8 @@ export default function App(){
   :isSaved?<div className="saved-page"><div className="page-heading"><div className="eyebrow">WORTH KEEPING</div><h1>Ideas to come back to.</h1><p>Your saved passages, with their sources close by.</p></div><div className="saved-grid">{saved.filter(p=>(p.text+' '+p.title).toLowerCase().includes(query.toLowerCase())).map(p=><article className="saved-card" key={p.id}><BookmarkRounded/><blockquote dir="auto">{p.text}</blockquote><div className="saved-source"><strong>{p.title}</strong><span>{p.chapterTitle} · {p.location}</span></div><div className="saved-actions"><Button onClick={async()=>{const b=books.find(b=>b.id===p.bookId);if(b){const index=b.chapters.findIndex(c=>c.id===p.chapterId);await openBook({...b,chapterIndex:Math.max(0,index)});}}}>Open source <ArrowForwardRounded fontSize="small"/></Button><IconButton aria-label="Copy saved passage" onClick={()=>copy(p.text+'\n\n'+p.title+' — '+p.location)}><ContentCopyRounded fontSize="small"/></IconButton><IconButton aria-label="Remove saved passage" onClick={()=>store.deletePassage(p.id).then(()=>setSaved(items=>items.filter(x=>x.id!==p.id))).catch(()=>setToast('Could not remove passage.'))}><DeleteOutlineRounded fontSize="small"/></IconButton></div></article>)}</div>{!saved.length&&<div className="empty-state"><BookmarkBorderRounded/><h2>Keep the words that stay with you.</h2><p>Save a passage while reading. Its original wording and location will be waiting here.</p><Button onClick={()=>navigate('/')}>Explore your library</Button></div>}</div>
   :isPub&&!pubRead?<PublishedBook listenOnOpen={parts[3]==='listen'} slug={pubSlug} mode="detail" section="" settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences}/>
   :isLibrary?<PublicLibrary lang={uiLang} query={query} onClear={()=>setQuery('')} listening={parts[2]==='listen'} books={published} loading={false} canEdit={canEdit} onOpen={b=>navigate('/b/'+b.slug+(parts[2]==='listen'?'/listen':''))} onWorkspace={()=>navigate('/workspace')}/>
-  :isWorkspace&&canEdit?<LibraryPage books={books} covers={covers} filter={filter} query={query} onFilter={setFilter} onOpen={openBook} onAdd={beginImport} canSearchBooks={!!appConfig} onRemove={setDeleting} onClear={()=>{setQuery('');setFilter('all');}}/>
+  :isPublishedEditor&&canEdit?<PublishedEditor bookId={parts[2]||''} language={uiLang} onBack={()=>navigate('/workspace')} onSaved={()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onAccount={()=>setAccountOpen(true)}/>
+  :isWorkspace&&canEdit?<LibraryPage books={books} published={editableBooks} language={uiLang} covers={covers} filter={filter} query={query} onFilter={setFilter} onOpen={openBook} onOpenPublished={b=>navigate('/b/'+b.slug)} onEditPublished={b=>navigate('/edit/'+b.id)} onAdd={beginImport} canSearchBooks={!!appConfig} onRemove={setDeleting} onClear={()=>{setQuery('');setFilter('all');}}/>
   :<HomePage lang={uiLang} published={published} canEdit={canEdit} onOpenPublished={b=>navigate('/b/'+b.slug)} books={books} covers={covers} saved={saved} onRead={b=>readBook(b)} onOpen={openBook} onListen={b=>listen(b)} onAdd={beginImport} navigate={navigate}/>;
  return <ThemeProvider theme={theme}><CssBaseline/><a className="skip-link" href="#main-content" onClick={e=>{e.preventDefault();document.getElementById('main-content')?.focus();}}>{L('Skip to content')}</a>
  <div className={player.state?'has-player':''}>
@@ -160,7 +163,7 @@ export default function App(){
   const src=player.state?.book;if(!src)return;
   if(src.id.startsWith('pub:')){navigate('/b/'+src.id.slice(4)+'/read');return;}
   const b=books.find(x=>x.id===src.id);if(b)readBook(b,chapterId?b.chapters.findIndex(c=>c.id===chapterId):undefined);}}/>
- {publishOpen&&active&&<PublishDialog onAccount={()=>setAccountOpen(true)} book={active} data={data} defaultLanguage={settings.language} defaultType={settings.depth} onClose={()=>setPublishOpen(false)} onPublished={p=>{updateBook({...active,published:p});refreshPublished();}} onUnpublished={()=>{updateBook({...active,published:undefined});refreshPublished();}}/>}
+ {publishOpen&&active&&<PublishDialog onAccount={()=>setAccountOpen(true)} book={active} data={data} defaultLanguage={settings.language} defaultType={settings.depth} onClose={()=>setPublishOpen(false)} onPublished={p=>{updateBook({...active,published:p});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onUnpublished={()=>{updateBook({...active,published:undefined});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}}/>}
  {reviewOpen&&active&&<Suspense fallback={null}><ReviewDialog book={active} year={String(info_year(active))} initial={review} language={settings.language} onClose={()=>setReviewOpen(false)} onAccount={()=>setAccountOpen(true)} onSave={async v=>{await store.saveReview(active.id,v);setReview(v);setReviewOpen(false);setToast(v.approved?'Reception approved. It appears when you publish.':'Draft saved.');}}/></Suspense>}
  {wizard!==null&&active&&<Suspense fallback={null}><ImportWizard book={active} language={settings.language} existing={data.versions} canGenerate={!!account?.key} startAt={wizard} onClose={()=>setWizard(null)} onSave={saveVersions} onGenerate={()=>{setWizard(null);setBookSummaryOpen(true);}}/></Suspense>}
  <Dialog open={importOpen} onClose={()=>{if(!importMessage)setImportOpen(false);}} fullWidth maxWidth="sm" aria-labelledby="import-title"><DialogTitle id="import-title" className="dialog-heading"><span>Add something worth reading</span><IconButton aria-label="Close import" disabled={!!importMessage} onClick={()=>setImportOpen(false)}><CloseRounded/></IconButton></DialogTitle><DialogContent><p className="dialog-lead">A book, an article, a few pages of ideas. Start with the source.</p><Tabs value={importTab} onChange={(_,v)=>{setImportTab(v);setImportError('');}} aria-label="Source type"><Tab label="Upload file" icon={<FileUploadOutlined/>} iconPosition="start"/><Tab label="Link" icon={<LinkRounded/>} iconPosition="start"/><Tab label="Paste text" icon={<EditOutlined/>} iconPosition="start"/></Tabs>

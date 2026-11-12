@@ -120,7 +120,31 @@ class PublishTests(RolesTest):
         self.assertEqual(owner.put('/api/library/'+book['id']+'/cover',content=b'<script>alert(1)</script>'+b'x'*900).status_code,422)
         self.assertEqual(owner.put('/api/library/'+book['id']+'/cover',content=b'\xff\xd8\xff'+b'0'*2_000_000).status_code,413)
         got=TestClient(app).get('/api/library/'+book['id']+'/cover');self.assertEqual((got.status_code,got.headers['content-type']),(200,'image/jpeg'))
-        self.assertEqual(TestClient(app).get('/api/library/'+book['id']).json()['cover'],'/api/library/'+book['id']+'/cover')
+        self.assertTrue(TestClient(app).get('/api/library/'+book['id']).json()['cover'].startswith('/api/library/'+book['id']+'/cover?v='))
+        self.assertEqual(self.reader().delete('/api/library/'+book['id']+'/cover').status_code,403)
+        self.assertEqual(owner.delete('/api/library/'+book['id']+'/cover').status_code,200)
+        self.assertIsNone(owner.get('/api/library/'+book['id']).json()['cover'])
+        self.assertEqual(TestClient(app).get('/api/library/'+book['id']+'/cover').status_code,404)
+    def test_editorial_assist_requires_editor_key_and_only_returns_a_draft(self):
+        r=self.reader()
+        body={'action':'polish','source':'A precise source sentence.','language':'en'}
+        self.assertEqual(r.post('/api/editor/assist',json=body).status_code,403)
+        self.sign_up(username='writer')
+        with patch('server.app.model_json',new=AsyncMock(return_value={'text':'A clear sentence.'})) as model:
+            result=self.client.post('/api/editor/assist',json=body)
+            self.assertEqual(result.status_code,200,result.text)
+            self.assertEqual(result.json(),{'text':'A clear sentence.'})
+            self.assertIn('Do not add facts',model.await_args.args[0])
+        self.assertEqual(self.client.post('/api/editor/assist',json={**body,'source':'x'*24001}).status_code,422)
+    def test_uploaded_background_is_private_to_editor_and_visible_to_readers(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
+        image=b'\xff\xd8\xff'+b'0'*1000
+        self.assertEqual(self.reader().put('/api/library/'+bid+'/background',content=image).status_code,403)
+        result=owner.put('/api/library/'+bid+'/background',content=image)
+        self.assertEqual(result.status_code,200,result.text)
+        self.assertEqual(result.json()['mode'],'upload')
+        self.assertIn('/api/library/'+bid+'/art',result.json()['art'])
+        self.assertEqual(TestClient(app).get('/api/library/'+bid+'/art').status_code,200)
 class NarrationTests(RolesTest):
     def test_narration_is_generated_once_then_served_to_everyone(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()

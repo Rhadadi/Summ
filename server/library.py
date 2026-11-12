@@ -94,7 +94,7 @@ def _slide(book_id:str)->dict:
 def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
-    return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover' if cover else None,'updated':updated,
+    return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
             'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
@@ -138,7 +138,10 @@ IMAGE_TYPES={b'\xff\xd8\xff':'image/jpeg',b'\x89PNG':'image/png',b'RIFF':'image/
 def save_cover(book_id:str,data:bytes)->str:
     kind=next((t for sig,t in IMAGE_TYPES.items() if data.startswith(sig)),None)
     if not kind or len(data)>1_500_000 or len(data)<500:raise accounts.AccountError(422,'Use a JPEG, PNG, or WebP cover under 1.5 MB.')
-    (_dir('covers')/book_id).write_bytes(data);q('UPDATE library SET cover_type=? WHERE id=?',(kind,book_id));return kind
+    (_dir('covers')/book_id).write_bytes(data);q('UPDATE library SET cover_type=?,updated=? WHERE id=?',(kind,time.time(),book_id));return kind
+def remove_cover(book_id:str):
+    (_dir('covers')/book_id).unlink(missing_ok=True)
+    q('UPDATE library SET cover_type=NULL,updated=? WHERE id=?',(time.time(),book_id))
 FIGURE_NAME=re.compile(r'^[a-z0-9][a-z0-9._-]{0,60}\.(?:png|jpe?g|webp)$')
 def save_figure(book_id:str,name:str,data:bytes):
     kind=next((t for sig,t in IMAGE_TYPES.items() if data.startswith(sig)),None)

@@ -117,6 +117,22 @@ const fa:Record<string,string>={
  'This chapter isn’t part of the published summary':'این فصل در خلاصهٔ منتشرشده نیست.',
  'Pick another chapter from the list.':'فصل دیگری از فهرست انتخاب کنید.',
  'Page':'صفحه','Notes':'یادداشت‌ها','Save passage':'ذخیرهٔ متن','Unsave passage':'حذف متن ذخیره‌شده',
+ 'Workspace':'میز کار','BOOK EDITOR':'ویرایش کتاب','Change the published book directly. Text changes go live when you save.':'تغییرات متن را بررسی و ذخیره کنید تا برای خوانندگان نمایش داده شود.',
+ 'Save changes':'ذخیرهٔ تغییرات','Saving…':'در حال ذخیره…','Book editor sections':'بخش‌های ویرایش کتاب','Details & images':'مشخصات و تصویرها','Book details':'مشخصات کتاب',
+ 'Original language':'زبان اصلی','Year':'سال انتشار','Pages':'صفحه‌ها','Visibility':'دسترسی','Public library':'در کتابخانهٔ عمومی','Unlisted link':'فقط با پیوند',
+ 'Publisher description':'معرفی ناشر','Subjects (one per line)':'موضوع‌ها (هر کدام در یک سطر)','Suggest a title with AI':'پیشنهاد عنوان با هوش مصنوعی',
+ 'Cover':'جلد','Current cover':'جلد کنونی','Upload a cover':'بارگذاری جلد','Find book covers':'جست‌وجوی جلد کتاب','AI painting ideas for cover':'پیشنهاد نقاشی برای جلد','Remove cover':'حذف جلد',
+ 'Add paragraph':'افزودن بند','Heading (optional)':'عنوان بند (اختیاری)','Text':'متن','Polish with AI':'پرداخت متن با هوش مصنوعی','Move up':'بالاتر','Move down':'پایین‌تر','Delete paragraph':'حذف بند',
+ 'Title':'عنوان','Author':'نویسنده','Home page background':'پس‌زمینهٔ صفحهٔ اصلی','Current choice':'انتخاب کنونی','none':'گالری خودکار','art':'نقاشی','cover':'جلد','upload':'تصویر بارگذاری‌شده',
+ 'Automatic gallery':'گالری خودکار','Use cover':'استفاده از جلد','Upload background':'بارگذاری پس‌زمینه','Choose a painting with AI':'پیشنهاد نقاشی با هوش مصنوعی',
+ 'Readers see this on the book page.':'این متن در صفحهٔ معرفی کتاب دیده می‌شود.','Draft overview from chapters':'پیشنهاد مرور کلی از فصل‌ها','Overview paragraphs':'بندهای مرور کلی',
+ 'Add chapter':'افزودن فصل','New chapter':'فصل تازه','Rename, reorder, add, or remove chapters and their summaries.':'عنوان و ترتیب فصل‌ها و متن خلاصهٔ آن‌ها را تغییر دهید.','Chapter summary':'خلاصهٔ فصل','Chapter review':'مرور فصل',
+ 'Add section':'افزودن بخش','New section':'بخش تازه','Guide items':'بندهای راهنما','Edit the approved reception shown to readers. Check any source or quotation before publishing it.':'بازتاب کتاب را پیش از انتشار با منابع آن بسنجید.',
+ 'Edit or research reception again':'ویرایش یا پژوهش دوبارهٔ بازتاب','Research reception with AI':'پژوهش بازتاب با هوش مصنوعی','Unpublish book':'لغو انتشار کتاب',
+ 'Your workspace':'میز کار شما','Published books':'کتاب‌های منتشرشده','Edit the books readers see, including books published from another device.':'کتاب‌هایی را که خوانندگان می‌بینند، حتی از دستگاهی دیگر، ویرایش کنید.',
+ 'Public':'عمومی','Unlisted':'فقط با پیوند','Edit book':'ویرایش کتاب','View':'نمایش','No published books yet. Add a source below, write or import a summary, then publish it.':'هنوز کتابی منتشر نشده است. کتابی بیفزایید، خلاصه‌اش را آماده کنید و سپس منتشرش کنید.',
+ 'Sources on this device':'منابع این دستگاه','Import a book here, prepare its summary, then publish it for editing on any device.':'کتاب را اینجا وارد و خلاصه‌اش را آماده کنید؛ پس از انتشار، ویرایش آن از هر دستگاهی ممکن است.',
+ 'Up':'بالاتر','Down':'پایین‌تر','Delete chapter':'حذف فصل','Chapter title':'عنوان فصل','Main chapter':'فصل اصلی','Front matter':'بخش آغازین','Back matter':'بخش پایانی','Remove this chapter and its summaries from every language?':'این فصل و خلاصهٔ آن را از همهٔ زبان‌ها حذف می‌کنید؟',
 };
 export const rtl=(lang?:string)=>lang==='fa'||lang==='ar';
 export const tr=(lang:string|undefined,text:string)=>lang==='fa'?fa[text]??text:text;

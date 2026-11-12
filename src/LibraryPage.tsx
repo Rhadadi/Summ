@@ -1,24 +1,28 @@
 import{useState}from'react';
 import{AddRounded,DeleteOutlineRounded,SearchRounded}from'@mui/icons-material';
 import{Button,IconButton}from'@mui/material';
-import type{Book}from'./types';
+import type{Book,PubBook}from'./types';
 import{bodyChapter,bookWords,displayName,minutes}from'./core';
 import Cover from'./Cover';
 import{Logo}from'./Shell';
 import GoogleBooksDialog from'./GoogleBooksDialog';
+import{tr}from'./i18n';
 
 const words=(b:Book)=>bookWords({...b,chapters:b.chapters.map(bodyChapter)});
 const hours=(m:number)=>m<90?m+' min':Math.round(m/60)+' hours';
 const filters=[{id:'all',label:'All'},{id:'book',label:'Books'},{id:'article',label:'Articles'},{id:'video',label:'Transcripts'},{id:'text',label:'Notes'}];
-interface Props{books:Book[];covers:Record<string,string>;filter:string;query:string;canSearchBooks:boolean;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onAdd:()=>void;onRemove:(book:Book)=>void;onClear:()=>void}
-export default function LibraryPage({books,covers,filter,query,canSearchBooks,onFilter,onOpen,onAdd,onRemove,onClear}:Props){
+interface Props{books:Book[];published:PubBook[];language:string;covers:Record<string,string>;filter:string;query:string;canSearchBooks:boolean;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onOpenPublished:(book:PubBook)=>void;onEditPublished:(book:PubBook)=>void;onAdd:()=>void;onRemove:(book:Book)=>void;onClear:()=>void}
+export default function LibraryPage({books,published,language,covers,filter,query,canSearchBooks,onFilter,onOpen,onOpenPublished,onEditPublished,onAdd,onRemove,onClear}:Props){
+ const L=(text:string)=>tr(language,text);
  const[searchOpen,setSearchOpen]=useState(false);
  const shown=books.filter(b=>(filter==='all'||b.category===filter)&&(b.title+' '+b.author).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt));
  const present=filters.filter(f=>f.id==='all'||books.some(b=>b.category===f.id));
  return <div className="library">
-  <h1 className="library-title">Your workspace</h1>
+  <h1 className="library-title">{L('Your workspace')}</h1>
   <p className="library-sub">{books.length} {books.length===1?'book':'books'} · {hours(books.reduce((n,b)=>n+minutes(words(b)),0))} of reading</p>
+  <section className="workspace-published"><h2>{L('Published books')}</h2><p>{L('Edit the books readers see, including books published from another device.')}</p><div className="workspace-published-grid">{published.map(b=><article key={b.id} className="workspace-published-card"><div className="workspace-published-cover">{b.cover&&<img src={b.cover} alt=""/>}</div><div><h3 dir="auto">{b.title}</h3><p dir="auto">{b.author}</p><small>{L(b.visibility==='public'?'Public':'Unlisted')} · {b.chapters} {L('chapters')}</small><div className="workspace-published-actions"><Button variant="contained" size="small" onClick={()=>onEditPublished(b)}>{L('Edit book')}</Button><Button size="small" onClick={()=>onOpenPublished(b)}>{L('View')}</Button></div></div></article>)}</div>{!published.length&&<p>{L('No published books yet. Add a source below, write or import a summary, then publish it.')}</p>}</section>
   {canSearchBooks&&<Button variant="outlined" sx={{mb:3}} startIcon={<SearchRounded/>} onClick={()=>setSearchOpen(true)}>Find books</Button>}
+  <h2>{L('Sources on this device')}</h2><p className="library-sub">{L('Import a book here, prepare its summary, then publish it for editing on any device.')}</p>
   <div className="pills" role="group" aria-label="Filter">{present.map(f=><button key={f.id} className={'pill'+(filter===f.id?' on':'')} aria-pressed={filter===f.id} onClick={()=>onFilter(f.id)}>{f.label}</button>)}</div>
   <div className="cards">
    {shown.map(b=><article className="card" key={b.id}>

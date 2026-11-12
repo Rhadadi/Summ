@@ -40,6 +40,7 @@ export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguag
   const t=setInterval(()=>narrationStatus(done.id,language).then(setStatus).catch(()=>{}),3000);return()=>clearInterval(t);
  },[done,status?.status,language]);
  async function publish(){
+  if(book.published&&!confirm('Update the published book from this device? This replaces text and metadata edited directly in the published workspace.'))return;
   setBusy('publish');setError('');
   try{
    const info:BookInfo|null=(await store.info(book.id).catch(()=>undefined))||null;
@@ -63,6 +64,7 @@ export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguag
   <DialogTitle id="publish-title">{book.published?'Published summary':'Publish this summary'}</DialogTitle>
   <DialogContent>
    <p className="dialog-lead">Readers see your summaries, the study guide and narration. The original file and its text are never uploaded; references show page numbers only.</p>
+   {book.published&&<Alert severity="warning" sx={{mb:2}}>Updating from this device replaces text and metadata edited directly in the published workspace.</Alert>}
    {!langs.length?<Alert severity="info">Summarize some chapters first (or import a summary), then publish.</Alert>:<>
     <div className="settings-grid">
      <TextField label="Title" value={title} onChange={e=>setTitle(e.target.value)} fullWidth/>

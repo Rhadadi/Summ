@@ -27,7 +27,7 @@ export default function HomePage({lang,published,canEdit,onOpenPublished,books,c
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
  const backdropFor=(b:PubBook,i:number):Backdrop=>{
-  if(b.slide?.mode==='art'&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit};
+  if((b.slide?.mode==='art'||b.slide?.mode==='upload')&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit};
   if(b.slide?.mode==='cover'&&b.cover)return{url:b.cover,position:'50% 50%',blur:true,credit:null};
   return galleryBackdrop(rotation[i%rotation.length]);
  };

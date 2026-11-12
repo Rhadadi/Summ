@@ -43,10 +43,13 @@ export const revokePerson=(id:string)=>call<People>('people/'+id,{method:'DELETE
 export const libraryList=()=>call<{books:PubBook[]}>('library').then(r=>r.books);
 export const libraryMine=()=>call<{books:PubBook[]}>('library/mine').then(r=>r.books);
 export const libraryBook=(key:string)=>call<PubBook&{doc:PubDoc}>('library/'+encodeURIComponent(key));
+export const editorialAssist=(body:{action:'polish'|'overview'|'title';source:string;language:string})=>call<{text:string}>('editor/assist',{body});
 export const publishBook=(body:{id?:string;doc:PubDoc;visibility:'public'|'unlisted'})=>call<PubBook&{doc:PubDoc}>('library',{body});
 export const unpublishBook=(id:string)=>call<{ok:boolean}>('library/'+id,{method:'DELETE'});
 export const setVisibility=(id:string,visibility:'public'|'unlisted')=>call<PubBook&{doc:PubDoc}>('library/'+id+'/visibility',{method:'PUT',body:{visibility}});
 export const uploadCover=(id:string,blob:Blob)=>binary('library/'+id+'/cover',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
+export const removeCover=(id:string)=>call<{ok:boolean}>('library/'+id+'/cover',{method:'DELETE'});
+export const uploadBackground=(id:string,blob:Blob)=>binary('library/'+id+'/background',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const startNarration=(id:string,language:string,type?:string)=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type}});
 export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language);
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');

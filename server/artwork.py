@@ -51,16 +51,22 @@ def set_mode(book_id:str,mode:str,credit:dict|None=None):
     m={'mode':mode,'at':int(time.time())}
     if mode=='art' and credit:m['credit']=credit
     (_dir()/(book_id+'.json')).write_text(json.dumps(m))
+def save_upload(book_id:str,data:bytes):
+    kind='image/jpeg' if data.startswith(b'\xff\xd8\xff') else 'image/png' if data.startswith(b'\x89PNG') else 'image/webp' if data.startswith(b'RIFF') else None
+    if not kind or len(data)>1_400_000 or len(data)<500:raise accounts.AccountError(422,'Use a JPEG, PNG, or WebP background under 1.4 MB.')
+    (_dir()/book_id).write_bytes(data)
+    set_mode(book_id,'upload',{'type':kind})
 def image(book_id:str)->tuple[bytes,str]|None:
     m=meta(book_id);path=_dir()/book_id
-    return (path.read_bytes(),m.get('credit',{}).get('type','image/jpeg')) if m.get('mode')=='art' and path.exists() else None
+    return (path.read_bytes(),m.get('credit',{}).get('type','image/jpeg')) if m.get('mode') in ('art','upload') and path.exists() else None
 def slide(book_id:str)->dict:
     """What the home page needs: how to dress this book's slide."""
     m=meta(book_id);mode=m.get('mode','none')
-    if mode=='art' and not (_dir()/book_id).exists():mode='none'
+    if mode in ('art','upload') and not (_dir()/book_id).exists():mode='none'
     out={'mode':mode}
     if mode=='art':
         c=m.get('credit',{});out.update({'art':'/api/library/'+book_id+'/art?v='+str(m.get('at',0)),'credit':{k:c.get(k,'') for k in ('title','artist','year','page')}})
+    if mode=='upload':out['art']='/api/library/'+book_id+'/art?v='+str(m.get('at',0))
     return out
 def remove(book_id:str):
     for p in (_dir()/book_id,_dir()/(book_id+'.json')):p.unlink(missing_ok=True)
