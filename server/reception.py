@@ -99,7 +99,10 @@ async def nyt(client:httpx.AsyncClient,title:str,author:str,isbn:str='')->list[d
     key=os.getenv('NYT_API_KEY','').strip()
     if not key:return []
     short=title.split(':')[0].strip();surname=(author.split() or [''])[-1]
-    r=await client.get('https://api.nytimes.com/svc/search/v2/articlesearch.json',params={'q':'"'+short+'" '+surname,'fq':'section.name:("Books") OR typeOfMaterials:("Review")','sort':'relevance','api-key':key})
+    params={'q':'"'+short+'" '+surname,'fq':'section.name:("Books") OR typeOfMaterials:("Review")','sort':'relevance','api-key':key}
+    # The NYT allows about five calls a minute; one refusal is worth waiting out.
+    r=await client.get('https://api.nytimes.com/svc/search/v2/articlesearch.json',params=params)
+    if r.status_code==429:await asyncio.sleep(12);r=await client.get('https://api.nytimes.com/svc/search/v2/articlesearch.json',params=params)
     docs=((r.json().get('response') or {}).get('docs') or []) if r.status_code==200 else []
     found=[]
     for d in docs:
