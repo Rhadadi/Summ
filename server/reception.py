@@ -116,6 +116,25 @@ async def nyt(client:httpx.AsyncClient,title:str,author:str,isbn:str='')->list[d
                       'headline':head,'excerpt':excerpt,'summary':abstract,'context':' '.join(x for x in (abstract,lead) if x),'url':d.get('web_url'),'via':'The New York Times','verified':bool(excerpt)})
     return found[:2]
 
+async def publishers_weekly(client:httpx.AsyncClient,title:str,author:str)->list[dict]:
+    """Publishers Weekly keeps one review page per ISBN; Open Library lists the book's ISBNs."""
+    r=await client.get('https://openlibrary.org/search.json',params={'q':(title.split(':')[0]+' '+author).strip(),'fields':'isbn,title,author_name','limit':3})
+    surname=(author.split() or [''])[-1].lower()
+    isbns=[i for d in (r.json().get('docs') or []) if not surname or any(surname in a.lower() for a in d.get('author_name') or []) for i in d.get('isbn') or [] if len(i)==13 and i.startswith('97')][:10]
+    short=title.split(':')[0].strip().lower()
+    for isbn in isbns:
+        url='https://www.publishersweekly.com/'+isbn
+        page=await client.get(url)
+        if page.status_code!=200 or short not in _plain(re.search(r'<title>(.*?)</title>',page.text,re.S|re.I).group(1) if re.search(r'<title>(.*?)</title>',page.text,re.S|re.I) else '').lower():continue
+        text=await page_text(url)
+        if _words(text)<40:continue
+        sentences=[x for x in re.split(r'(?<=[.!?])\s+',text.split('\n')[0]) if 6<=_words(x)<=45]
+        # PW's judgement sits in the sentences that talk about the book and its readers; the last one wins a tie.
+        judge=re.compile(r'\b(book|readers?|thoughtful|insightful|engaging|compelling|lucid|wise|moving|provocative|repetitious|uneven|valuable|illuminating|accessible|elegant|brilliant|rewarding|fascinating|powerful|important|useful)\b',re.I)
+        verdict=max(reversed(sentences),key=lambda x:len(judge.findall(x)),default='')
+        return [{'publication':'Publishers Weekly','reviewer':'','date':'','headline':'','excerpt':verdict,'context':text[:2500],'url':url,'via':'Publishers Weekly','verified':True}]
+    return []
+
 def _public(url:str)->bool:
     parts=urlsplit(url)
     if parts.scheme!='https' or not parts.hostname:return False
@@ -150,7 +169,7 @@ async def page_text(url:str)->str:
         # The review lives in the page's article element when it has one; menus, sign-up boxes and share links are dropped.
         noise=re.compile(r'cookie|subscribe|sign (in|up)|log ?in|newsletter|twitter|facebook|instagram|refresh the page|advertis|javascript|all rights reserved|privacy policy|terms of (use|service)|©',re.I)
         def paragraphs(part:str)->str:
-            return '\n'.join(p for p in (_plain(x) for x in re.findall(r'<p[^>]*>(.*?)</p>',part,flags=re.S)) if _words(p)>=8 and not noise.search(p))
+            return '\n'.join(p for p in (_plain(x) for x in re.findall(r'<p(?:\s[^>]*)?>(.*?)</p>',part,flags=re.S|re.I)) if _words(p)>=8 and not noise.search(p))
         articles=re.findall(r'<article[^>]*>(.*?)</article>',body,flags=re.S|re.I)
         text=paragraphs(max(articles,key=len)) if articles else ''
         return (text if len(text)>1500 else paragraphs(body))[:24000]
@@ -163,9 +182,9 @@ async def gather(title:str,author:str,isbn:str='')->dict:
         async def safe(task):
             try:return await task
             except (httpx.HTTPError,ValueError,KeyError,TypeError):return []
-        wiki,guard,times=await asyncio.gather(safe(wikipedia(client,title,author)),safe(guardian(client,title,author)),safe(nyt(client,title,author,isbn)))
-    notes=[('Wikipedia',len(wiki),True),('The Guardian',len(guard),bool(os.getenv('GUARDIAN_API_KEY','').strip())),('The New York Times',len(times),bool(os.getenv('NYT_API_KEY','').strip()))]
-    return {'critics':wiki+guard+times,'notes':[{'source':n,'found':k,'enabled':e} for n,k,e in notes]}
+        wiki,guard,times,pw=await asyncio.gather(safe(wikipedia(client,title,author)),safe(guardian(client,title,author)),safe(nyt(client,title,author,isbn)),safe(publishers_weekly(client,title,author)))
+    notes=[('Publishers Weekly',len(pw),True),('Wikipedia',len(wiki),True),('The Guardian',len(guard),bool(os.getenv('GUARDIAN_API_KEY','').strip())),('The New York Times',len(times),bool(os.getenv('NYT_API_KEY','').strip()))]
+    return {'critics':pw+wiki+guard+times,'notes':[{'source':n,'found':k,'enabled':e} for n,k,e in notes]}
 
 # ---- automatic reception for published books: the quotes publishers and Wikipedia print, gathered once and kept a fortnight
 import json as _json,time as _time
