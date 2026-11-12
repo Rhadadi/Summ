@@ -589,3 +589,19 @@ body{background:var(--bg);color:var(--ink)}
 .lightbox p{margin:0;max-width:760px;text-align:center;font:14px/1.5 var(--serif);color:#e6dccb}
 .lightbox-x{position:absolute;top:14px;inset-inline-end:14px;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}
 @keyframes lb-in{from{opacity:0}to{opacity:1}}
+
+/* Text colour follows the picture: a firmer shade where bright and dark mix, dark ink on bright pictures */
+.m-text h1,.m-by,.m-lead,.m-eyebrow{text-shadow:0 1px 14px rgba(0,0,0,.45)}
+.m-slide.tone-mixed .m-shade{background:linear-gradient(90deg,rgba(18,13,7,.9) 0%,rgba(18,13,7,.78) 45%,rgba(18,13,7,.3) 78%),linear-gradient(0deg,rgba(18,13,7,.75),transparent 32%)}
+.shell[dir=rtl] .m-slide.tone-mixed .m-shade{background:linear-gradient(270deg,rgba(18,13,7,.9) 0%,rgba(18,13,7,.78) 45%,rgba(18,13,7,.3) 78%),linear-gradient(0deg,rgba(18,13,7,.75),transparent 32%)}
+.m-slide.tone-bright .m-shade{background:linear-gradient(90deg,rgba(255,250,240,.82) 0%,rgba(255,250,240,.62) 45%,rgba(255,250,240,.1) 78%),linear-gradient(0deg,rgba(255,250,240,.55),transparent 30%)}
+.shell[dir=rtl] .m-slide.tone-bright .m-shade{background:linear-gradient(270deg,rgba(255,250,240,.82) 0%,rgba(255,250,240,.62) 45%,rgba(255,250,240,.1) 78%),linear-gradient(0deg,rgba(255,250,240,.55),transparent 30%)}
+.m-slide.tone-bright .m-text h1,.m-slide.tone-bright .m-lead,.m-slide.tone-bright .m-by,.m-slide.tone-bright .m-score b{color:#21190f;text-shadow:0 1px 12px rgba(255,250,240,.7)}
+.m-slide.tone-bright .m-eyebrow{color:#7a5a1b;text-shadow:none}
+.m-slide.tone-bright .m-stars{color:#a8741a}
+.m-slide.tone-bright .m-btn{color:#21190f;border-color:rgba(33,25,15,.5)}
+@media (max-width:899px){.m-slide.tone-bright .m-shade{background:linear-gradient(0deg,rgba(255,250,240,.9) 0%,rgba(255,250,240,.7) 55%,rgba(255,250,240,.2))}.m-slide.tone-mixed .m-shade,.shell[dir=rtl] .m-slide.tone-mixed .m-shade{background:linear-gradient(0deg,rgba(18,13,7,.92) 0%,rgba(18,13,7,.75) 55%,rgba(18,13,7,.3))}}
+
+.museum.on-bright .m-credit{color:#3b2f1d;opacity:.75}
+.museum.on-bright .m-dot span{background:rgba(33,25,15,.35)!important}.museum.on-bright .m-dot.on span{background:#21190f!important}
+.museum.on-bright .m-arrows button{color:#21190f}
