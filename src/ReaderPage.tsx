@@ -20,6 +20,7 @@ interface Props{
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
  const{book,chapter,section,settings,data,account}=p;
+ const[zoom,setZoom]=useState<{src:string;alt:string}|null>(null);
  const[view,setView]=useState<'summary'|'original'>('summary'),[list,setList]=useState(false),[more,setMore]=useState(false);
  const[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
  const top=useRef<HTMLDivElement>(null);
@@ -61,7 +62,7 @@ export default function ReaderPage(p:Props){
   return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
  }
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><img src={pictures[x.image.path]||x.image.path} alt={x.image.alt} loading="lazy"/><figcaption dir="auto">{x.text}</figcaption></figure>
+  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||x.image.path} alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{x.text}</figcaption></figure>
    :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}{x.text}{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
    :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
@@ -135,6 +136,11 @@ export default function ReaderPage(p:Props){
    </>}
    </div>
   </article>
+  {zoom&&<div className="lightbox" role="dialog" aria-modal="true" aria-label={zoom.alt} onClick={()=>setZoom(null)} onKeyDown={e=>{if(e.key==='Escape')setZoom(null);}}>
+   <button className="lightbox-x" autoFocus aria-label={L('Close')} onClick={()=>setZoom(null)}><CloseRounded/></button>
+   <img src={zoom.src} alt={zoom.alt} onClick={e=>e.stopPropagation()}/>
+   {zoom.alt&&<p onClick={e=>e.stopPropagation()} dir="auto">{zoom.alt}</p>}
+  </div>}
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   {phone?<Drawer anchor="bottom" open={!!look} onClose={()=>setLook(null)} slotProps={{paper:{className:'look-sheet'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Drawer>
   :<Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Popover>}
