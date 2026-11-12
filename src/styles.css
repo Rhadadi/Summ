@@ -607,3 +607,17 @@ body{background:var(--bg);color:var(--ink)}
 .museum.on-bright .m-arrows button{color:#21190f}
 
 .editor-figs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin:8px 0 18px}.editor-fig{display:grid;gap:8px;justify-items:start;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.editor-fig img{width:100%;height:110px;object-fit:contain;background:#fff;border-radius:6px}
+
+/* Phone top bar: burger and language switch at the left, the logo on the right; search lives in the menu */
+.topbar-logo,.drawer-search{display:none}
+.drawer-search{margin:0 16px 14px;width:auto;height:46px}
+@media (max-width:899px){
+ .topbar2{direction:ltr;justify-content:flex-start;gap:8px;border-bottom:0;padding:8px 12px}
+ .desktop-search{display:none!important}
+ .topbar-logo{display:block;margin-inline-start:auto;border:0;background:none;padding:0}.topbar-logo .lockup{width:128px;max-width:128px}
+ .drawer-search{display:flex}
+ .language-switch{min-height:38px}
+ .m-wall-head{margin-bottom:18px;padding-top:18px}
+}
+.m-wall-head{justify-content:flex-end}.m-wall{padding-top:56px}
+@media (max-width:899px){.topbar-menu{order:0}.topbar2 .language-switch{order:1}.topbar-logo{order:2;margin-inline-start:auto;margin-left:auto}}

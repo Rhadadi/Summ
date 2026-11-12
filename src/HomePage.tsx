@@ -40,7 +40,7 @@ export default function HomePage({config,onEditHome,lang,published,canEdit,onOpe
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button></div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
-   <div className="m-wall-head"><div><p className="m-kicker">{L('On the wall now')}</p><h2>{books_.length?L('Pick one and begin.'):'The first summaries are on their way.'}</h2></div>{books_.length>0&&<button className="see-all" onClick={()=>navigate('/library')}>{L('See all')} {num(lang,books_.length)} <ArrowForwardRounded/></button>}</div>
+   {books_.length>0&&<div className="m-wall-head"><span/><button className="see-all" onClick={()=>navigate('/library')}>{L('See all')} {num(lang,books_.length)} <ArrowForwardRounded/></button></div>}
    {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>}
  </>;

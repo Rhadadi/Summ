@@ -30,6 +30,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
   <button className="side-brand" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+  <label className="search2 drawer-search"><input type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>{onQuery(e.target.value);}} onKeyDown={e=>{if(e.key==='Enter')setOpen(false);}}/><span aria-hidden="true"><SearchRounded/></span></label>
   {item('/','For you',<HomeOutlined/>,route==='/')}
   {item('/library','Library',<MenuBookOutlined/>,route==='/library'||route.startsWith('/b/'))}
   {canEdit&&<>{item('/workspace','Workspace',<LibraryBooksOutlined/>,route==='/workspace'||route.startsWith('/book/'))}
@@ -46,7 +47,8 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
   <div className="shell-main">
    <header className="topbar2">
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
-    <label className="search2"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
+    <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+    <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
    <button className="language-switch" onClick={()=>onLanguage(lang==='fa'?'en':'fa')} aria-label={lang==='fa'?'Switch to English':'تغییر زبان به فارسی'}>{lang==='fa'?'English':'فارسی'}</button></header>
    {asVisitor&&<div className="visitor-bar" role="status"><VisibilityOutlined/><span>You are seeing the site as a visitor does. Editing tools are hidden.</span><button onClick={onToggleVisitor}>Back to editing</button></div>}
    <main id="main-content" tabIndex={-1}>{children}</main>
