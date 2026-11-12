@@ -31,9 +31,12 @@ export function extractPages(text:string):{text:string;pages:number[]}{
 function paragraphs(lines:string[]):ParaIn[]{
  const out:ParaIn[]=[];let pending:string[]=[];let heading:string|undefined;let rows:string[][]=[];
  const push=(raw:string)=>{
-  const cleaned=inline(raw);if(!cleaned)return;
+  // A figure linked in the middle of a sentence still becomes a figure of its own, right after that paragraph.
+  const inlineImages=[...raw.matchAll(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?[^)]*\)/g)].map(m=>({src:m[2],alt:inline(m[1])}));
+  const cleaned=inline(raw);if(!cleaned){for(const im of inlineImages)out.push({text:im.alt||'Figure',image:im});return;}
   const{text,pages}=extractPages(cleaned);if(!text)return;
   const p:ParaIn={text};if(heading){p.heading=heading;heading=undefined;}if(pages.length)p.pages=pages;out.push(p);
+  for(const im of inlineImages)out.push({text:im.alt||'Figure',image:im});
  };
  const flush=()=>{if(pending.length)push(pending.join(' '));pending=[];};
  let quote:string[]=[];

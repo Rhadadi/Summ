@@ -68,7 +68,8 @@ export function collectFigures(entries:Entry[],include:Set<string>):{names:Map<s
  const names=new Map<string,string>(),files:{name:string;image:SummaryImage}[]=[];
  for(const{data}of entries)for(const image of data.version?.images||[]){
   if(names.has(image.path))continue;
-  if(!Object.entries(data.summaries).some(([id,s])=>include.has(id)&&s.paragraphs.some(p=>p.image?.path===image.path)))continue;
+  const inGuide=(data.report?.guide?.sections||[]).some(x=>x.items.some(p=>p.image?.path===image.path))||(data.report?.overview?.paragraphs||[]).some(p=>p.image?.path===image.path);
+  if(!inGuide&&!Object.entries(data.summaries).some(([id,s])=>include.has(id)&&s.paragraphs.some(p=>p.image?.path===image.path)))continue;
   const ext=image.type==='image/png'?'png':image.type==='image/webp'?'webp':'jpg';
   const name='f'+(files.length+1)+'.'+ext;names.set(image.path,name);files.push({name,image});
  }

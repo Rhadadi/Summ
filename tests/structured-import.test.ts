@@ -119,3 +119,13 @@ test('headings with Persian page spans and English originals map to the real cha
  const r=mapChapters(b.chapters,chapters,'smart',main);
  assert.deepEqual(r.mapped.map(m=>[m.chapterId,m.parsed.title]),[['c1','مقدمه: قانون برای یهودیان و قانون برای غیراسرائیلیان'],['c2','خون و دیوان'],['c3','رابطهٔ جنسی به‌مثابه جرم']]);
 });
+test('images in the ZIP that the text never links become figures beside their descriptions',()=>{
+ const md='# T\n\n## 1. First\n\nText.\n\n## Figures and tables\n\nFigure 1 — A map of Arabia. Page 2.\n\nFigure 2 — A chart. Page 9.\n';
+ const b=parseBlock(md,null,'en');const img=(path:string)=>({path,type:'image/png',data:new ArrayBuffer(4)});
+ const v=buildVersion(b,[{chapterId:'a',parsed:b.chapters[0]}],'en','detailed',{sourcePath:'summary.md',images:[img('images/figure-2.png'),img('images/figure-1.png'),img('images/extra.png')]});
+ const items=v.report.guide!.sections.find(s=>s.title==='Figures and tables')!.items;
+ assert.deepEqual(items.map(i=>i.image?.path??'text'),['text','images/figure-1.png','text','images/figure-2.png','images/extra.png']);
+ assert.equal(v.images?.length,3);
+ const again=buildVersion(b,[{chapterId:'a',parsed:b.chapters[0]}],'en','detailed',{sourcePath:'summary.md',images:[img('images/figure-1.png')]});
+ assert.equal(again.report.guide!.sections.find(s=>s.title==='Figures and tables')!.items.filter(i=>i.image).length,1);
+});
