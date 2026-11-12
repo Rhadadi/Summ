@@ -76,7 +76,9 @@ async def guardian(client:httpx.AsyncClient,title:str,author:str)->list[dict]:
     found=[]
     for x in ((r.json().get('response') or {}).get('results') or []) if r.status_code==200 else []:
         f=x.get('fields') or {};body=f.get('bodyText','');stand=_plain(f.get('standfirst',''))
-        if not bookinfo._matches(title.split(':')[0],f.get('headline','')+' '+stand+' '+body[:3000]):continue
+        # A Guardian review names the book in its headline ("Midlife by Kieran Setiya review – …"); roundups and reviews of other books do not.
+        short=title.split(':')[0].strip().lower();head=_plain(f.get('headline','')).lower()
+        if short not in head or re.search(r'books? of the year|best books|roundup|in brief',head):continue
         # The standfirst is the paper's own one-line verdict; otherwise the sentence of the review that names the book.
         sentences=[s.strip() for s in re.split(r'(?<=[.!?])\s+',body) if 8<=_words(s)<=45]
         named=[s for s in sentences if title.split(':')[0].lower() in s.lower()]
