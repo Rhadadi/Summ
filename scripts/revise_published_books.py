@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+EDITORIAL = json.loads((Path(__file__).resolve().parents[1] / 'content' / 'polished_fa.json').read_text())
+
 MIDLIFE = '716ba82e-db2f-4cd8-8159-67357add1a17'
 YALOM = 'd339fdce-e08a-48be-9f0d-569e6706dd25'
 LOVE = '256e49f3-ff1e-4acc-932d-6c7910e45bca'
@@ -105,6 +107,25 @@ def revise(book: dict) -> dict:
             if any(not part['paragraphs'] for part in pieces.values()):
                 raise ValueError('At least one Yalom chapter would be empty.')
             version['chapters'] = pieces
+    polished = EDITORIAL[book_id]
+    known = {c['id'] for c in doc['chapters']}
+    if set(polished['chapters']) != {c for c in known if c != 'pdf-c6' or book_id != LOVE}:
+        raise ValueError('The polished chapter list does not match this publication.')
+    for version in doc['versions']:
+        if version['language'] == 'fa' and version['label'] in ('Comprehensive', 'Detailed'):
+            version['label'] = 'نسخهٔ کامل'
+    doc['versions'].insert(0, {
+        'language': 'fa', 'type': 'literary', 'label': 'روان و خواندنی',
+        'model': 'editorial', 'createdAt': 0,
+        'overview': {
+            'paragraphs': [{'text': text, 'pages': [], 'chapters': []} for text in polished['overview']],
+            'takeaways': [{'text': text, 'pages': [], 'chapters': []} for text in polished['takeaways']],
+        },
+        'chapters': {
+            chapter: {'paragraphs': [{'text': text, 'pages': [], 'chapters': []} for text in paragraphs], 'review': []}
+            for chapter, paragraphs in polished['chapters'].items()
+        },
+    })
     return {'id': book_id, 'doc': doc, 'visibility': book['visibility']}
 
 def main() -> None:
