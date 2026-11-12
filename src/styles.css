@@ -626,3 +626,18 @@ body{background:var(--bg);color:var(--ink)}
 .r2-mobilebar{justify-content:space-between}
 
 .m-wall{padding-top:36px}@media (max-width:899px){.m-wall{padding-top:24px}}
+
+/* Reader header: one slim row; the chapter label sits between two small steps; the phone bar has only menu and logo */
+.r2-mobilebar{direction:ltr;justify-content:space-between;padding:4px 4px 0}
+.r2-mobile-logo .lockup{width:104px;max-width:104px}
+.r2-bar{gap:4px;margin:0 0 20px;padding-bottom:8px}
+.r2-chip{display:inline-flex;align-items:center;gap:2px;font-size:13px;font-weight:500}
+.r2-step{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--rmuted);padding:0}.r2-step:disabled{opacity:.25}.r2-step svg{font-size:22px}
+.r2-pill{height:28px;padding:0 10px 0 6px;font-size:13px}.r2-pill svg{font-size:18px}
+.r2-aa{width:28px!important;height:28px!important}.r2-aa svg{font-size:20px}
+.r2-switch button{min-height:26px;padding:0 10px;font-size:13px}
+@media (max-width:640px){.r2-pill span{display:none}.r2-pill{padding:0 6px;width:28px;justify-content:center}}
+/* Zen mode: nothing but the title and the text, like a browser's reader view */
+.r2.zen .r2-side,.r2.zen .r2-mobilebar,.r2.zen .r2-bar,.r2.zen .doc-pager,.r2.zen .r2-meta{display:none!important}
+.r2.zen .r2-main{padding-top:48px}
+.zen-exit{display:none}.r2.zen .zen-exit{position:fixed;top:10px;inset-inline-end:10px;z-index:20;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:var(--rmuted);opacity:.35;transition:opacity .2s}.r2.zen .zen-exit:hover,.r2.zen .zen-exit:focus-visible{opacity:1;background:color-mix(in srgb,var(--rink) 10%,transparent)}

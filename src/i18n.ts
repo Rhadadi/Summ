@@ -52,7 +52,7 @@ const fa:Record<string,string>={
 'At a glance':'در یک نگاه',
 'Detailed':'مفصل',
 'Comprehensive':'جامع',
-'Key concepts and connections':'مفاهیم کلیدی و پیوندها','Evidence and limitations':'شواهد و محدودیت‌ها','Figures and tables':'شکل‌ها و جدول‌ها','Key terms':'اصطلاحات کلیدی','Original text':'متن اصلی کتاب','Enlarge':'بزرگ‌نمایی','Reading settings':'تنظیمات مطالعه','Length':'حجم','Show less':'کمتر','Read more':'بیشتر بخوانید','Key ideas':'ایده‌های کلیدی','Fonts':'قلم‌ها',
+'Key concepts and connections':'مفاهیم کلیدی و پیوندها','Evidence and limitations':'شواهد و محدودیت‌ها','Figures and tables':'شکل‌ها و جدول‌ها','Key terms':'اصطلاحات کلیدی','Original text':'متن اصلی کتاب','Enlarge':'بزرگ‌نمایی','Zen mode':'حالت تمرکز','only the text, nothing else':'فقط متن، بدون هیچ چیز دیگر','Leave zen mode':'خروج از حالت تمرکز','Reading settings':'تنظیمات مطالعه','Length':'حجم','Show less':'کمتر','Read more':'بیشتر بخوانید','Key ideas':'ایده‌های کلیدی','Fonts':'قلم‌ها',
 'Smaller text':'نوشتهٔ کوچک\u200cتر',
 'Larger text':'نوشتهٔ بزرگ\u200cتر',
 'Text size':'اندازهٔ نوشته',

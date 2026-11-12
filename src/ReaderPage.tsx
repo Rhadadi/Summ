@@ -1,6 +1,6 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
@@ -96,11 +96,12 @@ export default function ReaderPage(p:Props){
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
- return <div className={'r2 look-'+reading.theme} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
+ return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
+  {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
-   <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
+   <div className="r2-mobilebar"><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button></div>
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>
@@ -109,9 +110,9 @@ export default function ReaderPage(p:Props){
    </div>}
    {guideSection&&<div dir={rtl(report?.language)}><div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
-    <div className="r2-bar"><span className="r2-chip">{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span><span className="grow"/>
+    <div className="r2-bar"><span className="r2-chip">{index>=0&&<button className="r2-step" disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{lang==='fa'||lang==='ar'?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button>}<span>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span>{index>=0&&<button className="r2-step" disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{lang==='fa'||lang==='ar'?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button>}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
-     {summary&&<button className="r2-pill" onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}
+     {summary&&<button className="r2-pill" aria-label={L('Listen')} onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/><span>{L('Listen')}</span></button>}
      <IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>
     </div>
     <h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>
@@ -172,6 +173,7 @@ function ReadingPanel({lang,reading,onChange,onClose}:{lang:string;reading:Readi
   <label>{L('English font')}</label>
   <div className="look-fonts en">{enFonts.map(f=><button key={f.id} className={reading.en===f.id?'on':''} onClick={()=>onChange({en:f.id})} style={{fontFamily:f.family}}><span>The examined life</span><small>{f.label}</small></button>)}</div>
   </>}
+  <label className="look-switch"><input type="checkbox" checked={reading.zen} onChange={e=>{onChange({zen:e.target.checked});if(e.target.checked)onClose();}}/> {L('Zen mode')} <small>— {L('only the text, nothing else')}</small></label>
   <label className="look-switch"><input type="checkbox" checked={reading.justify} onChange={e=>onChange({justify:e.target.checked})}/> {L('Justify text')}</label>
  </div>;
 }

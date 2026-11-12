@@ -1,8 +1,8 @@
 import{useEffect,useState}from'react';
 
 // How the reader looks: per device, for visitors as well as editors.
-export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean}
-export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'vazirmatn',en:'literata',justify:false};
+export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean;zen:boolean}
+export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'vazirmatn',en:'literata',justify:false,zen:false};
 // Every font ships with the site under a free licence, so each reader sees the same choices.
 interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
 export const faFonts:Font[]=[
