@@ -106,7 +106,6 @@ export function PlayerBar({player,cover,onOpen,onSave}:{player:PlayerApi;cover?:
    </div>
    <div className="player-end">
     <button className="player-rate" aria-label={L('Playback speed')+' '+rate+'×'} onClick={player.cycleRate}>{rate}×</button>
-    <small>{state.engine==='offline'?L('Offline voice'):'ElevenLabs'}</small>
     <IconButton aria-label={L('Close player')} onClick={player.close}><CloseRounded/></IconButton>
    </div>
   </div>

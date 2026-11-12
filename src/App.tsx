@@ -140,7 +140,7 @@ export default function App(){
  async function copy(value:string){try{await navigator.clipboard.writeText(value);setToast('Copied to clipboard.');}catch{setToast('Clipboard unavailable. Select the passage to copy it.');}}
  function exportNotes(){
   if(!active||!chapter)return;let value=markdownExport(active,chapter,passages);
-  if(summary)value='# '+active.title+'\n\n## '+chapter.title+'\n\nAI-generated summary. Check original passages.\n\n'+summary.paragraphs.map(p=>p.text+'\n\n'+p.evidence_ids.map(id=>{const b=chapter.blocks.find(b=>b.id===id);return b?'['+b.location+'] '+b.text:'';}).join('\n\n')).join('\n\n')+'\n\nSource version: '+active.hash;
+  if(summary)value='# '+active.title+'\n\n## '+chapter.title+'\n\n'+summary.paragraphs.map(p=>p.text+'\n\n'+p.evidence_ids.map(id=>{const b=chapter.blocks.find(b=>b.id===id);return b?'['+b.location+'] '+b.text:'';}).join('\n\n')).join('\n\n')+'\n\nSource version: '+active.hash;
   const link=URL.createObjectURL(new Blob([value],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=link;a.download=active.title.replace(/[^\p{L}\p{N}\s-]/gu,'').slice(0,100)+'.md';a.click();setTimeout(()=>URL.revokeObjectURL(link),1000);
  }
   const view=loading?<div className="center-state"><CircularProgress/><p>Opening your library…</p></div>

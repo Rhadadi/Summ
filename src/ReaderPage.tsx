@@ -96,21 +96,22 @@ export default function ReaderPage(p:Props){
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
    <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
-   <div className="r2-tools"><IconButton aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>{summary&&p.readOnly&&<Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>}</div>
+   <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
-    <p className="r2-kicker">{L('Study guide')}</p><h1>{L('Overview')}</h1>
+    <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/><IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>
     <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
     {paragraphs(report.overview.paragraphs)}
    </div>}
-   {guideSection&&<div dir={rtl(report?.language)}><p className="r2-kicker">{L('Study guide')}</p><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
+   {guideSection&&<div dir={rtl(report?.language)}><div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/><IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
-    <div className="r2-top"><p className="r2-kicker">{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'CHAPTER '+(index+1)+' OF '+main.length):L('Section')}</p>
+    <div className="r2-bar"><span className="r2-chip">{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
+     {summary&&<button className="r2-pill" onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}
+     <IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>
     </div>
-    <h1 dir="auto">{chapterTitle(data,chapter)}</h1>
+    <h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>
     {view==='summary'&&(summary?<>
-     {!p.readOnly&&<div className="r2-meta"><span title={summary.model||undefined}>{summary.model==='imported'&&data.version?data.version.label:L('AI summary')}{spent!=null?' · '+money(spent):''}</span><span className="grow"/>
-      <Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>
+     {!p.readOnly&&<div className="r2-meta">{spent!=null&&<span>{money(spent)}</span>}<span className="grow"/>
       {!p.readOnly&&summary.model!=='imported'&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
       <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>}
@@ -128,6 +129,7 @@ export default function ReaderPage(p:Props){
     {view==='original'&&original(chapter)}
     <nav className="doc-pager" aria-label="Chapters">{prev?<button className="pg prev" onClick={()=>choose(prev)}><small>{L('Previous')}</small><span dir="auto">{chapterTitle(data,prev)}</span></button>:<span/>}{next?<button className="pg next" onClick={()=>choose(next)}><small>{L('Next')}</small><span dir="auto">{chapterTitle(data,next)}</span></button>:<span/>}</nav>
    </>}
+   </div>
   </article>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   {phone?<Drawer anchor="bottom" open={!!look} onClose={()=>setLook(null)} slotProps={{paper:{className:'look-sheet'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Drawer>

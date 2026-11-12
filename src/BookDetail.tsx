@@ -99,7 +99,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
      </div>}
     </div>
     <div className="hero-text">
-     <span className="kicker">{L('Study guide')}{report?.guide?' · '+L(report.guide.type_label):''}</span>
+     <span className="kicker">{L('Study guide')}</span>
      <h1 dir="auto">{title}</h1>
      {author&&<p className="hero-author" dir="auto">{lang==='fa'?'نوشتهٔ ':'by '}{author}</p>}
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}

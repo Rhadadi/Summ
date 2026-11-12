@@ -76,7 +76,6 @@ export default function BookSummaryDialog({open,book,settings,account,price,onCo
     {report.overview&&<section><h3>Book overview</h3>{paragraphs(report.overview.paragraphs)}<h3>Key takeaways</h3><ul>{report.overview.takeaways.map((takeaway,i)=><li key={i} dir="auto">{takeaway.text}</li>)}</ul></section>}
     <nav className="book-report-contents" aria-label="Summary contents"><h3>Contents</h3><ol>{book.chapters.map((chapter,i)=><li key={chapter.id}>{report.chapters[chapter.id]?<a href={'#book-report-chapter-'+i} onClick={event=>{event.preventDefault();document.getElementById('book-report-chapter-'+i)?.scrollIntoView({behavior:'auto',block:'start'});}}>{chapter.title}</a>:<span>{chapter.title} — pending</span>}</li>)}</ol></nav>
     {book.chapters.map((chapter,i)=>{const summary=report.chapters[chapter.id];return summary?<section className="book-report-chapter" id={'book-report-chapter-'+i} key={chapter.id}><h3 dir="auto">{i+1}. {chapter.title}</h3>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h4>Internal analysis</h4>{paragraphs(summary.review,chapter)}</>}</section>:null;})}
-    <footer>AI-generated. Chapter summaries are checked against supplied passages. The overview is synthesized and checked against chapter summaries. Automated checks do not guarantee accuracy or completeness; consult the original text.</footer>
    </article>}
   </DialogContent>
  </Dialog>;

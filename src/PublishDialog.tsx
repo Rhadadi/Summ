@@ -24,7 +24,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
  const[include,setInclude]=useState<Set<string>>(new Set(withSummary.map(c=>c.id)));
  useEffect(()=>setInclude(new Set(withSummary.map(c=>c.id))),[withSummary]);
  const[title,setTitle]=useState(book.title),[author,setAuthor]=useState(book.author==='Author not supplied'?'':displayName(book.author));
- const[visibility,setVisibility]=useState<'public'|'unlisted'>(book.published?.visibility||'public'),[narrate,setNarrate]=useState(VOICES.includes(language)||imports.some(v=>VOICES.includes(v.language)));
+ const[visibility,setVisibility]=useState<'public'|'unlisted'>(book.published?.visibility||'public');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[done,setDone]=useState<{slug:string;id:string}|null>(book.published?{slug:book.published.slug,id:book.published.id}:null),[status,setStatus]=useState<NarrationStatus|null>(null);
  // How this book looks on the home page: a gallery painting chosen for the book, or just its cover.
  const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[tags,setTags]=useState<string[]>([]);
@@ -33,8 +33,12 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
  useEffect(()=>{store.review(book.id).then(r=>setLocalReview(r||null)).catch(()=>{});},[book.id]);
  // ElevenLabs reads with a natural voice on the editor's own credits; the offline voice is free.
- const[engine,setEngine]=useState<'offline'|'elevenlabs'>(hasVoiceKey?'elevenlabs':'offline');
- const characters=entries.reduce((n,e)=>n+Object.entries(e.data.summaries).filter(([id])=>include.has(id)).reduce((m,[,x])=>m+x.paragraphs.reduce((k,p)=>k+(p.image?0:p.text.length),0),0)+(e.data.report?.overview?.paragraphs.reduce((k,p)=>k+p.text.length,0)||0),0);
+ // Narration is chosen per language: no audio, the free offline voice, or ElevenLabs on the editor's own credits.
+ // The default is the offline English voice only; Persian audio is opt-in.
+ type Voice='none'|'offline'|'elevenlabs';
+ const[voices,setVoices]=useState<Record<string,Voice>>({});
+ const voiceFor=(lang:string):Voice=>voices[lang]??(lang==='en'?'offline':'none');
+ const charsOf=(e:Entry)=>Object.entries(e.data.summaries).filter(([id])=>include.has(id)).reduce((m,[,x])=>m+x.paragraphs.reduce((k,p)=>k+(p.image?0:p.text.length),0),0)+(e.data.report?.overview?.paragraphs.reduce((k,p)=>k+p.text.length,0)||0);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const hasOverview=entries.some(e=>!!e.data.report?.overview&&e.data.report.language===e.choice.language);
  const link=done?location.origin+location.pathname.replace(/index\.html$/,'')+'#/b/'+done.slug:'';
@@ -55,7 +59,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
    for(const f of figures.files)await uploadFigure(result.id,f.name,await figureBlob(f.image)).catch(()=>setError('Published, but a figure could not be uploaded.'));
    if(slide!=='keep')await setSlide(result.id,slide,artPick?.file).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
    setDone({slug:result.slug,id:result.id});onPublished({id:result.id,slug:result.slug,visibility,at:Date.now()});
-   if(narrate)for(const e of entries.filter(x=>VOICES.includes(x.choice.language)))setStatus(await startNarration(result.id,e.choice.language,e.choice.type,engine).catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
+   for(const e of entries.filter(x=>VOICES.includes(x.choice.language)&&voiceFor(x.choice.language)!=='none'))setStatus(await startNarration(result.id,e.choice.language,e.choice.type,voiceFor(e.choice.language)as'offline'|'elevenlabs').catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
   }catch(e){setError((e as Error).message);}finally{setBusy('');}
  }
  async function remove(){
@@ -100,11 +104,11 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
      <FormControlLabel value="public" control={<Radio/>} label="Listed in the library, open to everyone"/>
      <FormControlLabel value="unlisted" control={<Radio/>} label="Not listed; only people with the link"/>
     </RadioGroup>
-    <FormControlLabel control={<Checkbox checked={narrate} disabled={!entries.some(e=>VOICES.includes(e.choice.language))} onChange={e=>setNarrate(e.target.checked)}/>} label="Prepare narration (generated once on the server, then played to every reader)"/>
-    {narrate&&<RadioGroup value={engine} onChange={e=>setEngine(e.target.value as typeof engine)} sx={{ml:4}}>
-     <FormControlLabel value="elevenlabs" disabled={!hasVoiceKey} control={<Radio size="small"/>} label={<span>ElevenLabs — natural voice{hasVoiceKey?' · uses about '+Math.round(characters/1000).toLocaleString()+'k characters of your ElevenLabs credits':' · add your ElevenLabs key in Account first'}</span>}/>
-     <FormControlLabel value="offline" control={<Radio size="small"/>} label="Free offline voice"/>
-    </RadioGroup>}
+    <h4 className="pub-h">Audio</h4>
+    <div className="pub-audio">{[...new Set(entries.map(e=>e.choice.language))].filter(l=>VOICES.includes(l)).map(l=>{const e=entries.find(x=>x.choice.language===l)!;const k=Math.round(charsOf(e)/1000);return <label key={l}><span>{languages.find(x=>x.code===l)?.label.replace(/ ·.*/,'')||l}</span>
+     <TextField select size="small" value={voiceFor(l)} onChange={ev=>setVoices(v=>({...v,[l]:ev.target.value as Voice}))}>
+      <MenuItem value="none">No audio</MenuItem><MenuItem value="offline">Free offline voice</MenuItem>
+      <MenuItem value="elevenlabs" disabled={!hasVoiceKey}>{hasVoiceKey?'ElevenLabs · about '+k+'k characters':'ElevenLabs · add your key in Account'}</MenuItem></TextField></label>;})}</div>
    </>}
    {status&&status.status!=='none'&&<div className="pub-status">{status.status==='running'&&<><LinearProgress variant="determinate" value={status.total?status.done/status.total*100:0}/><span>Preparing narration {status.done} of {status.total}…</span></>}{status.status==='ready'&&<Alert severity="success">Narration is ready: {status.total} parts.</Alert>}{status.status==='failed'&&<Alert severity="error">Narration failed: {status.error}</Alert>}</div>}
    {done&&<Alert severity="success" sx={{mt:2}} action={<><Button size="small" startIcon={<ContentCopyRounded/>} onClick={()=>navigator.clipboard?.writeText(link)}>Copy</Button><Button size="small" component="a" href={link} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded/>}>Open</Button></>}>Published. <span className="pub-link">{link}</span></Alert>}

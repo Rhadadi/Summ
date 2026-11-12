@@ -10,7 +10,7 @@ export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),position:a.positi
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
 export interface Slide{key:string;backdrop:Backdrop;eyebrow:string;title:string;by?:string;text:string;cover?:string|null;rtl?:boolean;score?:{rating:number;count:number|null;source:string};facts?:string[];actions:{label:string;onClick:()=>void;primary?:boolean}[]}
-const EVERY=5000;
+const EVERY=3000;
 const Stars=({value,lang}:{value:number;lang:string})=><span className="m-stars" role="img" aria-label={num(lang,value)+' '+tr(lang,'out of 5')}>{[1,2,3,4,5].map(i=>value>=i-.25?<StarRounded key={i}/>:value>=i-.75?<StarHalfRounded key={i}/>:<StarBorderRounded key={i}/>)}</span>;
 export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:string}){
  const L=(t:string)=>tr(lang,t);
@@ -27,12 +27,14 @@ export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:stri
   onKeyDown={e=>{if(e.key==='ArrowRight')go(at+1);if(e.key==='ArrowLeft')go(at-1);}}
   onPointerDown={e=>{x.current=e.clientX;}} onPointerUp={e=>{if(x.current!==null&&Math.abs(e.clientX-x.current)>60)go(at+(e.clientX<x.current?1:-1));x.current=null;}}>
   {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} {...(i!==at?{inert:true}:{})}>
-   <img className={'m-art'+(s.backdrop.blur?' blur':'')} src={s.backdrop.url} alt="" style={{objectPosition:s.backdrop.position}} loading={i===0?'eager':'lazy'} decoding="async"/>
+   {/* The painting is shown whole; a blurred copy of it fills the rest of the frame. */}
+   <img className="m-fill" src={s.backdrop.url} alt="" aria-hidden="true" loading={i===0?'eager':'lazy'} decoding="async"/>
+   <img className={'m-art'+(s.backdrop.blur?' blur':'')} src={s.backdrop.url} alt="" loading={i===0?'eager':'lazy'} decoding="async"/>
    <div className="m-shade"/>
    <div className="m-inner">
     <div className="m-text">
      <span className="m-eyebrow">{s.eyebrow}</span>
-     <h1 dir="auto">{s.title}</h1>
+     <h1 dir="auto" className={s.title.length>60?'xl':s.title.length>34?'long':undefined}>{s.title}</h1>
      {s.by&&<p className="m-by" dir="auto">{s.by}</p>}
      <p className="m-lead" dir="auto">{s.text}</p>
      {(s.score||s.facts?.length)&&<div className="m-meta">{s.score&&<span className="m-score"><Stars value={s.score.rating} lang={lang}/><b>{num(lang,s.score.rating)}</b><small>{s.score.source}{s.score.count?' · '+num(lang,s.score.count)+' '+L('ratings'):''}</small></span>}{s.facts?.map(f=><span key={f} className="m-fact">{f}</span>)}</div>}
