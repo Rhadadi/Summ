@@ -80,14 +80,18 @@ export default function ReaderPage(p:Props){
  }
  const row=(c:Chapter)=>{const n=main.includes(c)?main.indexOf(c)+1:Number(c.title.match(/^(\d+)[.\s]/)?.[1]||0);const on=isChapter&&c.id===chapter.id;
   return <button key={c.id} className={'r2-row'+(on?' on':'')+(data.summaries[c.id]||p.readOnly?'':' empty')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n?num(lang,n):''}</span><span className="t" dir="auto">{chapterTitle(data,c)}</span></button>;};
+ // Front and back matter nobody summarized stays out of the way until asked for.
+ const ofKind=(k:string)=>book.chapters.filter((_,i)=>kinds[i]===k),shown=(c:Chapter)=>more||!!data.summaries[c.id]||c.id===chapter.id;
+ const front=ofKind('front').filter(shown),back=ofKind('back').filter(shown),hidden=[...ofKind('front'),...ofKind('back')].filter(c=>!data.summaries[c.id]&&c.id!==chapter.id).length;
  const panel=<nav className="r2-list" aria-label={L('Contents')}>
   <button className="r2-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button>
   <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
   {guideItems.length>0&&<><p className="r2-head">{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
-  {kinds.some(k=>k==='front')&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{book.chapters.filter((_,i)=>kinds[i]==='front').map(row)}</>}
+  {front.length>0&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{front.map(row)}</>}
   <p className="r2-head">{L('Chapters')}</p>
   {main.map(row)}
-  {kinds.some(k=>k==='back')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]==='back').map(row)}</>}
+  {back.length>0&&<div className="r2-back-list">{back.map(row)}</div>}
+  {hidden>0&&<button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>}
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
@@ -118,7 +122,7 @@ export default function ReaderPage(p:Props){
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
      <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter)}</>}</div></>
     :p.readOnly?<div className="r2-box"><strong>{L('This chapter isn’t part of the published summary')}</strong><p>{L('Pick another chapter from the list.')}</p></div>
-    :<div className="r2-box">
+    :<div className="r2-box" dir="ltr">
      <strong>This chapter isn’t summarized yet</strong>
      <p>{bookWords({...book,chapters:[bodyChapter(chapter)]}).toLocaleString()} words{estimate!=null?' · about '+money(estimate)+' with your Gemini key':''}. Or read the original text.</p>
      <div className="box-actions"><Button variant="contained" startIcon={p.generating?<CircularProgress size={16} color="inherit"/>:<AutoAwesomeRounded/>} disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':aiLabel}</Button><Button onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button><Button startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button><Button onClick={()=>setView('original')}>Read the original</Button></div>
