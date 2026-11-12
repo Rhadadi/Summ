@@ -108,9 +108,12 @@ async def nyt(client:httpx.AsyncClient,title:str,author:str,isbn:str='')->list[d
     for d in docs:
         head=_plain(((d.get('headline') or {}).get('main')) or '');abstract=_plain(d.get('abstract') or '');lead=_plain(d.get('lead_paragraph') or '')
         if short.lower() not in (head+' '+abstract+' '+lead).lower() or (surname and surname.lower() not in (head+' '+abstract+' '+lead).lower()):continue
-        excerpt=next((x for x in (abstract,lead) if 5<=_words(x)<=45),'')
+        # The opening paragraph is the critic's own words; the abstract is an index note ("…; drawing (M)") and only describes it.
+        abstract=re.sub(r';?\s*(?:drawings?|photos?|illustrations?)?\s*\([A-Z]\)\s*$','',abstract).strip()
+        first=(re.split(r'(?<=[.!?])\s+',lead) or [''])[0]
+        excerpt=first if 5<=_words(first)<=45 else ''
         found.append({'publication':'The New York Times','reviewer':_plain(((d.get('byline') or {}).get('original')) or '').removeprefix('By ').strip(),'date':(d.get('pub_date') or '')[:10],
-                      'headline':head,'excerpt':excerpt,'context':' '.join(x for x in (abstract,lead) if x),'url':d.get('web_url'),'via':'The New York Times','verified':bool(excerpt)})
+                      'headline':head,'excerpt':excerpt,'summary':abstract,'context':' '.join(x for x in (abstract,lead) if x),'url':d.get('web_url'),'via':'The New York Times','verified':bool(excerpt)})
     return found[:2]
 
 def _public(url:str)->bool:
@@ -178,7 +181,7 @@ async def cached(book_id:str,title:str,author:str)->dict:
     except (OSError,ValueError):pass
     try:found=await asyncio.wait_for(gather(title,author),25)
     except asyncio.TimeoutError:found={'critics':[]}
-    critics=[{k:c.get(k) for k in ('publication','reviewer','date','headline','excerpt','url','via')}|{'stance':'','summary':'','verified':True if c.get('excerpt') else None}
+    critics=[{k:c.get(k) for k in ('publication','reviewer','date','headline','excerpt','url','via')}|{'stance':'','summary':c.get('summary') or '','verified':True if c.get('excerpt') else None}
              for c in found['critics'] if c.get('url') or c.get('excerpt')][:8]
     try:path.write_text(_json.dumps({'at':_time.time(),'critics':critics},ensure_ascii=False))
     except OSError:pass
