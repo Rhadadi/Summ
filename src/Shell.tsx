@@ -11,7 +11,7 @@ export function Logo({dark=false}:{dark?:boolean}){
 // Full logo: Persian name, English name, optional tagline, and the ink-drop mark. Text follows the theme.
 export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;className?:string}){
  const fa='"Vazirmatn Variable",Vazirmatn,sans-serif';
- return <svg className={className} viewBox={tagline?'190 30 520 190':'190 30 520 172'} role="img" aria-label="Inkling">
+ return <svg className={className} style={{direction:'ltr'}} viewBox={tagline?'190 30 520 190':'190 30 520 172'} role="img" aria-label="Inkling">
   <path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill="#ff5a3c"/>
   <path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill="#fff"/>
   <path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill="#fff"/>
