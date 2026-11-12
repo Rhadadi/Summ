@@ -540,10 +540,12 @@ async def library_background_upload(book_id:str,request:Request,user:dict=Depend
     library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
     return artwork.slide(book_id)
 class NarrationBody(StrictModel):
-    language:Literal['en','fa','de','ar','es','fr','tr','zh'];type:str|None=Field(default=None,max_length=40)
+    language:Literal['en','fa','de','ar','es','fr','tr','zh'];type:str|None=Field(default=None,max_length=40);engine:Literal['offline','elevenlabs']='offline'
 @app.post('/api/library/{book_id}/narration')
 async def library_narration_start(book_id:str,body:NarrationBody,user:dict=Depends(editor_user)):
-    own_or_owner(user,book_id);library.start_narration(book_id,body.language,body.type);return library.narration_status(book_id,body.language)
+    own_or_owner(user,book_id)
+    voice=accounts.service_credentials(user['id'],'elevenlabs') if body.engine=='elevenlabs' else None
+    library.start_narration(book_id,body.language,body.type,body.engine,voice);return library.narration_status(book_id,body.language)
 @app.get('/api/library/{book_id}/narration/{language}')
 async def library_narration(book_id:str,language:str):return library.narration_status(book_id,language)
 @app.get('/api/library/{book_id}/audio/{language}/{name}')

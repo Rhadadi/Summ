@@ -158,6 +158,21 @@ class NarrationTests(RolesTest):
         anon=TestClient(app);audio=anon.get(status['tracks'][1]['url']);self.assertEqual((audio.status_code,audio.headers['content-type']),(200,'audio/mpeg'));self.assertTrue(audio.content.startswith(b'MP3:First'))
         self.assertEqual(anon.get('/api/library/'+book['id']+'/audio/en/..%2F..%2Fsumm.db').status_code,404)
         self.assertEqual(self.reader().post('/api/library/'+book['id']+'/narration',json={'language':'en'}).status_code,403)
+    def test_elevenlabs_narration_uses_the_editors_key(self):
+        owner,uid=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
+        self.assertEqual(owner.post('/api/library/'+book['id']+'/narration',json={'language':'en','engine':'elevenlabs'}).status_code,412)
+        accounts.save_service_key(uid,'elevenlabs','sk-test-0000000000000000000000','VoiceX')
+        calls=[]
+        async def fake(text,lang,key,voice):calls.append((key,voice));return b'ID3'+text[:5].encode()
+        with patch('server.audio.eleven_mp3',fake),patch('server.audio.piper_mp3',side_effect=AssertionError('offline voice must not run')):
+            started=owner.post('/api/library/'+book['id']+'/narration',json={'language':'fa','engine':'elevenlabs'})
+            self.assertEqual(started.status_code,404,started.text)  # the test book has no Persian version
+            started=owner.post('/api/library/'+book['id']+'/narration',json={'language':'en','engine':'elevenlabs'});self.assertEqual(started.status_code,200,started.text)
+            for _ in range(50):
+                status=TestClient(app).get('/api/library/'+book['id']+'/narration/en').json()
+                if status['status']!='running':break
+                time.sleep(.1)
+        self.assertEqual(status['status'],'ready',status);self.assertEqual(calls[0],('sk-test-0000000000000000000000','VoiceX'))
     def test_narration_failure_is_reported(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
         with patch('server.audio.piper_mp3',side_effect=OSError('voice missing')):

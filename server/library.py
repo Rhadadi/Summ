@@ -177,20 +177,25 @@ def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
         if current:tracks.append({**item,'text':current})
     return tracks
 _running:set[tuple[str,str]]=set()
-def start_narration(book_id:str,language:str,kind:str|None):
+def start_narration(book_id:str,language:str,kind:str|None,engine:str='offline',voice:tuple[str,str]|None=None):
+    """Narration is generated once on the server: with the free offline voice, or with the editor's own ElevenLabs key."""
     doc=get(book_id)['doc'];tracks=narration_tracks(doc,language,kind)
     if (book_id,language) in _running:raise accounts.AccountError(409,'Narration is already being prepared.')
-    if language not in audio.PIPER_VOICES:raise accounts.AccountError(422,'There is no offline voice for this language yet.')
-    q('INSERT OR REPLACE INTO narration(book_id,language,status,done,total,tracks,error,updated) VALUES(?,?,?,?,?,?,?,?)',(book_id,language,'running',0,len(tracks),'[]','',time.time()))
+    if engine=='elevenlabs' and not voice:raise accounts.AccountError(412,'Add your ElevenLabs key in Account first.')
+    if engine=='offline' and language not in audio.PIPER_VOICES:raise accounts.AccountError(422,'There is no offline voice for this language yet.')
+    try:q('ALTER TABLE narration ADD COLUMN engine TEXT NOT NULL DEFAULT \'offline\'')
+    except Exception:pass  # noqa: BLE001 - the column already exists
+    q('INSERT OR REPLACE INTO narration(book_id,language,status,done,total,tracks,error,updated,engine) VALUES(?,?,?,?,?,?,?,?,?)',(book_id,language,'running',0,len(tracks),'[]','',time.time(),engine))
     _running.add((book_id,language))
-    threading.Thread(target=_narrate,args=(book_id,language,tracks),daemon=True).start()
-def _narrate(book_id:str,language:str,tracks:list[dict]):
+    threading.Thread(target=_narrate,args=(book_id,language,tracks,engine,voice),daemon=True).start()
+def _narrate(book_id:str,language:str,tracks:list[dict],engine:str='offline',voice:tuple[str,str]|None=None):
     folder=_dir('audio')/book_id/language;folder.mkdir(parents=True,exist_ok=True)
     for old in folder.glob('*.mp3'):old.unlink()
     manifest=[]
     try:
         for i,t in enumerate(tracks):
-            (folder/(str(i)+'.mp3')).write_bytes(audio.piper_mp3(t['text'],language))
+            data=audio.eleven_long(t['text'],language,voice[0],voice[1]) if engine=='elevenlabs' and voice else audio.piper_mp3(t['text'],language)
+            (folder/(str(i)+'.mp3')).write_bytes(data)
             manifest.append({'title':t['title'],'chapterId':t['chapterId'],'file':str(i)+'.mp3'})
             q('UPDATE narration SET done=?,tracks=?,updated=? WHERE book_id=? AND language=?',(i+1,json.dumps(manifest),time.time(),book_id,language))
         q('UPDATE narration SET status=?,updated=? WHERE book_id=? AND language=?',('ready',time.time(),book_id,language))
@@ -203,7 +208,7 @@ def narration_status(book_id:str,language:str)->dict:
     status,done,total,tracks,error=rows[0]
     return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/8000,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
 def audio_path(book_id:str,language:str,name:str)->Path|None:
-    if not re.fullmatch(r'\d{1,4}\.mp3',name) or language not in audio.PIPER_VOICES:return None
+    if not re.fullmatch(r'\d{1,4}\.mp3',name) or not re.fullmatch(r'[a-z]{2}',language):return None
     if not re.fullmatch(r'[0-9a-f-]{36}',book_id):return None
     path=_dir('audio')/book_id/language/name;return path if path.is_file() else None
 def reset_jobs():

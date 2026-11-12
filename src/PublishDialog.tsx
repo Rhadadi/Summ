@@ -12,8 +12,8 @@ import{depthLabels,displayName,languages,sectionKind}from'./core';
 import{chapterTitle}from'./bookData';
 
 const VOICES=['en','fa','de','es','fr','tr','zh','ar'];
-interface Props{onAccount?:()=>void;book:Book;data:BookData;defaultLanguage:string;defaultType:string;onClose:()=>void;onPublished:(p:NonNullable<Book['published']>)=>void;onUnpublished:()=>void}
-export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguage,defaultType,onClose,onPublished,onUnpublished}:Props){
+interface Props{hasVoiceKey?:boolean;onAccount?:()=>void;book:Book;data:BookData;defaultLanguage:string;defaultType:string;onClose:()=>void;onPublished:(p:NonNullable<Book['published']>)=>void;onUnpublished:()=>void}
+export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,data,defaultLanguage,defaultType,onClose,onPublished,onUnpublished}:Props){
  const langs=useMemo(()=>availableVersions(data),[data]);
  const[language,setLanguage]=useState(langs.includes(defaultLanguage)?defaultLanguage:langs[0]||defaultLanguage),[type,setType]=useState(defaultType);
  const imports=data.versions;
@@ -32,6 +32,9 @@ export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguag
  const[withPages,setWithPages]=useState(false),[withFigures,setWithFigures]=useState(true);
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
  useEffect(()=>{store.review(book.id).then(r=>setLocalReview(r||null)).catch(()=>{});},[book.id]);
+ // ElevenLabs reads with a natural voice on the editor's own credits; the offline voice is free.
+ const[engine,setEngine]=useState<'offline'|'elevenlabs'>(hasVoiceKey?'elevenlabs':'offline');
+ const characters=entries.reduce((n,e)=>n+Object.entries(e.data.summaries).filter(([id])=>include.has(id)).reduce((m,[,x])=>m+x.paragraphs.reduce((k,p)=>k+(p.image?0:p.text.length),0),0)+(e.data.report?.overview?.paragraphs.reduce((k,p)=>k+p.text.length,0)||0),0);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const hasOverview=entries.some(e=>!!e.data.report?.overview&&e.data.report.language===e.choice.language);
  const link=done?location.origin+location.pathname.replace(/index\.html$/,'')+'#/b/'+done.slug:'';
@@ -52,7 +55,7 @@ export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguag
    for(const f of figures.files)await uploadFigure(result.id,f.name,await figureBlob(f.image)).catch(()=>setError('Published, but a figure could not be uploaded.'));
    if(slide!=='keep')await setSlide(result.id,slide,artPick?.file).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
    setDone({slug:result.slug,id:result.id});onPublished({id:result.id,slug:result.slug,visibility,at:Date.now()});
-   if(narrate)for(const e of entries.filter(x=>VOICES.includes(x.choice.language)))setStatus(await startNarration(result.id,e.choice.language,e.choice.type).catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
+   if(narrate)for(const e of entries.filter(x=>VOICES.includes(x.choice.language)))setStatus(await startNarration(result.id,e.choice.language,e.choice.type,engine).catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
   }catch(e){setError((e as Error).message);}finally{setBusy('');}
  }
  async function remove(){
@@ -97,7 +100,11 @@ export default function PublishDialog({onAccount=()=>{},book,data,defaultLanguag
      <FormControlLabel value="public" control={<Radio/>} label="Listed in the library, open to everyone"/>
      <FormControlLabel value="unlisted" control={<Radio/>} label="Not listed; only people with the link"/>
     </RadioGroup>
-    <FormControlLabel control={<Checkbox checked={narrate} disabled={!entries.some(e=>VOICES.includes(e.choice.language))} onChange={e=>setNarrate(e.target.checked)}/>} label="Prepare narration (free offline voice, generated once on the server)"/>
+    <FormControlLabel control={<Checkbox checked={narrate} disabled={!entries.some(e=>VOICES.includes(e.choice.language))} onChange={e=>setNarrate(e.target.checked)}/>} label="Prepare narration (generated once on the server, then played to every reader)"/>
+    {narrate&&<RadioGroup value={engine} onChange={e=>setEngine(e.target.value as typeof engine)} sx={{ml:4}}>
+     <FormControlLabel value="elevenlabs" disabled={!hasVoiceKey} control={<Radio size="small"/>} label={<span>ElevenLabs — natural voice{hasVoiceKey?' · uses about '+Math.round(characters/1000).toLocaleString()+'k characters of your ElevenLabs credits':' · add your ElevenLabs key in Account first'}</span>}/>
+     <FormControlLabel value="offline" control={<Radio size="small"/>} label="Free offline voice"/>
+    </RadioGroup>}
    </>}
    {status&&status.status!=='none'&&<div className="pub-status">{status.status==='running'&&<><LinearProgress variant="determinate" value={status.total?status.done/status.total*100:0}/><span>Preparing narration {status.done} of {status.total}…</span></>}{status.status==='ready'&&<Alert severity="success">Narration is ready: {status.total} parts.</Alert>}{status.status==='failed'&&<Alert severity="error">Narration failed: {status.error}</Alert>}</div>}
    {done&&<Alert severity="success" sx={{mt:2}} action={<><Button size="small" startIcon={<ContentCopyRounded/>} onClick={()=>navigator.clipboard?.writeText(link)}>Copy</Button><Button size="small" component="a" href={link} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded/>}>Open</Button></>}>Published. <span className="pub-link">{link}</span></Alert>}

@@ -35,3 +35,21 @@ async def eleven_mp3(text:str,language:str,key:str,voice:str)->bytes:
     if r.status_code==429:raise OverflowError('Your ElevenLabs quota is used up or the service is busy.')
     if r.status_code!=200 or not r.headers.get('content-type','').startswith('audio/'):raise ConnectionError('ElevenLabs could not create audio (HTTP '+str(r.status_code)+').')
     return r.content
+# ElevenLabs takes a few thousand characters per request; longer chapters are read in parts and joined.
+ELEVEN_CHUNK=2400
+def split_text(text:str,limit:int=ELEVEN_CHUNK)->list[str]:
+    """Break at paragraph ends, then sentence ends, so no part stops mid-thought."""
+    import re
+    parts:list[str]=[];current=''
+    for para in [p.strip() for p in text.split('\n') if p.strip()]:
+        pieces=[para] if len(para)<=limit else re.split(r'(?<=[.!?؟،؛])\s+',para)
+        for piece in pieces:
+            while len(piece)>limit:parts.append(piece[:limit]);piece=piece[limit:]
+            if current and len(current)+len(piece)+2>limit:parts.append(current);current=''
+            current=(current+'\n\n'+piece) if current else piece
+    if current:parts.append(current)
+    return parts
+def eleven_long(text:str,language:str,key:str,voice:str)->bytes:
+    """A whole chapter as one MP3: each part synthesized in turn, frames joined (same format, so players read it as one file)."""
+    import asyncio
+    return b''.join(asyncio.run(eleven_mp3(part,language,key,voice)) for part in split_text(text))

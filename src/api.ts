@@ -50,7 +50,7 @@ export const setVisibility=(id:string,visibility:'public'|'unlisted')=>call<PubB
 export const uploadCover=(id:string,blob:Blob)=>binary('library/'+id+'/cover',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const removeCover=(id:string)=>call<{ok:boolean}>('library/'+id+'/cover',{method:'DELETE'});
 export const uploadBackground=(id:string,blob:Blob)=>binary('library/'+id+'/background',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
-export const startNarration=(id:string,language:string,type?:string)=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type}});
+export const startNarration=(id:string,language:string,type?:string,engine:'offline'|'elevenlabs'='offline')=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type,engine}});
 export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language);
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
