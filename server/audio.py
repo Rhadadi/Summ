@@ -33,7 +33,11 @@ async def eleven_mp3(text:str,language:str,key:str,voice:str)->bytes:
         r=await client.post('https://api.elevenlabs.io/v1/text-to-speech/'+(voice or ELEVEN_DEFAULT_VOICE),params={'output_format':'mp3_44100_64'},headers={'xi-api-key':key},json={'text':text,'model_id':ELEVEN_MODELS.get(language,'eleven_multilingual_v2')})
     if r.status_code in (401,403):raise PermissionError('ElevenLabs rejected your key.')
     if r.status_code==429:raise OverflowError('Your ElevenLabs quota is used up or the service is busy.')
-    if r.status_code!=200 or not r.headers.get('content-type','').startswith('audio/'):raise ConnectionError('ElevenLabs could not create audio (HTTP '+str(r.status_code)+').')
+    if r.status_code!=200 or not r.headers.get('content-type','').startswith('audio/'):
+        try:detail=(r.json().get('detail') or {}).get('message','')
+        except ValueError:detail=''
+        if 'api key' in detail.lower():raise PermissionError('ElevenLabs rejected your key: '+detail[:200])
+        raise ConnectionError('ElevenLabs could not create audio (HTTP '+str(r.status_code)+(': '+detail[:200] if detail else '')+').')
     return r.content
 # ElevenLabs takes a few thousand characters per request; longer chapters are read in parts and joined.
 ELEVEN_CHUNK=2400

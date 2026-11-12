@@ -415,7 +415,8 @@ async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(editor_user)):
         try:
             async with httpx.AsyncClient(timeout=15) as client:r=await client.get('https://api.elevenlabs.io/v1/voices',headers={'xi-api-key':api_key})
         except httpx.HTTPError:raise HTTPException(502,'ElevenLabs could not be reached to check the key.') from None
-        if r.status_code in (401,403):raise HTTPException(422,'ElevenLabs rejected this API key.')
+        # The key's ID (shown in the key list) is not the key itself; only the secret starting with "sk_" can speak.
+        if r.status_code in (400,401,403) or not api_key.startswith('sk_'):raise HTTPException(422,'ElevenLabs rejected this API key. Paste the secret key that starts with "sk_" (shown once, when the key is created), not the key ID.')
     accounts.save_service_key(user['id'],'elevenlabs',api_key,body.voice)
     return me_payload(user)
 @app.delete('/api/me/voice-key')
