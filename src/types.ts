@@ -35,6 +35,6 @@ export interface LocalReview{review:Review;approved:boolean}
 export interface PubDoc{review?:Review|null;title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
 export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;slide?:{mode:'none'|'cover'|'art'|'upload';fit?:'fill'|'whole';caption?:string;captionUrl?:string;art?:string;credit?:{title:string;artist:string;year:string;page:string}};rating?:{source:string;rating:number;count:number|null}|null;year?:string;doc?:PubDoc}
 export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string;seconds?:number|null}[]}
-export interface AppConfig{google_client_id:string;signup:boolean}
+export interface AppConfig{google_client_id:string;signup:boolean;email?:boolean}
 export interface ArtResult{file:string;title:string;artist:string;year:string;page:string;thumb:string;width:number;height:number}
 export interface HomeConfig{seconds:number;slides:{id:string;hidden:boolean;seconds:number|null}[];shelf:boolean;stars:boolean;autoplay:boolean;title:string;text:string}

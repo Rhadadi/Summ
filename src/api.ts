@@ -10,6 +10,9 @@ async function call<T>(path:string,{method,body,signal}:{method?:string;body?:un
 export const config=()=>call<AppConfig>('config');
 export const me=()=>call<Account>('me').catch(e=>{if(e instanceof ApiError&&e.status===401)return null;throw e;});
 export const register=(username:string,password:string)=>call<Account>('auth/register',{body:{username,password}});
+export const signup=(email:string,password:string)=>call<{pending:boolean;email:string}>('auth/signup',{body:{email,password}});
+export const verifyEmail=(email:string,code:string)=>call<Account>('auth/verify',{body:{email,code}});
+export const resendCode=(email:string)=>call<{pending:boolean}>('auth/resend',{body:{email}});
 export const login=(username:string,password:string)=>call<Account>('auth/login',{body:{username,password}});
 export const googleLogin=(credential:string)=>call<Account>('auth/google',{body:{credential}});
 export const logout=()=>call<{ok:boolean}>('auth/logout',{body:{}});

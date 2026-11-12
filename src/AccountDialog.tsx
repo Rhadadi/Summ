@@ -2,7 +2,7 @@ import{useEffect,useRef,useState}from'react';
 import{Alert,Autocomplete,Button,Dialog,DialogContent,DialogTitle,Divider,IconButton,LinearProgress,TextField,ToggleButton,ToggleButtonGroup}from'@mui/material';
 import{CheckRounded,CloseRounded,LockOutlined}from'@mui/icons-material';
 import type{Account,AppConfig}from'./types';
-import{askEditor,deleteAccount,googleLogin,login,logout,register,removeKey,removeVoiceKey,saveKey,saveVoiceKey}from'./api';
+import{ApiError,askEditor,deleteAccount,googleLogin,login,logout,resendCode,signup,verifyEmail,removeKey,removeVoiceKey,saveKey,saveVoiceKey}from'./api';
 import{listPrice,modelSuggestions}from'./cost';
 
 declare global{interface Window{google?:{accounts:{id:{initialize:(o:{client_id:string;callback:(r:{credential:string})=>void})=>void;renderButton:(el:HTMLElement,o:Record<string,unknown>)=>void}}}}}
@@ -22,6 +22,8 @@ function loadGoogle():Promise<void>{
 interface Props{open:boolean;account:Account|null;config:AppConfig|null|undefined;onClose:()=>void;onAccount:(account:Account|null)=>void;onSignedOut:()=>void}
 export default function AccountDialog({open,account,config,onClose,onAccount,onSignedOut}:Props){
  const[mode,setMode]=useState<'login'|'register'>('login'),[username,setUsername]=useState(''),[password,setPassword]=useState('');
+ // After sign-up (or a sign-in with an unconfirmed email) the emailed code is asked for here.
+ const[pendingEmail,setPendingEmail]=useState(''),[code,setCode]=useState('');
  const[apiKey,setApiKey]=useState(''),[model,setModel]=useState('gemini-flash-latest'),[priceIn,setPriceIn]=useState(''),[priceOut,setPriceOut]=useState('');
  const[voiceKey,setVoiceKey]=useState(''),[voiceId,setVoiceId]=useState('');
  useEffect(()=>{if(open){setVoiceKey('');setVoiceId(account?.voice?.option||'');}},[open,account?.voice]);
@@ -52,7 +54,9 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
  return <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="account-title" slotProps={{paper:{className:'account-sheet'}}}>
   <DialogTitle id="account-title" className="dialog-heading"><span>{account?'Account':'Sign in to Inkling'}</span><IconButton aria-label="Close account" onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent>
-   {!account?<form className="account-form" onSubmit={e=>{e.preventDefault();act(()=>(mode==='login'?login:register)(username,password).then(onAccount));}}>
+   {!account?<form className="account-form" onSubmit={e=>{e.preventDefault();if(pendingEmail){act(()=>verifyEmail(pendingEmail,code.trim()).then(a=>{setPendingEmail('');setCode('');onAccount(a);}));return;}
+     if(mode==='register')act(()=>signup(username.trim(),password).then(r=>{setPendingEmail(r.email);setCode('');setNotice('We sent a code to '+r.email+'.');}));
+     else act(()=>login(username.trim(),password).then(onAccount).catch(async err=>{if(err instanceof ApiError&&err.status===403&&username.includes('@')){await resendCode(username.trim()).catch(()=>{});setPendingEmail(username.trim().toLowerCase());setCode('');setNotice('Confirm your email: we sent you a code.');return;}throw err;}));}}>
     <p className="dialog-lead">Your books stay on this device. Your account holds only your own Gemini key, so summaries are billed to you.</p>
     {config?.google_client_id?<>
      <div className={googleState==='ready'?'google-button':undefined} ref={googleButton}/>
@@ -60,10 +64,17 @@ export default function AccountDialog({open,account,config,onClose,onAccount,onS
      {googleState==='failed'&&<Alert severity="warning" action={<Button size="small" type="button" onClick={()=>setGoogleRetry(n=>n+1)}>Retry</Button>}>Google sign-in could not load.</Alert>}
      <div className="or-divider"><span>or</span></div>
     </>:config!==undefined&&<Alert severity="info">{config?'Google sign-in needs setup on this server.':'Google sign-in is unavailable because server settings could not be loaded.'}</Alert>}
+    {pendingEmail?<>
+     <Alert severity="info">Enter the 6-digit code we sent to <strong>{pendingEmail}</strong>. You can also just open the link in that email. Check the spam folder too.</Alert>
+     <TextField fullWidth autoFocus label="Confirmation code" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} slotProps={{htmlInput:{inputMode:'numeric',maxLength:6,style:{letterSpacing:'.4em',fontSize:22,textAlign:'center'}}}}/>
+     <Button type="submit" variant="contained" size="large" disabled={busy||code.length<6}>{busy?'One moment…':'Confirm and sign in'}</Button>
+     <div className="account-actions"><Button type="button" disabled={busy} onClick={()=>act(()=>resendCode(pendingEmail),'A new code is on its way.')}>Send a new code</Button><Button type="button" disabled={busy} onClick={()=>{setPendingEmail('');setCode('');}}>Use another email</Button></div>
+    </>:<>
     {config?.signup!==false&&<ToggleButtonGroup fullWidth exclusive value={mode} onChange={(_,v)=>{if(v)setMode(v);}} aria-label="Account action"><ToggleButton value="login">Sign in</ToggleButton><ToggleButton value="register">Create account</ToggleButton></ToggleButtonGroup>}
-    <TextField fullWidth label="Username" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} helperText={mode==='register'?'3–32 letters, digits, dots, dashes or underscores.':''}/>
-    <TextField fullWidth type="password" label="Password" autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} helperText={mode==='register'?'At least 10 characters.':''}/>
+    <TextField fullWidth type="email" label="Email" autoComplete="email" value={username} onChange={e=>setUsername(e.target.value)} helperText={mode==='register'?'Your email is your username. We send a code to confirm it.':''}/>
+    <TextField fullWidth type="password" label="Password" autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} helperText={mode==='register'?'At least 6 characters.':''}/>
     <Button type="submit" variant="contained" size="large" disabled={busy||!username.trim()||!password}>{busy?'One moment…':mode==='login'?'Sign in':'Create account'}</Button>
+    </>}
    </form>:<div className="account-form">
     <div className="account-user"><span className="account-avatar">{account.user.name.slice(0,1).toUpperCase()}</span><div><strong>{account.user.name}</strong><span>{canEdit?(account.role==='owner'?'Owner · ':'Editor · ')+(account.key?'Gemini key ending …'+account.key.hint:'No Gemini key yet'):'Reader'}</span></div></div>
     {canEdit&&<>

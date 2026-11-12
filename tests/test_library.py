@@ -80,10 +80,10 @@ class AccessTests(RolesTest):
         self.assertEqual(r.post('/api/editor-request',json={'message':'I translate books.'}).json()['editorRequest']['status'],'pending')
         self.assertEqual(r.post('/api/editor-request',json={}).status_code,409)
         self.assertEqual(r.get('/api/people').status_code,403)
-        people=owner.get('/api/people').json();self.assertEqual([p['name'] for p in people['pending']],['asker'])
+        people=owner.get('/api/people').json();self.assertEqual([p['name'] for p in people['pending']],['asker@example.com'])
         uid=people['pending'][0]['id'];owner.post('/api/people/'+uid+'/approve')
         self.assertEqual(r.get('/api/me').json()['role'],'editor')
-        self.assertEqual(owner.get('/api/people').json()['editors'][0]['name'],'asker')
+        self.assertEqual(owner.get('/api/people').json()['editors'][0]['name'],'asker@example.com')
         owner.delete('/api/people/'+uid);self.assertEqual(r.get('/api/me').json()['role'],'reader')
     def test_rejected_request_can_be_made_again(self):
         owner,_=self.owner();r=self.reader('asker');r.post('/api/editor-request',json={})

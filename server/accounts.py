@@ -23,7 +23,11 @@ def _db()->sqlite3.Connection:
         _conn=sqlite3.connect(path,check_same_thread=False,isolation_level=None);_path=path
         _conn.execute('PRAGMA foreign_keys=ON');_conn.execute('PRAGMA journal_mode=WAL');_conn.executescript(SCHEMA)
         for extra in EXTRA_SCHEMA:_conn.executescript(extra)
-        if 'role' not in [r[1] for r in _conn.execute('PRAGMA table_info(users)')]:_conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'reader'")
+        have=[r[1] for r in _conn.execute('PRAGMA table_info(users)')]
+        if 'role' not in have:_conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'reader'")
+        # Email sign-ups start unconfirmed; every account that existed before stays confirmed.
+        for column,sql in (('verified',"ALTER TABLE users ADD COLUMN verified INTEGER NOT NULL DEFAULT 1"),('code_hash',"ALTER TABLE users ADD COLUMN code_hash TEXT"),('code_expires',"ALTER TABLE users ADD COLUMN code_expires REAL"),('code_tries',"ALTER TABLE users ADD COLUMN code_tries INTEGER NOT NULL DEFAULT 0")):
+            if column not in have:_conn.execute(sql)
     return _conn
 def query(sql:str,args:tuple=())->list[tuple]:
     with _lock:return _db().execute(sql,args).fetchall()
@@ -48,9 +52,45 @@ def register(username:str,password:str)->str:
     try:query('INSERT INTO users(id,username,password,created) VALUES(?,?,?,?)',(user_id,username,hash_password(password),time.time()))
     except sqlite3.IntegrityError:raise AccountError(409,'That username is taken.') from None
     return user_id
+EMAIL=re.compile(r'[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s.]{2,}')
+CODE_SECONDS=15*60
+def valid_email(email:str)->str:
+    email=email.strip().lower()
+    if len(email)>254 or not EMAIL.fullmatch(email):raise AccountError(422,'Enter a valid email address.')
+    return email
+def _code_hash(email:str,code:str)->str:return hashlib.sha256((email+':'+code+':'+os.getenv('SUMM_SECRET_KEY','')).encode()).hexdigest()
+def _new_code(user_id:str,email:str)->str:
+    code=''.join(secrets.choice('0123456789') for _ in range(6))
+    query('UPDATE users SET code_hash=?,code_expires=?,code_tries=0 WHERE id=?',(_code_hash(email,code),time.time()+CODE_SECONDS,user_id));return code
+def signup(email:str,password:str)->tuple[str,str]:
+    """Create (or refresh) an unconfirmed account named by its email address; returns the user and the code to mail."""
+    email=valid_email(email)
+    if not 6<=len(password)<=200:raise AccountError(422,'Use a password of at least 6 characters.')
+    rows=query('SELECT id,verified FROM users WHERE username=?',(email,))
+    if rows and rows[0][1]:raise AccountError(409,'An account with this email already exists. Sign in instead.')
+    if rows:
+        user_id=rows[0][0];query('UPDATE users SET password=? WHERE id=?',(hash_password(password),user_id))
+    else:
+        user_id=str(uuid.uuid4())
+        query('INSERT INTO users(id,username,password,email,created,verified) VALUES(?,?,?,?,?,0)',(user_id,email,hash_password(password),email,time.time()))
+    return user_id,_new_code(user_id,email)
+def resend(email:str)->tuple[str,str]|None:
+    email=valid_email(email);rows=query('SELECT id FROM users WHERE username=? AND verified=0',(email,))
+    return (rows[0][0],_new_code(rows[0][0],email)) if rows else None
+def verify(email:str,code:str)->str:
+    email=valid_email(email);rows=query('SELECT id,code_hash,code_expires,code_tries,verified FROM users WHERE username=?',(email,))
+    if not rows:raise AccountError(422,'That code is not right.')
+    user_id,stored,expires,tries,done=rows[0]
+    if done:return user_id
+    if not stored or (expires or 0)<time.time():raise AccountError(410,'That code has expired. Ask for a new one.')
+    if tries>=8:raise AccountError(429,'Too many attempts. Ask for a new code.')
+    query('UPDATE users SET code_tries=code_tries+1 WHERE id=?',(user_id,))
+    if not hmac.compare_digest(stored,_code_hash(email,code.strip())):raise AccountError(422,'That code is not right.')
+    query('UPDATE users SET verified=1,code_hash=NULL,code_expires=NULL,code_tries=0 WHERE id=?',(user_id,));return user_id
 def login(username:str,password:str)->str:
-    rows=query('SELECT id,password FROM users WHERE username=?',(username,))
-    if not check_password(password,rows[0][1] if rows else None):raise AccountError(401,'Incorrect username or password.')
+    username=username.strip();rows=query('SELECT id,password,verified FROM users WHERE username=?',(username,))
+    if not check_password(password,rows[0][1] if rows else None):raise AccountError(401,'Incorrect email or password.')
+    if not rows[0][2]:raise AccountError(403,'Please confirm your email first. We sent you a code.')
     return rows[0][0]
 def google_user(sub:str,email:str,allow_new:bool=True)->str:
     if allow_new:

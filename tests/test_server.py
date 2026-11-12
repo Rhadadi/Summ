@@ -37,9 +37,13 @@ class ServerTest(unittest.TestCase):
         self.env.stop();self.data.cleanup()
     def sign_up(self,client=None,username='reader',key='AIza-test-key-0000000000000x7Qa',role='editor'):
         client=client or self.client
-        r=client.post('/api/auth/register',json={'username':username,'password':'correct horse battery'});self.assertEqual(r.status_code,200,r.text)
+        email=username+'@example.com';sent=[]
+        async def capture(to,code):sent.append((to,code))
+        with patch('server.mailer.configured',return_value=True),patch('server.mailer.send_code',capture):
+            r=client.post('/api/auth/signup',json={'email':email,'password':'secret1'});self.assertEqual(r.status_code,200,r.text)
+        r=client.post('/api/auth/verify',json={'email':email,'code':sent[-1][1]});self.assertEqual(r.status_code,200,r.text)
         # Generation, keys, PDFs and narration are for editors; promote the test user unless a reader is wanted.
-        if role!='reader':accounts.set_role(accounts.query('SELECT id FROM users WHERE username=?',(username,))[0][0],role)
+        if role!='reader':accounts.set_role(accounts.query('SELECT id FROM users WHERE username=?',(email,))[0][0],role)
         if key:
             with patch('server.app.check_key',new=AsyncMock()):
                 r=client.put('/api/me/key',json={'api_key':key,'model':'test-model'});self.assertEqual(r.status_code,200,r.text)
@@ -64,17 +68,38 @@ class AccountTests(ServerTest):
     def test_login_logout_and_wrong_password(self):
         self.sign_up(key=None)
         self.assertEqual(self.client.post('/api/auth/logout').status_code,200);self.assertEqual(self.client.get('/api/me').status_code,401)
-        self.assertEqual(self.client.post('/api/auth/login',json={'username':'reader','password':'wrong password!!'}).status_code,401)
-        self.assertEqual(self.client.post('/api/auth/login',json={'username':'READER','password':'correct horse battery'}).status_code,200)
+        self.assertEqual(self.client.post('/api/auth/login',json={'username':'reader@example.com','password':'wrong password!!'}).status_code,401)
+        self.assertEqual(self.client.post('/api/auth/login',json={'username':'READER@example.com','password':'secret1'}).status_code,200)
     def test_duplicate_and_weak_signups_are_rejected(self):
         self.sign_up(key=None)
-        self.assertEqual(self.client.post('/api/auth/register',json={'username':'Reader','password':'correct horse battery'}).status_code,409)
-        self.assertEqual(self.client.post('/api/auth/register',json={'username':'new','password':'short'}).status_code,422)
+        with patch('server.mailer.configured',return_value=True):
+            self.assertEqual(self.client.post('/api/auth/signup',json={'email':'Reader@Example.com','password':'secret1'}).status_code,409)
+            self.assertEqual(self.client.post('/api/auth/signup',json={'email':'new@example.com','password':'short'}).status_code,422)
+            self.assertEqual(self.client.post('/api/auth/signup',json={'email':'not-an-email','password':'secret1'}).status_code,422)
     def test_signup_can_be_closed(self):
         with patch.dict(os.environ,{'SUMM_ALLOW_SIGNUP':'false'}):
-            self.assertEqual(self.client.post('/api/auth/register',json={'username':'reader','password':'correct horse battery'}).status_code,403)
+            self.assertEqual(self.client.post('/api/auth/signup',json={'email':'reader@example.com','password':'secret1'}).status_code,403)
+    def test_email_codes_confirm_the_account(self):
+        sent=[]
+        async def capture(to,code):sent.append((to,code))
+        c=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(c.close)
+        with patch('server.mailer.configured',return_value=True),patch('server.mailer.send_code',capture):
+            self.assertEqual(c.post('/api/auth/signup',json={'email':'New@Example.com','password':'abcdef'}).status_code,200)
+            email,code=sent[-1];self.assertEqual(email,'new@example.com')
+            # Not signed in, and not able to sign in, until confirmed.
+            self.assertEqual(c.get('/api/me').status_code,401)
+            self.assertEqual(c.post('/api/auth/login',json={'username':'new@example.com','password':'abcdef'}).status_code,403)
+            self.assertEqual(c.post('/api/auth/verify',json={'email':email,'code':'000000' if code!='000000' else '111111'}).status_code,422)
+            ok=c.post('/api/auth/verify',json={'email':email,'code':code});self.assertEqual(ok.status_code,200,ok.text);self.assertEqual(c.get('/api/me').json()['user']['email'],'new@example.com')
+            self.assertEqual(c.post('/api/auth/login',json={'username':'new@example.com','password':'abcdef'}).status_code,200)
+            # A fresh code is sent again for an unconfirmed address only.
+            self.assertEqual(c.post('/api/auth/resend',json={'email':'nobody@example.com'}).status_code,200);self.assertEqual(len(sent),1)
+        accounts.query('UPDATE users SET code_expires=? WHERE username=?',(time.time()-1,'new@example.com'))
+    def test_signup_without_email_setup_says_so(self):
+        with patch('server.mailer.configured',return_value=False):
+            r=self.client.post('/api/auth/signup',json={'email':'a@example.com','password':'secret1'});self.assertEqual(r.status_code,503)
     def test_cross_site_writes_without_header_are_blocked(self):
-        bare=TestClient(app);self.assertEqual(bare.post('/api/auth/register',json={'username':'reader','password':'correct horse battery'}).status_code,403);bare.close()
+        bare=TestClient(app);self.assertEqual(bare.post('/api/auth/signup',json={'email':'reader@example.com','password':'secret1'}).status_code,403);bare.close()
     def google(self,**claims):
         now=int(time.time())
         payload={'aud':self.google_client_id,'iss':'https://accounts.google.com','iat':now,'exp':now+60,
@@ -185,7 +210,7 @@ class GuideAndMediaTests(ServerTest):
         bad={'type':'fiction','sections':[{'kind':'characters','title':'C','items':[{'heading':'X','text':'Y','evidence_ids':['c9']}]},{'kind':'themes','title':'T','items':[{'text':'Z','evidence_ids':['c1']}]}]}
         hits.clear();self.client=TestClient(app,headers={'X-Summ-Request':'1'})
         with patch('server.app.model_json',new=AsyncMock(return_value=bad)):
-            self.client.post('/api/auth/login',json={'username':'reader','password':'correct horse battery'})
+            self.client.post('/api/auth/login',json={'username':'reader@example.com','password':'secret1'})
             self.assertEqual(self.client.post('/api/guide',json={'title':'Book','language':'en','sections':self.sections}).status_code,502)
     def test_book_info_is_public_and_cover_hosts_are_restricted(self):
         with patch('server.bookinfo.lookup',new=AsyncMock(return_value={'title':'Book','ratings':[]})):

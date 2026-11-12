@@ -5,7 +5,7 @@ import type{HomeConfig,LocalReview,PubBook,Account,AppConfig,Block,Book,Chapter,
 import{depthLabels,languages,markdownExport,selectedPassages}from'./core';
 import{loadSettings,saveSettings,store}from'./storage';
 import{demoBook}from'./demo';import{extractCover,importFile,textBook}from'./importers';
-import{ApiError,homeConfig,libraryList,libraryMine,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
+import{ApiError,verifyEmail,homeConfig,libraryList,libraryMine,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
 import{summarizeChapter}from'./book-summary';
 import{effectivePrice,estimateChapter,money,usageCost}from'./cost';
 import BookSummaryDialog from'./BookSummaryDialog';import AccountDialog from'./AccountDialog';import CostDialog from'./CostDialog';import PeoplePanel from'./PeoplePanel';import PublishedBook from'./PublishedBook';import PublicLibrary from'./PublicLibrary';import PublishDialog from'./PublishDialog';import Shell from'./Shell';import HomePage from'./HomePage';import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';import LibraryPage from'./LibraryPage';import Cover from'./Cover';import{PlayerBar,usePlayer}from'./Player';import{loadBookData,narrationItems,useBookData}from'./bookData';import type{CostRequest}from'./CostDialog';
@@ -40,6 +40,8 @@ export default function App(){
  const fileInput=useRef<HTMLInputElement>(null),searchInput=useRef<HTMLInputElement>(null),abort=useRef<AbortController|null>(null);
  const mobile=useMediaQuery('(max-width:899px)');
  // /  home · /library · /saved · /book/:id detail · /read/:id[/section] reader
+ // The link in the confirmation email opens #/verify/<email>/<code>: confirm, sign in and go home.
+ useEffect(()=>{const m=route.match(/^\/verify\/([^/]+)\/(\d{4,12})$/);if(!m)return;verifyEmail(decodeURIComponent(m[1]),m[2]).then(a=>{setAccount(a);setToast('Email confirmed. Welcome to Inkling.');navigate('/');}).catch(e=>{setToast(e instanceof Error?e.message:'That link did not work.');setAccountOpen(true);navigate('/');});},[route]);
  const parts=route.split('/'),isDetail=parts[1]==='book',isRead=parts[1]==='read',isReader=isDetail||isRead,isSaved=route==='/saved',isWorkspace=route==='/workspace',isPublishedEditor=parts[1]==='edit',isLibrary=parts[1]==='library',isPub=parts[1]==='b',pubSlug=parts[2]||'',pubRead=parts[3]==='read',pubSection=pubRead?decodeURIComponent(parts[4]||''):'';
  const readSection=isRead?decodeURIComponent(parts[3]||''):'';
  const active=isReader?books.find(b=>b.id===parts[2]):undefined;

@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,home,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,home,mailer,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -87,7 +87,7 @@ def signed_in(user_id:str)->JSONResponse:
 @app.get('/api/health')
 async def health():return {'version':'0.3.0','accounts':True}
 @app.get('/api/config')
-async def config():return {'google_client_id':os.getenv('GOOGLE_CLIENT_ID','').strip(),'signup':signup_open()}
+async def config():return {'google_client_id':os.getenv('GOOGLE_CLIENT_ID','').strip(),'signup':signup_open(),'email':mailer.configured()}
 class StrictModel(BaseModel):model_config=ConfigDict(extra='forbid')
 class Credentials(StrictModel):
     username:str=Field(min_length=1,max_length=64)
@@ -98,10 +98,37 @@ class KeyRequest(StrictModel):
     model:str=Field(min_length=3,max_length=100)
     price_in:float|None=Field(default=None,ge=0,le=1000)
     price_out:float|None=Field(default=None,ge=0,le=1000)
-@app.post('/api/auth/register')
-async def register(body:Credentials,request:Request):
+class SignupBody(StrictModel):
+    email:str=Field(min_length=3,max_length=254);password:str=Field(min_length=1,max_length=200)
+class VerifyBody(StrictModel):
+    email:str=Field(min_length=3,max_length=254);code:str=Field(min_length=4,max_length=12)
+class ResendBody(StrictModel):email:str=Field(min_length=3,max_length=254)
+@app.post('/api/auth/signup')
+async def signup(body:SignupBody,request:Request):
+    """Email is the username. The account is usable once the emailed code (or link) is confirmed."""
     throttle('auth:'+client_ip(request),10)
     if not signup_open():raise HTTPException(403,'New accounts are closed on this server.')
+    if not mailer.configured():raise HTTPException(503,'Email sending is not set up on this server yet.')
+    user_id,code=await asyncio.to_thread(accounts.signup,body.email,body.password)
+    throttle('mail:'+body.email.strip().lower(),3)
+    await mailer.send_code(body.email.strip().lower(),code)
+    return {'pending':True,'email':body.email.strip().lower()}
+@app.post('/api/auth/verify')
+async def verify_email(body:VerifyBody,request:Request):
+    throttle('auth:'+client_ip(request),20)
+    return signed_in(await asyncio.to_thread(accounts.verify,body.email,body.code))
+@app.post('/api/auth/resend')
+async def resend_code(body:ResendBody,request:Request):
+    throttle('auth:'+client_ip(request),10);email=body.email.strip().lower()
+    throttle('mail:'+email,3)
+    fresh=await asyncio.to_thread(accounts.resend,email)
+    if fresh:await mailer.send_code(email,fresh[1])
+    return {'pending':True}
+@app.post('/api/auth/register')
+async def register(body:Credentials,request:Request):
+    # The old username sign-up, kept only for servers that switch it on.
+    throttle('auth:'+client_ip(request),10)
+    if os.getenv('SUMM_ALLOW_USERNAME_SIGNUP')!='true' or not signup_open():raise HTTPException(403,'Create an account with your email address.')
     return signed_in(await asyncio.to_thread(accounts.register,body.username.strip(),body.password))
 @app.post('/api/auth/login')
 async def login(body:Credentials,request:Request):
