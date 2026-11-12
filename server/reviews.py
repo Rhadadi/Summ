@@ -34,6 +34,7 @@ class Critic(Strict):
 class Voice(Strict):
     name:str=Field(default='',max_length=80);stars:float|None=Field(default=None,ge=0,le=5)
     excerpt:str=Field(default='',max_length=400);summary:str=Field(default='',max_length=400);url:str|None=Field(default=None,max_length=600)
+    translation:str=Field(default='',max_length=600)
     _u=field_validator('url')(_link)
 class Portrait(Strict):
     url:str=Field(max_length=600);page:str=Field(default='',max_length=600)
@@ -70,7 +71,7 @@ Return ONE JSON object and nothing else, with this shape (write the descriptive 
 {{"verdict": two or three sentences capturing the overall reception, vivid and specific,
  "ratings": up to 3 objects {{"value": average from 0 to 5, "source": site name such as "Goodreads", "count": number of ratings or null, "url": "https://..."}},
  "critics": up to 6 objects, one per published review {{"publication": outlet, "reviewer": critic's name, "date": when, "headline": the review's headline, "stance": "positive" | "mixed" | "negative", "excerpt": a verbatim sentence from the review of at most 35 words, "summary": two sentences on the critic's argument, "url": "https://..." of the review}},
- "readers": up to 4 objects from well-liked reader reviews {{"name": reviewer's display name, "stars": their rating 0-5 or null, "excerpt": a verbatim line of at most 35 words, "summary": one sentence, "url": "https://..."}},
+ "readers": up to 4 objects from well-liked reader reviews {{"name": reviewer's display name, "stars": their rating 0-5 or null, "excerpt": a verbatim line of at most 35 words, "translation": that line translated into {language} (empty if already in {language}), "summary": one sentence, "url": "https://..."}},
  "pros": up to 6 strengths that critics and readers name,
  "cons": up to 6 weaknesses they name,
  "audience": two sentences on who this book is for and who may not enjoy it,
@@ -118,7 +119,7 @@ def clean(raw:dict,grounded:set[str],model:str)->Review:
     readers=[]
     for v in items('readers'):
         url=link(v.get('url'));excerpt=_verbatim(v.get('excerpt')) if url else ''
-        if excerpt or _text(v.get('summary'),400):readers.append({'name':_text(v.get('name'),80),'stars':_stars(v.get('stars')),'excerpt':excerpt,'summary':_text(v.get('summary'),400),'url':url})
+        if excerpt or _text(v.get('summary'),400):readers.append({'name':_text(v.get('name'),80),'stars':_stars(v.get('stars')),'excerpt':excerpt,'summary':_text(v.get('summary'),400),'url':url,'translation':_text(v.get('translation'),600) if excerpt else ''})
     quotes=[]
     for q in items('quotes'):
         text=_verbatim(q.get('text'))
@@ -206,3 +207,20 @@ async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Rev
         if c.url and not any(_key(s.url)==_key(c.url) for s in review.sources):review.sources.append(Source(name=c.publication,url=c.url))
     photo=await portrait(request.author) if request.author else None
     return review.model_copy(update={'authorImage':Portrait(**photo)}) if photo else review
+
+TRANSLATE='''Translate these book-review entries for a reader of {language}. Keep each "excerpt" untouched; give its faithful translation in "translation". Rewrite "summary" and "headline" in {language} (natural, fluent prose; keep names and titles exact).
+Return JSON: {{"items":[{{"n":number,"translation":"...","summary":"...","headline":"..."}}]}}
+{items}'''
+async def translate_critics(critics:list[dict],language:str,creds:tuple[str,str],gemini:str)->list[dict]:
+    """One short Gemini call so a Persian page shows Persian beside each English quote."""
+    name=LANGS.get(language,language)
+    items='\n'.join(json.dumps({'n':i+1,'publication':c.get('publication'),'headline':c.get('headline',''),'excerpt':c.get('excerpt',''),'summary':c.get('summary','')},ensure_ascii=False) for i,c in enumerate(critics))
+    data,_=await _ask(TRANSLATE.format(language=name,items=items),creds,gemini,tokens=4096)
+    out=[dict(c) for c in critics]
+    for x in data.get('items') or []:
+        if isinstance(x,dict) and isinstance(x.get('n'),int) and 0<x['n']<=len(out):
+            c=out[x['n']-1]
+            if c.get('excerpt'):c['translation']=_text(x.get('translation'),600)
+            if x.get('summary'):c['summary']=_text(x['summary'],600)
+            if x.get('headline') and c.get('headline'):c['headlineTranslation']=_text(x['headline'],200)
+    return out

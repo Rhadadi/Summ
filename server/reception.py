@@ -189,19 +189,30 @@ async def gather(title:str,author:str,isbn:str='')->dict:
 # ---- automatic reception for published books: the quotes publishers and Wikipedia print, gathered once and kept a fortnight
 import json as _json,time as _time
 from pathlib import Path as _Path
-def _cache(book_id:str)->_Path:
-    folder=_Path(os.getenv('SUMM_DATA_DIR','data'))/'reception';folder.mkdir(parents=True,exist_ok=True);return folder/(re.sub(r'[^\w-]','',book_id)+'.json')
-async def cached(book_id:str,title:str,author:str)->dict:
-    """Reviews found without any AI step, for books whose owner has not approved a researched reception yet."""
-    path=_cache(book_id)
+def _cache(book_id:str,language:str='en')->_Path:
+    folder=_Path(os.getenv('SUMM_DATA_DIR','data'))/'reception';folder.mkdir(parents=True,exist_ok=True)
+    return folder/(re.sub(r'[^\w-]','',book_id)+('' if language=='en' else '.'+re.sub(r'[^a-z]','',language))+'.json')
+def _fresh(path:_Path):
     try:
         saved=_json.loads(path.read_text())
-        if _time.time()-saved.get('at',0)<(14*86400 if saved.get('critics') else 3600):return {'critics':saved['critics']}
-    except (OSError,ValueError):pass
-    try:found=await asyncio.wait_for(gather(title,author),25)
-    except asyncio.TimeoutError:found={'critics':[]}
-    critics=[{k:c.get(k) for k in ('publication','reviewer','date','headline','excerpt','url','via')}|{'stance':'','summary':c.get('summary') or '','verified':True if c.get('excerpt') else None}
-             for c in found['critics'] if c.get('url') or c.get('excerpt')][:8]
-    try:path.write_text(_json.dumps({'at':_time.time(),'critics':critics},ensure_ascii=False))
+        if _time.time()-saved.get('at',0)<(14*86400 if saved.get('critics') else 3600):return saved['critics']
+    except (OSError,ValueError,KeyError):pass
+    return None
+async def cached(book_id:str,title:str,author:str,language:str='en',translate=None)->dict:
+    """Reviews found without any research step, for books whose owner has not approved a researched reception yet.
+    For a page in another language the quotes get a translation and the summaries are rewritten in that language, once."""
+    if language!='en' and translate and (hit:=_fresh(_cache(book_id,language))) is not None:return {'critics':hit}
+    critics=_fresh(_cache(book_id))
+    if critics is None:
+        try:found=await asyncio.wait_for(gather(title,author),25)
+        except asyncio.TimeoutError:found={'critics':[]}
+        critics=[{k:c.get(k) for k in ('publication','reviewer','date','headline','excerpt','url','via')}|{'stance':'','summary':c.get('summary') or '','verified':True if c.get('excerpt') else None}
+                 for c in found['critics'] if c.get('url') or c.get('excerpt')][:8]
+        try:_cache(book_id).write_text(_json.dumps({'at':_time.time(),'critics':critics},ensure_ascii=False))
+        except OSError:pass
+    if language=='en' or not translate or not critics:return {'critics':critics}
+    try:done=await translate(critics,language)
+    except Exception:return {'critics':critics}
+    try:_cache(book_id,language).write_text(_json.dumps({'at':_time.time(),'critics':done},ensure_ascii=False))
     except OSError:pass
-    return {'critics':critics}
+    return {'critics':done}

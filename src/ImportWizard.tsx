@@ -4,7 +4,7 @@ import{AutoAwesomeRounded,CheckRounded,CloseRounded,ContentCopyRounded,FileUploa
 import type{Book,ImportedVersion,SummaryImage}from'./types';
 import{chapterWords,languages,minutes,sectionKind}from'./core';
 import{audiences,buildPrompt,chapterLabel,defaultOptions,summaryTypes,tones,type PromptOptions}from'./prompt-builder';
-import{mapChapters,parseBlock,splitBlocks}from'./structured-import';
+import{mapChapters,parseBlock,splitBlocks,titleMatch}from'./structured-import';
 import{buildVersion,versionLabel}from'./imports';
 import{rechapter}from'./rechapter';
 import{mainChapters}from'./bookData';
@@ -37,16 +37,24 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
   return splitBlocks(summaryMarkdown(raw)).map((part,i)=>{
    const block=parseBlock(part.text,part.type,part.language||language);
    const lang=overrides[i]?.language||part.language||block.language,type=overrides[i]?.type||part.type||'detailed';
-   const byPosition=mapChapters(block.chapters,book.chapters,'position'),byTitle=mapChapters(block.chapters,book.chapters,'title');
-   // Numbers from our prompt count the book's sections; numbers written by another tool follow the book's own titles.
-   const result=byTitle.mapped.length>byPosition.mapped.length?byTitle:byPosition;
+   // Answers to the "find the chapters" prompt carry original titles or pages: match those against the book's own chapters,
+   // never by position into the front matter. Older answers fall back to numbers in the book's titles or to the prompt's list.
+   const smart=block.chapters.some(c=>c.original||c.range)
+   const result=smart?mapChapters(block.chapters,book.chapters,'smart',mainChapters(book))
+    :[mapChapters(block.chapters,book.chapters,'title'),mapChapters(block.chapters,book.chapters,'position')].sort((a,b)=>b.mapped.length-a.mapped.length)[0];
    return{block,lang,type,result};
   });
  },[raw,book,language,overrides]);
  // A summary that names its chapters with page numbers can replace the book's contents, which the app may have cut badly.
  const lead=parsed.find((p,i)=>!skipped.has(i)&&p.block.chapters.length>=2&&p.block.chapters.every(c=>c.range));
- const plan=useMemo(()=>lead?rechapter(book,lead.block.chapters.map(c=>({title:c.title,original:c.original,start:c.range![0],end:c.range![1]}))):null,[lead,book]);
- const suggest=!!plan&&!!lead&&(lead.result.mapped.length<lead.block.chapters.length||mainChapters(book).length<Math.ceil(lead.block.chapters.length*.7));
+ // Printed page numbers usually trail the file's page numbers by the front matter; chapters both sides agree on reveal the gap.
+ const plan=useMemo(()=>{
+  if(!lead)return null;
+  const gaps=lead.result.mapped.map(m=>{const c=book.chapters.find(x=>x.id===m.chapterId),first=c?.blocks.find(b=>b.page)?.page;return m.parsed.range&&first?first-m.parsed.range[0]:null;}).filter((n):n is number=>n!==null).sort((a,b)=>a-b);
+  const shift=gaps.length?gaps[Math.floor(gaps.length/2)]:0;
+  return rechapter(book,lead.block.chapters.map(c=>({title:c.title,original:c.original,start:c.range![0]+shift,end:c.range![1]+shift})));
+ },[lead,book]);
+ const suggest=!!plan&&!!lead&&(lead.result.mapped.filter(m=>m.parsed.original&&titleMatch(m.parsed.original,book.chapters.find(c=>c.id===m.chapterId)?.title||'')>=.6).length<Math.ceil(lead.block.chapters.length*.7));
  const useNew=!!plan&&(restructure??suggest);
  const mapFor=(p:(typeof parsed)[number])=>useNew&&plan?mapChapters(p.block.chapters,plan.main,'position'):p.result;
  const chosen=opts.chapters.length,picked=parsed.map((p,i)=>({...p,i,result:mapFor(p)})).filter(p=>!skipped.has(p.i)),ready=picked.length>0&&picked.every(p=>p.result.mapped.length>0);

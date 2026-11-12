@@ -469,12 +469,16 @@ async def library_cover(book_id:str):
     if not found:raise HTTPException(404,'No cover.')
     return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
 @app.get('/api/library/{book_id}/reception')
-async def library_reception(book_id:str,request:Request):
+async def library_reception(book_id:str,request:Request,lang:str='en'):
     throttle('rec:'+client_ip(request),30)
     book=library.get(book_id);doc=book['doc']
     if doc.get('review'):return {'critics':[]}
     title=doc['title'].get(doc.get('originalLanguage','en')) or book['title']
-    return await reception.cached(book['id'],title,doc.get('author',''))
+    language=lang if lang in reviews.LANGS else 'en'
+    # Translation uses the publishing owner's own Gemini key, once per book and language.
+    owner=library.owner_of(book['id']);creds=accounts.credentials(owner) if owner else None
+    translate=(lambda critics,l:reviews.translate_critics(critics,l,creds,GEMINI)) if creds else None
+    return await reception.cached(book['id'],title,doc.get('author',''),language,translate)
 @app.post('/api/review/research')
 async def review_research(body:reviews.ResearchRequest,user:dict=Depends(ai_user)):
     return (await reviews.research(body,user_credentials(user),GEMINI)).model_dump()

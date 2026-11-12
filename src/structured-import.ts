@@ -83,12 +83,12 @@ export function parseBlock(text:string,type:string|null=null,fallbackLanguage='e
   if(chapterAt.has(i)){
    const n=latinDigits(h.title).match(numbered);
    const title=h.title.replace(/^(?:(?:chapter|section|part|فصل|بخش)\s*)?[\d۰-۹٠-٩]+\s*[.،:–—)-]*\s*/iu,'').replace(worded,'').trim()||h.title;
-   const span=latinDigits(title).match(/\s*[(\[]\s*(?:pp?|pages?|ص|صفحه|صفحات)\.?\s*(\d+)\s*[–—-]\s*(\d+)\s*[)\]]\s*$/i);
+   const head=splitHeading(title);
    const body_=paragraphs(body(i,false));
    const orig=body_[0]&&!body_[0].heading&&body_[0].text.match(/^(?:original title|عنوان اصلی)\s*[:：]\s*(.+)$/i);
    if(orig)body_.shift();
-   const range:[number,number]|undefined=span&&+span[1]>0&&+span[2]>=+span[1]?[+span[1],+span[2]]:undefined;
-   block.chapters.push({n:n?+n[1]:null,title:span?title.slice(0,title.length-(latinDigits(title).length-latinDigits(title).replace(span[0],'').length)).trim()||title:title,paragraphs:body_,...(range?{range}:{}),...(orig?{original:orig[1].trim()}:{})});used=endOf(i,false);continue;
+   const original=orig?orig[1].trim():head.original;
+   block.chapters.push({n:n?+n[1]:null,title:head.title||title,paragraphs:body_,...(head.range?{range:head.range}:{}),...(original?{original}:{})});used=endOf(i,false);continue;
   }
   if(i===0&&h.level===1&&heads.length>1&&heads[1].level>1&&heads.filter(x=>x.level===1).length===1){block.bookTitle=h.title.replace(/^(?:summary|study guide|خلاصه(?:ٔ)?)\s*[:：—–-]\s*/i,'');continue;}
   // "Chapter-by-chapter summary" only groups the chapters beneath it.
@@ -101,10 +101,43 @@ export function parseBlock(text:string,type:string|null=null,fallbackLanguage='e
  if(!block.overview.length&&lead.length)block.overview=lead;
  return block;
 }
+// A chapter heading may carry its pages and the book's own title in many shapes:
+// "خون و دیوها (pp. 35–128)", "«خون و دیوها» (Blood and Demons) — صص. ۳۵–۱۲۸", "Blood [pp. 35-128]".
+export function splitHeading(heading:string):{title:string;range?:[number,number];original?:string}{
+ let t=heading.trim(),range:[number,number]|undefined,original:string|undefined;
+ const span=latinDigits(t).match(/[\s,،|—–-]*[(\[]?\s*(?:pp?|pages?|ص|صص|صفحه|صفحات|صفحه‌های)\.?\s*(\d+)\s*(?:[–—-]|تا|to)\s*(\d+)\s*[)\]]?\s*$/i);
+ if(span&&span.index!==undefined){const a=+span[1],b=+span[2];if(a>0&&b>=a)range=[a,b];t=t.slice(0,span.index).trim();}
+ // A Latin title in brackets after a Persian one is the book's original chapter title.
+ const latin=t.match(/^(.*[\u0600-\u06FF].*?)\s*[(\[]\s*([A-Za-z][^()\[\]]{2,160})\s*[)\]]\s*$/);
+ if(latin){t=latin[1].trim();original=latin[2].trim();}
+ t=t.replace(/[\s—–-]+$/,'').trim();
+ const quoted=t.match(/^(.*?)«(.+)»$/);if(quoted)t=(quoted[1]+quoted[2]).trim();
+ return{title:t,...(range?{range}:{}),...(original?{original}:{})};
+}
 export interface Mapping{chapterId:string;parsed:ParsedChapter}
 const bare=(t:string)=>latinDigits(t).replace(numbered,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 // "position" numbers count the chapters listed in our prompt; "title" numbers are the ones inside the book's own titles.
-export function mapChapters(parsed:ParsedChapter[],chapters:Chapter[],mode:'position'|'title'):{mapped:Mapping[];missing:Chapter[];extra:ParsedChapter[]}{
+const latinWords=(t:string)=>new Set(t.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').match(/[a-z]{3,}/g)?.filter(w=>!['the','and','for','from','with'].includes(w))||[]);
+// How much of a summary's original title the book's own chapter title shares.
+export function titleMatch(a:string,b:string){const x=latinWords(a),y=latinWords(b);if(!x.size||!y.size)return 0;let n=0;for(const w of x)if(y.has(w))n++;return n/Math.min(x.size,y.size);}
+// "smart": match by the chapter's original title, then by number among the book's main chapters, never into front matter.
+export function mapChapters(parsed:ParsedChapter[],chapters:Chapter[],mode:'position'|'title'|'smart',main?:Chapter[]):{mapped:Mapping[];missing:Chapter[];extra:ParsedChapter[]}{
+ if(mode==='smart'){
+  const taken=new Set<string>(),mapped:Mapping[]=[],extra:ParsedChapter[]=[],pool=main&&main.length?main:chapters;
+  const left:ParsedChapter[]=[];
+  for(const p of parsed){
+   const name=p.original||(/[a-z]/i.test(p.title)?p.title:'');
+   let best:Chapter|undefined,score=0;
+   if(name)for(const c of chapters){if(taken.has(c.id))continue;const s=titleMatch(name,c.title);if(s>score){score=s;best=c;}}
+   if(best&&score>=.6){taken.add(best.id);mapped.push({chapterId:best.id,parsed:p});}else left.push(p);
+  }
+  for(const p of left){
+   const target=(p.n!==null?pool[p.n-1]:undefined)??pool.find(c=>!taken.has(c.id));
+   if(target&&!taken.has(target.id)){taken.add(target.id);mapped.push({chapterId:target.id,parsed:p});}else extra.push(p);
+  }
+  mapped.sort((a,b)=>chapters.findIndex(c=>c.id===a.chapterId)-chapters.findIndex(c=>c.id===b.chapterId));
+  return{mapped,missing:pool.filter(c=>!taken.has(c.id)),extra};
+ }
  const taken=new Set<string>();const mapped:Mapping[]=[];const extra:ParsedChapter[]=[];const pending:ParsedChapter[]=[];
  const byTitle=(n:number)=>chapters.find(c=>!taken.has(c.id)&&new RegExp('^\\s*(?:chapter\\s*)?0*'+n+'(?!\\d)','i').test(latinDigits(c.title)));
  for(const p of parsed){

@@ -109,3 +109,13 @@ test('a book is cut into the chapters a summary found, by page',()=>{
  assert.deepEqual(plan.chapters.map(c=>[c.title,c.blocks.length]),[['Front matter',2],['Uno',2],['Two',2],['Notes and index',1]]);
  assert.equal(plan.main.length,2);assert.equal(rechapter({chapters:[{id:'a',title:'t',blocks:[{id:'x',text:'',location:''}]}]},[{title:'a',start:1,end:2},{title:'b',start:3,end:4}]),null);
 });
+test('headings with Persian page spans and English originals map to the real chapters, not the front matter',()=>{
+ const md='# قانون\n\n## 1. مقدمه: «قانون برای یهودیان و قانون برای غیراسرائیلیان» — صص. ۱–۳۴\n\nمتن.\n\n## 2. «خون و دیوان» (Blood and Demons) — صص. ۳۵–۱۲۸\n\nمتن.\n\n## 3. «رابطهٔ جنسی به‌مثابه جرم» (Sex as Crime) — صص. ۱۲۹–۲۱۸\n\nمتن.\n';
+ const b=parseBlock(md,null,'fa');
+ assert.deepEqual(b.chapters.map(c=>[c.title,c.range,c.original]),[['مقدمه: قانون برای یهودیان و قانون برای غیراسرائیلیان',[1,34],undefined],['خون و دیوان',[35,128],'Blood and Demons'],['رابطهٔ جنسی به‌مثابه جرم',[129,218],'Sex as Crime']]);
+ const words=(n:number)=>Array.from({length:n},(_,i)=>({id:'b'+i,text:'word '.repeat(400),location:''}));
+ const chapters=[{id:'f1',title:'Contents',blocks:words(1)},{id:'f2',title:'Map of Arabia',blocks:words(1)},{id:'c1',title:'Introduction: Law for Jews and Law for Gentiles',blocks:words(5)},{id:'c2',title:'1. Blood and Demons: Genesis 9 and Leviticus 17',blocks:words(5)},{id:'c3',title:'2. Sex as Crime: Leviticus 18',blocks:words(5)}];
+ const main=chapters.slice(2);
+ const r=mapChapters(b.chapters,chapters,'smart',main);
+ assert.deepEqual(r.mapped.map(m=>[m.chapterId,m.parsed.title]),[['c1','مقدمه: قانون برای یهودیان و قانون برای غیراسرائیلیان'],['c2','خون و دیوان'],['c3','رابطهٔ جنسی به‌مثابه جرم']]);
+});
