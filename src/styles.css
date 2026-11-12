@@ -567,3 +567,6 @@ body{background:var(--bg);color:var(--ink)}
 .m-art{object-fit:cover!important}
 .m-art.whole{object-fit:contain!important}
 .m-slide:has(.m-art.whole) .m-fill{display:block}
+
+.m-credit{color:#d9c9a6;text-decoration:none;opacity:.6;transition:opacity .2s}a.m-credit:hover{opacity:1;text-decoration:underline;text-underline-offset:3px}
+.pub-caption{display:grid;gap:10px;margin:6px 0 12px}

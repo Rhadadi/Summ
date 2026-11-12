@@ -5,7 +5,7 @@ import{tr,num}from'./i18n';
 import{artUrl,type Art}from'./art';
 
 // Where a slide's picture comes from: a gallery painting, a painting chosen for the book, or the cover itself.
-export interface Backdrop{url:string;position:string;whole?:boolean;blur?:boolean;credit?:{title:string;artist:string;year:string}|null}
+export interface Backdrop{url:string;position:string;whole?:boolean;caption?:{text:string;url?:string};blur?:boolean;credit?:{title:string;artist:string;year:string;page?:string}|null}
 export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),position:a.position,credit:{title:a.title,artist:a.artist,year:a.year}});
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
@@ -48,7 +48,8 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
   <div className="m-bar">
    <div className="m-dots" role="tablist" aria-label={L('Choose a slide')}>{slides.map((s,i)=><button key={s.key} role="tab" aria-selected={i===at} aria-label={L('Show slide')+' '+num(lang,i+1)} className={'m-dot'+(i===at?' on':'')+(hold||reduce||!autoplay?' held':'')} onClick={()=>go(i)}><span style={{animationDuration:(s.seconds||seconds)+'s'}}/></button>)}</div>
    <div className="m-arrows"><button aria-label={L('Previous slide')} onClick={()=>go(at-1)}>{lang==='fa'||lang==='ar'?<ArrowForwardRounded/>:<ArrowBackRounded/>}</button><button aria-label={L('Next slide')} onClick={()=>go(at+1)}>{lang==='fa'||lang==='ar'?<ArrowBackRounded/>:<ArrowForwardRounded/>}</button></div>
-   {current.backdrop.credit&&<span className="m-credit"><em>{current.backdrop.credit.title}</em>{current.backdrop.credit.artist?', '+current.backdrop.credit.artist:''}{current.backdrop.credit.year?', '+current.backdrop.credit.year:''} · Public domain, Wikimedia Commons</span>}
+   {(()=>{const b=current.backdrop,c=b.credit,text=b.caption?.text||(c?[c.title,c.artist,c.year].filter(Boolean).join(', ')+' · Public domain, Wikimedia Commons':'');const url=b.caption?.url||c?.page;
+    return text?(url?<a className="m-credit" href={url} target="_blank" rel="noopener noreferrer">{text}</a>:<span className="m-credit">{text}</span>):null;})()}
   </div>
  </section>;
 }

@@ -54,7 +54,7 @@ export const startNarration=(id:string,language:string,type?:string,engine:'offl
 export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language);
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
-export const setSlide=(id:string,mode:'none'|'cover'|'art'|'keep',file?:string,fit?:'fill'|'whole')=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file,fit}});
+export const setSlide=(id:string,mode:'none'|'cover'|'art'|'keep',file?:string,fit?:'fill'|'whole',caption?:{text:string;url:string})=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file,fit,...(caption?{caption:caption.text,caption_url:caption.url}:{})}});
 export const researchReview=(body:{title:string;author:string;year:string;language:string;isbn?:string})=>call<Review>('review/research',{body,signal:AbortSignal.timeout(400000)});
 export const uploadFigure=(id:string,name:string,blob:Blob)=>binary('library/'+id+'/figure/'+name,{method:'PUT',headers:{'Content-Type':blob.type||'image/png','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const artIdeas=(body:{title:string;author:string;about:string;themes:string[];language:string})=>call<{ideas:{artist:string;title:string;why:string;results:ArtResult[]}[];moods:string[]}>('art/ideas',{body,signal:AbortSignal.timeout(150000)});

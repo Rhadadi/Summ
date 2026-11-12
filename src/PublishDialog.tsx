@@ -27,7 +27,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
  const[visibility,setVisibility]=useState<'public'|'unlisted'>(book.published?.visibility||'public');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[done,setDone]=useState<{slug:string;id:string}|null>(book.published?{slug:book.published.slug,id:book.published.id}:null),[status,setStatus]=useState<NarrationStatus|null>(null);
  // How this book looks on the home page: a gallery painting chosen for the book, or just its cover.
- const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[fit,setFit]=useState<'fill'|'whole'>('fill'),[tags,setTags]=useState<string[]>([]);
+ const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[fit,setFit]=useState<'fill'|'whole'>('fill'),[captionText,setCaptionText]=useState(''),[captionUrl,setCaptionUrl]=useState(''),[tags,setTags]=useState<string[]>([]);
  useEffect(()=>{store.info(book.id).then(info=>setTags(tagsOf(info?.categories||[]))).catch(()=>{});},[book.id]);
  const[withPages,setWithPages]=useState(false),[withFigures,setWithFigures]=useState(true);
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
@@ -57,7 +57,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
    const cover=(await store.cover(book.id).catch(()=>undefined))?.blob;
    if(cover)await uploadCover(result.id,await coverBlob(cover)).catch(()=>setError('Published, but the cover could not be uploaded.'));
    for(const f of figures.files)await uploadFigure(result.id,f.name,await figureBlob(f.image)).catch(()=>setError('Published, but a figure could not be uploaded.'));
-   if(slide!=='keep'||fit==='whole')await setSlide(result.id,slide,artPick?.file,fit).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
+   if(slide!=='keep'||fit==='whole'||captionText||captionUrl)await setSlide(result.id,slide,artPick?.file,fit,captionText||captionUrl?{text:captionText,url:captionUrl}:undefined).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
    setDone({slug:result.slug,id:result.id});onPublished({id:result.id,slug:result.slug,visibility,at:Date.now()});
    for(const e of entries.filter(x=>VOICES.includes(x.choice.language)&&voiceFor(x.choice.language)!=='none'))setStatus(await startNarration(result.id,e.choice.language,e.choice.type,voiceFor(e.choice.language)as'offline'|'elevenlabs').catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
   }catch(e){setError((e as Error).message);}finally{setBusy('');}
@@ -92,6 +92,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
      <FormControlLabel value="fill" control={<Radio size="small"/>} label="Fill the frame"/>
      <FormControlLabel value="whole" control={<Radio size="small"/>} label="Show the whole picture over a blurred fill"/>
     </RadioGroup>
+    <div className="pub-caption"><TextField size="small" fullWidth label="Caption on the home page (optional)" placeholder={artPick?[artPick.title,artPick.artist,artPick.year].filter(Boolean).join(', '):'Shown small, in a corner of the slide'} value={captionText} onChange={e=>setCaptionText(e.target.value)} slotProps={{htmlInput:{maxLength:200}}}/><TextField size="small" fullWidth label="Link for the caption (optional)" placeholder={artPick?.page||'https://…'} value={captionUrl} onChange={e=>setCaptionUrl(e.target.value)}/></div>
     <RadioGroup value={slide} onChange={e=>setSlideMode(e.target.value as typeof slide)}>
      {book.published&&<FormControlLabel value="keep" control={<Radio/>} label="Keep the current slide"/>}
      <FormControlLabel value="none" control={<Radio/>} label="Automatic: a painting from the gallery rotation"/>

@@ -49,6 +49,9 @@ class AccessTests(RolesTest):
         anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
         self.assertEqual(anon.get('/api/library').json()['books'][0]['slide']['mode'],'cover')
         self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'keep','fit':'whole'}).json(),{'mode':'cover','fit':'whole'})
+        got=owner.put('/api/library/'+book['id']+'/slide',json={'mode':'keep','caption':'Moses, Rembrandt, 1659','caption_url':'https://commons.wikimedia.org/wiki/X'}).json()
+        self.assertEqual((got['caption'],got['captionUrl'],got['fit']),('Moses, Rembrandt, 1659','https://commons.wikimedia.org/wiki/X','whole'))
+        self.assertNotIn('captionUrl',owner.put('/api/library/'+book['id']+'/slide',json={'mode':'keep','caption_url':'javascript:alert(1)'}).json())
         self.assertEqual(anon.get('/api/library/'+book['id']+'/art').status_code,404)
     def test_figures_quotes_and_tables_are_published_and_served(self):
         owner,_=self.owner()

@@ -47,9 +47,13 @@ def meta(book_id:str)->dict:
     path=_dir()/(book_id+'.json')
     try:return json.loads(path.read_text())
     except (OSError,ValueError):return {}
-def set_mode(book_id:str,mode:str,credit:dict|None=None,fit:str|None=None):
+def set_mode(book_id:str,mode:str,credit:dict|None=None,fit:str|None=None,caption:str|None=None,caption_url:str|None=None):
     old=meta(book_id)
     m={'mode':mode if mode!='keep' else old.get('mode','none'),'at':int(time.time()),'fit':fit or old.get('fit','fill')}
+    # A caption the editor wrote (or cleared with an empty string) outlives changes of picture.
+    text=old.get('caption','') if caption is None else caption.strip()[:200];link=old.get('captionUrl','') if caption_url is None else caption_url.strip()
+    if text:m['caption']=text
+    if link.startswith('https://') and len(link)<=600:m['captionUrl']=link
     if mode=='keep':
         if 'credit' in old:m['credit']=old['credit']
         m['at']=old.get('at',m['at'])
@@ -68,6 +72,8 @@ def slide(book_id:str)->dict:
     m=meta(book_id);mode=m.get('mode','none')
     if mode in ('art','upload') and not (_dir()/book_id).exists():mode='none'
     out={'mode':mode,'fit':m.get('fit','fill')}
+    if m.get('caption'):out['caption']=m['caption']
+    if m.get('captionUrl'):out['captionUrl']=m['captionUrl']
     if mode=='art':
         c=m.get('credit',{});out.update({'art':'/api/library/'+book_id+'/art?v='+str(m.get('at',0)),'credit':{k:c.get(k,'') for k in ('title','artist','year','page')}})
     if mode=='upload':out['art']='/api/library/'+book_id+'/art?v='+str(m.get('at',0))
