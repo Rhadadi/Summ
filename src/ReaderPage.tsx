@@ -100,7 +100,7 @@ export default function ReaderPage(p:Props){
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
-   <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
+   <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>

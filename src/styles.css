@@ -621,3 +621,6 @@ body{background:var(--bg);color:var(--ink)}
 }
 .m-wall-head{justify-content:flex-end}.m-wall{padding-top:56px}
 @media (max-width:899px){.topbar-menu{order:0}.topbar2 .language-switch{order:1}.topbar-logo{order:2;margin-inline-start:auto;margin-left:auto}}
+
+.r2-mobile-logo{border:0;background:none;padding:0;display:block}.r2-mobile-logo .lockup{width:124px;max-width:124px}
+.r2-mobilebar{justify-content:space-between}
