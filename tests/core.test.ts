@@ -20,3 +20,7 @@ test('Persian title pages remain front matter even after the substantive chapter
  const all=chaptersFromText('# فصل یک\n\nمتن\n\n# صفحات عنوان، پیشگفتار و مقدمه\n\nمتن');
  assert.equal(sectionKind(all[0],0,all),'main');assert.equal(sectionKind(all[1],1,all),'front');
 });
+test('Persian and English afterwords are back matter',()=>{
+ const all=chaptersFromText('# فصل یک\n\nمتن\n\n# پس‌گفتار\n\nمتن\n\n# Afterword\n\nText');
+ assert.equal(sectionKind(all[1],1,all),'back');assert.equal(sectionKind(all[2],2,all),'back');
+});

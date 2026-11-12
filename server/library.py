@@ -95,7 +95,7 @@ def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)

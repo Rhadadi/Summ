@@ -79,6 +79,14 @@ class AccessTests(RolesTest):
         self.assertEqual(r.get('/api/me').json()['role'],'reader');self.assertEqual(r.get('/api/me').json()['editorRequest']['status'],'rejected')
         self.assertEqual(r.post('/api/editor-request',json={}).status_code,200)
 class PublishTests(RolesTest):
+    def test_chapter_count_excludes_back_matter(self):
+        owner,_=self.owner()
+        d=doc()
+        d['chapters'].append({'id':'afterword','title':{'en':'Afterword','fa':'پس‌گفتار'},'group':'back'})
+        d['versions'][0]['chapters']['afterword']={'paragraphs':[para('Closing note.',(12,))]}
+        book=owner.post('/api/library',json={'doc':d}).json()
+        self.assertEqual(book['chapters'],2)
+
     def test_publish_list_read_unlist_and_remove(self):
         owner,_=self.owner();pub=owner.post('/api/library',json={'doc':doc(),'visibility':'public'});self.assertEqual(pub.status_code,200,pub.text)
         book=pub.json();self.assertEqual(book['languages'],['en']);self.assertTrue(book['slug'].startswith('a-test-book-'))
