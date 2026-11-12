@@ -31,9 +31,9 @@ export default function HomePage({config,onEditHome,lang,published,canEdit,onOpe
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
  const backdropFor=(b:PubBook,i:number):Backdrop=>{
-  if((b.slide?.mode==='art'||b.slide?.mode==='upload')&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit};
+  if((b.slide?.mode==='art'||b.slide?.mode==='upload')&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit,whole:b.slide.fit==='whole'};
   if(b.slide?.mode==='cover'&&b.cover)return{url:b.cover,position:'50% 50%',blur:true,credit:null};
-  return galleryBackdrop(rotation[i%rotation.length]);
+  return{...galleryBackdrop(rotation[i%rotation.length]),whole:b.slide?.fit==='whole'};
  };
  const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:backdropFor(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];

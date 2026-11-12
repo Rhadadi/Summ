@@ -47,8 +47,12 @@ def meta(book_id:str)->dict:
     path=_dir()/(book_id+'.json')
     try:return json.loads(path.read_text())
     except (OSError,ValueError):return {}
-def set_mode(book_id:str,mode:str,credit:dict|None=None):
-    m={'mode':mode,'at':int(time.time())}
+def set_mode(book_id:str,mode:str,credit:dict|None=None,fit:str|None=None):
+    old=meta(book_id)
+    m={'mode':mode if mode!='keep' else old.get('mode','none'),'at':int(time.time()),'fit':fit or old.get('fit','fill')}
+    if mode=='keep':
+        if 'credit' in old:m['credit']=old['credit']
+        m['at']=old.get('at',m['at'])
     if mode=='art' and credit:m['credit']=credit
     (_dir()/(book_id+'.json')).write_text(json.dumps(m))
 def save_upload(book_id:str,data:bytes):
@@ -63,7 +67,7 @@ def slide(book_id:str)->dict:
     """What the home page needs: how to dress this book's slide."""
     m=meta(book_id);mode=m.get('mode','none')
     if mode in ('art','upload') and not (_dir()/book_id).exists():mode='none'
-    out={'mode':mode}
+    out={'mode':mode,'fit':m.get('fit','fill')}
     if mode=='art':
         c=m.get('credit',{});out.update({'art':'/api/library/'+book_id+'/art?v='+str(m.get('at',0)),'credit':{k:c.get(k,'') for k in ('title','artist','year','page')}})
     if mode=='upload':out['art']='/api/library/'+book_id+'/art?v='+str(m.get('at',0))

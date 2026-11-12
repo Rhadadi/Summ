@@ -5,7 +5,7 @@ import{tr,num}from'./i18n';
 import{artUrl,type Art}from'./art';
 
 // Where a slide's picture comes from: a gallery painting, a painting chosen for the book, or the cover itself.
-export interface Backdrop{url:string;position:string;blur?:boolean;credit?:{title:string;artist:string;year:string}|null}
+export interface Backdrop{url:string;position:string;whole?:boolean;blur?:boolean;credit?:{title:string;artist:string;year:string}|null}
 export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),position:a.position,credit:{title:a.title,artist:a.artist,year:a.year}});
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
@@ -31,7 +31,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
   {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} onClick={()=>{if(!swiped.current&&s.cover)s.actions[0]?.onClick();}} style={s.cover?{cursor:'pointer'}:undefined} {...(i!==at?{inert:true}:{})}>
    {/* The painting is shown whole; a blurred copy of it fills the rest of the frame. */}
    <img className="m-fill" src={s.backdrop.url} alt="" aria-hidden="true" loading={i===0?'eager':'lazy'} decoding="async"/>
-   <img className={'m-art'+(s.backdrop.blur?' blur':'')} src={s.backdrop.url} alt="" loading={i===0?'eager':'lazy'} decoding="async"/>
+   <img className={'m-art'+(s.backdrop.blur?' blur':'')+(s.backdrop.whole?' whole':'')} src={s.backdrop.url} alt="" loading={i===0?'eager':'lazy'} decoding="async"/>
    <div className="m-shade"/>
    <div className="m-inner">
     <div className="m-text">

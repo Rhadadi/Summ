@@ -521,7 +521,7 @@ async def editorial_assist(body:EditorialAssistBody,user:dict=Depends(ai_user)):
     if not isinstance(value,str) or not value.strip() or len(value)>12000:raise HTTPException(502,'The AI did not return usable text. Nothing was changed.')
     return {'text':value.strip()}
 class SlideBody(StrictModel):
-    mode:Literal['none','cover','art'];file:str|None=Field(default=None,max_length=240)
+    mode:Literal['none','cover','art','keep'];file:str|None=Field(default=None,max_length=240);fit:Literal['fill','whole']|None=None
 @app.put('/api/library/{book_id}/slide')
 async def library_slide(book_id:str,body:SlideBody,user:dict=Depends(editor_user)):
     own_or_owner(user,book_id);throttle('art:'+user['id'],30)
@@ -530,7 +530,7 @@ async def library_slide(book_id:str,body:SlideBody,user:dict=Depends(editor_user
         if not body.file:raise HTTPException(422,'Choose a painting first.')
         try:credit=await artwork.save(book_id,body.file)
         except httpx.HTTPError:raise HTTPException(502,'Wikimedia Commons did not answer. Try again in a moment.')
-    artwork.set_mode(book_id,body.mode,credit)
+    artwork.set_mode(book_id,body.mode,credit,body.fit)
     library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
     return artwork.slide(book_id)
 @app.get('/api/library/{book_id}/art')

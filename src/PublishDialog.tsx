@@ -27,7 +27,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
  const[visibility,setVisibility]=useState<'public'|'unlisted'>(book.published?.visibility||'public');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[done,setDone]=useState<{slug:string;id:string}|null>(book.published?{slug:book.published.slug,id:book.published.id}:null),[status,setStatus]=useState<NarrationStatus|null>(null);
  // How this book looks on the home page: a gallery painting chosen for the book, or just its cover.
- const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[tags,setTags]=useState<string[]>([]);
+ const[slide,setSlideMode]=useState<'keep'|'none'|'cover'|'art'>(book.published?'keep':'none'),[artPick,setArtPick]=useState<ArtResult|null>(null),[picker,setPicker]=useState(false),[fit,setFit]=useState<'fill'|'whole'>('fill'),[tags,setTags]=useState<string[]>([]);
  useEffect(()=>{store.info(book.id).then(info=>setTags(tagsOf(info?.categories||[]))).catch(()=>{});},[book.id]);
  const[withPages,setWithPages]=useState(false),[withFigures,setWithFigures]=useState(true);
  const[localReview,setLocalReview]=useState<LocalReview|null>(null),[withReview,setWithReview]=useState(true);
@@ -57,7 +57,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
    const cover=(await store.cover(book.id).catch(()=>undefined))?.blob;
    if(cover)await uploadCover(result.id,await coverBlob(cover)).catch(()=>setError('Published, but the cover could not be uploaded.'));
    for(const f of figures.files)await uploadFigure(result.id,f.name,await figureBlob(f.image)).catch(()=>setError('Published, but a figure could not be uploaded.'));
-   if(slide!=='keep')await setSlide(result.id,slide,artPick?.file).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
+   if(slide!=='keep'||fit==='whole')await setSlide(result.id,slide,artPick?.file,fit).catch(e=>setError('Published, but the home slide could not be set: '+(e as Error).message));
    setDone({slug:result.slug,id:result.id});onPublished({id:result.id,slug:result.slug,visibility,at:Date.now()});
    for(const e of entries.filter(x=>VOICES.includes(x.choice.language)&&voiceFor(x.choice.language)!=='none'))setStatus(await startNarration(result.id,e.choice.language,e.choice.type,voiceFor(e.choice.language)as'offline'|'elevenlabs').catch(err=>{setError('Published. Narration could not start: '+(err as Error).message);return null;}));
   }catch(e){setError((e as Error).message);}finally{setBusy('');}
@@ -88,6 +88,10 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
     <p className="settings-help">{hasOverview?'The overview, takeaways and study guide are included.':'No whole-book overview in this language yet; only chapter summaries are published.'}</p>
     {localReview?.approved&&<FormControlLabel control={<Checkbox checked={withReview} onChange={e=>setWithReview(e.target.checked)}/>} label="Include the approved reception: rating, praise and criticism, quotes"/>}
     <h4 className="pub-h">Home page slide</h4>
+    <RadioGroup row value={fit} onChange={e=>setFit(e.target.value as typeof fit)} sx={{mb:1}}>
+     <FormControlLabel value="fill" control={<Radio size="small"/>} label="Fill the frame"/>
+     <FormControlLabel value="whole" control={<Radio size="small"/>} label="Show the whole picture over a blurred fill"/>
+    </RadioGroup>
     <RadioGroup value={slide} onChange={e=>setSlideMode(e.target.value as typeof slide)}>
      {book.published&&<FormControlLabel value="keep" control={<Radio/>} label="Keep the current slide"/>}
      <FormControlLabel value="none" control={<Radio/>} label="Automatic: a painting from the gallery rotation"/>

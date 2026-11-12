@@ -561,3 +561,9 @@ body{background:var(--bg);color:var(--ink)}
 .home-edit{display:flex;justify-content:flex-end;max-width:1320px;margin:10px auto 0;padding:0 64px}.home-edit button{border:1px solid var(--m-rule);background:transparent;color:var(--m-muted);border-radius:980px;padding:6px 16px;font:500 13px -apple-system,BlinkMacSystemFont,sans-serif}
 .home-rows{display:grid;gap:6px;margin:14px 0}.home-row-edit{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.home-row-edit.off{opacity:.55}.home-n{width:20px;text-align:center;color:var(--muted);font-size:13px}.home-title{flex:1;min-width:0;margin:0!important}
 @media (max-width:899px){.home-edit{padding:0 22px}}
+
+/* Backgrounds fill the frame by default; "whole" shows the picture complete over a blurred copy of itself */
+.m-fill{display:none}
+.m-art{object-fit:cover!important}
+.m-art.whole{object-fit:contain!important}
+.m-slide:has(.m-art.whole) .m-fill{display:block}

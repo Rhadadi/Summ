@@ -39,8 +39,8 @@ class AccessTests(RolesTest):
         self.assertEqual(r.get('/api/library').status_code,200)
     def test_home_slide_choice_and_art_are_editor_only(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc(),'visibility':'public'}).json()
-        self.assertEqual(book['slide'],{'mode':'none'})
-        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'cover'}).json(),{'mode':'cover'})
+        self.assertEqual(book['slide'],{'mode':'none','fit':'fill'})
+        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'cover'}).json(),{'mode':'cover','fit':'fill'})
         self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'art'}).status_code,422)
         self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'art','file':'File:../x.jpg'}).status_code,422)
         r=self.reader()
@@ -48,6 +48,7 @@ class AccessTests(RolesTest):
         self.assertEqual(r.put('/api/library/'+book['id']+'/slide',json={'mode':'cover'}).status_code,403)
         anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
         self.assertEqual(anon.get('/api/library').json()['books'][0]['slide']['mode'],'cover')
+        self.assertEqual(owner.put('/api/library/'+book['id']+'/slide',json={'mode':'keep','fit':'whole'}).json(),{'mode':'cover','fit':'whole'})
         self.assertEqual(anon.get('/api/library/'+book['id']+'/art').status_code,404)
     def test_figures_quotes_and_tables_are_published_and_served(self):
         owner,_=self.owner()
