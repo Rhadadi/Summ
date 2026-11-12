@@ -39,7 +39,7 @@ export default function ReaderPage(p:Props){
  const report=data.report;
  const lang=data.version?.language||report?.language||Object.values(data.summaries)[0]?.language||settings.language,L=(t:string)=>tr(lang,t);
 
- const guideItems=[...(report?.overview?[{id:'overview',label:L('Overview and key takeaways')}]:[]),...(report?.guide?.sections||[]).map(s=>({id:'g:'+s.kind,label:s.title}))];
+ const guideItems=[...(report?.overview?[{id:'overview',label:L('Overview and key takeaways')}]:[]),...(report?.guide?.sections||[]).map(s=>({id:'g:'+s.kind,label:L(s.title)}))];
  const isChapter=!section;
  const summary=isChapter?(p.summary||data.summaries[chapter.id]||null):null;
  const index=main.indexOf(chapter);
@@ -98,11 +98,11 @@ export default function ReaderPage(p:Props){
    <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
-    <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/><IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>
+    <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>
     <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
     {paragraphs(report.overview.paragraphs)}
    </div>}
-   {guideSection&&<div dir={rtl(report?.language)}><div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/><IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
+   {guideSection&&<div dir={rtl(report?.language)}><div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
     <div className="r2-bar"><span className="r2-chip">{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}

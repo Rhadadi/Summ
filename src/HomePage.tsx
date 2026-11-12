@@ -33,17 +33,8 @@ export default function HomePage({lang,published,canEdit,onOpenPublished,books,c
  };
  const slides:Slide[]=books_.length?books_.slice(0,6).map((b,i):Slide=>({key:b.id,backdrop:backdropFor(b,i),eyebrow:L('Featured')+' · '+num(lang,i+1),title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:b.rating||undefined,facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
- const ways=[
-  {art:art.spitzweg,title:'Read in minutes',text:lang==='fa'?'خلاصهٔ فصل‌ها را با فرصت و حوصله بخوانید.':'Explore each chapter in a focused summary.'},
-  {art:art.hammershoi,title:'Listen anywhere',text:lang==='fa'?'خلاصه‌ها را هنگام قدم زدن یا در فرصت‌های کوتاه بشنوید.':'Listen to available narration while you walk, cook or wait.'},
-  {art:art.friedrich,title:'See the whole book',text:lang==='fa'?'پیش از انتخاب کتاب، ایده‌های اصلی و دیدگاه خوانندگان را ببینید.':'Explore the key ideas before choosing what to read next.'},
- ];
  const intro=<>
   <MuseumHero slides={slides} lang={lang}/>
-  <section className="m-ways" aria-label={L('Ways in')}>
-   <p className="m-kicker">{L('Three ways in')}</p>
-   <div className="m-ways-grid">{ways.map(w=><button key={w.title} className="m-way" onClick={()=>navigate(w.title==='Listen anywhere'?'/library/listen':'/library')}><span className="m-way-img"><img src={import.meta.env.BASE_URL+'art/'+w.art.file} alt="" loading="lazy" style={{objectPosition:w.art.position}}/></span><small><em>{w.art.title}</em>, {w.art.artist}</small><strong>{L(w.title)}</strong><span>{w.text}</span><span className="m-way-go">{L('Start')} <ArrowForwardRounded/></span></button>)}</div>
-  </section>
   <section className="m-wall" aria-label={L('The library')}>
    <div className="m-wall-head"><div><p className="m-kicker">{L('On the wall now')}</p><h2>{books_.length?L('Pick one and begin.'):'The first summaries are on their way.'}</h2></div>{books_.length>0&&<button className="see-all" onClick={()=>navigate('/library')}>{L('See all')} {num(lang,books_.length)} <ArrowForwardRounded/></button>}</div>
    {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}

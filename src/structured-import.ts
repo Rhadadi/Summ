@@ -13,7 +13,7 @@ export const latinDigits=(text:string)=>text.replace(/[۰-۹٠-٩]/g,d=>DIGITS[d
 const delimiter=/^\s*={3,}\s*INKLING\b(.*?)=*\s*$/i;
 const overviewHead=/^(?:overview|(?:book |whole[- ]book |executive )?summary|summary of the (?:book|work)|نمای کلی|مرور(?: کلی)?|خلاصه(?:ٔ|‌)?(?: کلی| کتاب)?|نظرة عامة|ملخص)\s*[:：]?$/iu;
 const takeawayHead=/^(?:key (?:take-?aways|points|ideas|lessons)|main take-?aways|take-?aways|نکات کلیدی|نکته‌های کلیدی|نکته‌های اصلی|برداشت‌های کلیدی|أهم النقاط|النقاط الرئيسية)\s*[:：]?$/iu;
-const pageRef=/[\[(]\s*(?:pp?|pages?|ص|صفحه|صفحات)\.?\s*([\d۰-۹٠-٩][\d۰-۹٠-٩\s,،–—-]*)[\])]/giu;
+const pageRef=/[\[(]\s*(?:pp?|pages?|ص|صص|صفحه|صفحات)\.?\s*([\d۰-۹٠-٩][\d۰-۹٠-٩\s,،–—-]*)[\])]/giu;
 const headingLine=/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 function inline(text:string){
