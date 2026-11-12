@@ -34,7 +34,7 @@ export function markdownExport(book:Book,chapter:Chapter,items:ReturnType<typeof
 export function bodyChapter(c:Chapter):Chapter{const blocks=c.blocks.filter(b=>!b.note);return blocks.length?{...c,blocks}:c;}
 // Short unpunctuated lines inside a chapter are section headings.
 export const isHeading=(text:string)=>text.length<90&&!/[.!?:;,"”’)]$/.test(text)&&!/^[•\d]/.test(text);
-const frontMatter=/^(?:contents|table of contents|acknowledg|list of|abbreviations|texts, transcriptions|map|maps|copyright|dedication|title page|half title|blank|front matter|пустая|series|also by|praise for|cover)/i;
+const frontMatter=/^(?:contents|table of contents|acknowledg|list of|abbreviations|texts, transcriptions|map|maps|copyright|dedication|title page|half title|blank|front matter|пустая|series|also by|praise for|cover|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)/i;
 const backMatter=/^(?:works quoted|works cited|bibliography|references|index|notes|endnotes|about the author|glossary)/i;
 // Splits a book's sections into front matter, main chapters, and back matter for navigation.
 export function sectionKind(c:Chapter,i:number,all:Chapter[]):'front'|'main'|'back'{

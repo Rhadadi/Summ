@@ -2,7 +2,7 @@ export type Depth='glance'|'overview'|'detailed'|'close';
 export interface Block{id:string;text:string;location:string;page?:number;note?:boolean}
 export interface Chapter{id:string;title:string;blocks:Block[]}
 export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string;importVersion?:number;published?:{id:string;slug:string;visibility:'public'|'unlisted';at:number}}
-export interface Settings{depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
+export interface Settings{uiLanguage?:'fa'|'en';depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
 export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[];pages?:number[];image?:{path:string;alt:string};table?:string[][];quote?:boolean}
@@ -34,6 +34,6 @@ export interface Review{verdict:string;audience?:string;aboutAuthor?:string;auth
 export interface LocalReview{review:Review;approved:boolean}
 export interface PubDoc{review?:Review|null;title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
 export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;blurb?:string;slide?:{mode:'none'|'cover'|'art';art?:string;credit?:{title:string;artist:string;year:string;page:string}};rating?:{source:string;rating:number;count:number|null}|null;year?:string;doc?:PubDoc}
-export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string}[]}
+export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;tracks:{title:string;chapterId:string|null;url:string;seconds?:number|null}[]}
 export interface AppConfig{google_client_id:string;signup:boolean}
 export interface ArtResult{file:string;title:string;artist:string;year:string;page:string;thumb:string;width:number;height:number}

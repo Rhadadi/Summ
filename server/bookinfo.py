@@ -35,6 +35,11 @@ async def _wikipedia(client:httpx.AsyncClient,title:str,author:str)->dict|None:
         if s.status_code!=200:continue
         d=s.json()
         if d.get('type')=='disambiguation':continue
+        extract=d.get('extract','')
+        # Title overlap alone confuses books with similarly named films/series.
+        author_words=_words(author)
+        if not author_words or not author_words&_words(extract):continue
+        if not re.search(r'\b(book|novel|novella|memoir|essay|poetry|collection|treatise)\b|کتاب|رمان',extract,re.I):continue
         return {'source':'Wikipedia','title':d.get('title',''),'extract':d.get('extract','')[:2000],'url':(d.get('content_urls') or {}).get('desktop',{}).get('page'),'cover':(d.get('originalimage') or {}).get('source'),'license':'CC BY-SA 4.0'}
     return None
 async def lookup(title:str,author:str,google_volume_id:str|None=None)->dict:

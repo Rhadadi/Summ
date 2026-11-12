@@ -1,6 +1,6 @@
 import{useEffect,useMemo,useRef,useState}from'react';
-import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField}from'@mui/material';
-import{ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
+import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
+import{CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
 import{Logo}from'./Shell';
 import{enFonts,faFonts,installed,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
@@ -23,7 +23,7 @@ export default function ReaderPage(p:Props){
  const[view,setView]=useState<'summary'|'original'>('summary'),[list,setList]=useState(false),[more,setMore]=useState(false);
  const[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
  const top=useRef<HTMLDivElement>(null);
- const[reading,setReading]=useReading(),[look,setLook]=useState<HTMLElement|null>(null);
+ const[reading,setReading]=useReading(),[look,setLook]=useState<HTMLElement|null>(null),phone=useMediaQuery('(max-width:699px)');
  // Reopening a chapter returns to where the reader stopped; moving on starts at the top.
  useEffect(()=>{
   const place=!section?lastPlace(book.id):null;
@@ -37,7 +37,7 @@ export default function ReaderPage(p:Props){
  },[book.id,chapter.id,section]);
  const main=mainChapters(book),kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const report=data.report;
- const lang=p.readOnly?(data.version?.language||report?.language||Object.values(data.summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
+ const lang=data.version?.language||report?.language||Object.values(data.summaries)[0]?.language||settings.language,L=(t:string)=>tr(lang,t);
 
  const guideItems=[...(report?.overview?[{id:'overview',label:L('Overview and key takeaways')}]:[]),...(report?.guide?.sections||[]).map(s=>({id:'g:'+s.kind,label:s.title}))];
  const isChapter=!section;
@@ -62,9 +62,9 @@ export default function ReaderPage(p:Props){
  }
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
   return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><img src={pictures[x.image.path]||x.image.path} alt={x.image.alt} loading="lazy"/><figcaption dir="auto">{x.text}</figcaption></figure>
-   :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h3>{x.heading}</h3>}{x.text}{refs(x,c)}</blockquote>
-   :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
-   :<div className="r2-p" key={i}>{x.heading&&<h3 dir="auto">{x.heading}</h3>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
+   :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}{x.text}{refs(x,c)}</blockquote>
+   :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
+   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){
@@ -74,32 +74,33 @@ export default function ReaderPage(p:Props){
   const first=body[0]&&body[0].text.length<300&&[...words(body[0].text)].filter(w=>titleWords.has(w)).length>=Math.min(4,titleWords.size*.7)?1:0;
   return <>{body.slice(first).map(b=>{
    const marker=b.page!==page?b.page:undefined;page=b.page;
-   if(isHeading(b.text))return <h3 key={b.id} className="text-h" dir="auto">{b.text}</h3>;
-   return <div className="text-p" key={b.id}>{marker&&<button className="folio" onClick={()=>p.onEvidence(b,b.text,c)} aria-label={'Page '+marker}>{marker}</button>}<p dir="auto">{b.text}</p><IconButton className="keep" size="small" aria-label={kept(b)?'Unsave passage':'Save passage'} onClick={()=>p.onBookmark(b,b.text,c)}>{kept(b)?<BookmarkRounded fontSize="inherit"/>:<BookmarkBorderRounded fontSize="inherit"/>}</IconButton></div>;
-  })}{notes.length>0&&<details className="notes"><summary>Notes ({notes.length})</summary>{notes.map(b=><p key={b.id} dir="auto"><button className="folio-inline" onClick={()=>p.onEvidence(b,b.text,c)}>p. {b.page}</button> {b.text}</p>)}</details>}</>;
+   if(isHeading(b.text))return <h2 key={b.id} className="text-h" dir="auto">{b.text}</h2>;
+   return <div className="text-p" key={b.id}>{marker&&<button className="folio" onClick={()=>p.onEvidence(b,b.text,c)} aria-label={L('Page')+' '+num(lang,marker)}>{num(lang,marker)}</button>}<p dir="auto">{b.text}</p><IconButton className="keep" size="small" aria-label={L(kept(b)?'Unsave passage':'Save passage')} onClick={()=>p.onBookmark(b,b.text,c)}>{kept(b)?<BookmarkRounded fontSize="inherit"/>:<BookmarkBorderRounded fontSize="inherit"/>}</IconButton></div>;
+  })}{notes.length>0&&<details className="notes"><summary>{L('Notes')} ({num(lang,notes.length)})</summary>{notes.map(b=><p key={b.id} dir="auto"><button className="folio-inline" onClick={()=>p.onEvidence(b,b.text,c)}>{L('Page')} {num(lang,b.page||0)}</button> {b.text}</p>)}</details>}</>;
  }
- const row=(c:Chapter)=>{const n=data.titles[c.id]||p.readOnly?(main.includes(c)?main.indexOf(c)+1:0):Number(c.title.match(/^(\d+)[.\s]/)?.[1]||0);const on=isChapter&&c.id===chapter.id;
+ const row=(c:Chapter)=>{const n=main.includes(c)?main.indexOf(c)+1:Number(c.title.match(/^(\d+)[.\s]/)?.[1]||0);const on=isChapter&&c.id===chapter.id;
   return <button key={c.id} className={'r2-row'+(on?' on':'')+(data.summaries[c.id]||p.readOnly?'':' empty')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n?num(lang,n):''}</span><span className="t" dir="auto">{chapterTitle(data,c)}</span></button>;};
- const panel=<nav className="r2-list" aria-label="Contents">
+ const panel=<nav className="r2-list" aria-label={L('Contents')}>
   <button className="r2-brand" onClick={p.onHome}><Logo/><span>Inkling</span></button>
   <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
   {guideItems.length>0&&<><p className="r2-head">{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
+  {kinds.some(k=>k==='front')&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{book.chapters.filter((_,i)=>kinds[i]==='front').map(row)}</>}
   <p className="r2-head">{L('Chapters')}</p>
   {main.map(row)}
-  {kinds.some(k=>k!=='main')&&!p.readOnly&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]!=='main').map(row)}</>}
+  {kinds.some(k=>k==='back')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>{more&&book.chapters.filter((_,i)=>kinds[i]==='back').map(row)}</>}
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
- return <div className={'r2 look-'+reading.theme} dir={isRtl(lang)?'rtl':undefined} style={readingStyle(reading)}>
+ return <div className={'r2 look-'+reading.theme} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
-  <article className="r2-main" ref={top}>
-   <div className="r2-mobilebar"><IconButton aria-label="Back to the book" onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label="Contents" onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
-   <div className="r2-tools"><IconButton aria-label="Reading settings" onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>{summary&&p.readOnly&&<Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>}</div>
+  <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
+   <div className="r2-mobilebar"><IconButton aria-label={L('Back to the book')} onClick={p.onBack}><ArrowBackIosNewRounded/></IconButton><span>{isChapter?(index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):'Section'):'Study guide'}</span><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton></div>
+   <div className="r2-tools"><IconButton aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>{summary&&p.readOnly&&<Button size="small" startIcon={<PlayArrowRounded/>} onClick={()=>p.onListen(chapter.id)}>{L('Listen')}</Button>}</div>
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     <p className="r2-kicker">{L('Study guide')}</p><h1>{L('Overview')}</h1>
+    <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
     {paragraphs(report.overview.paragraphs)}
-    <div className="r2-box"><strong>Key takeaways</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
    </div>}
    {guideSection&&<div dir={rtl(report?.language)}><p className="r2-kicker">{L('Study guide')}</p><h1 dir="auto">{guideSection.title}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
@@ -115,7 +116,7 @@ export default function ReaderPage(p:Props){
       <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>}
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
      <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter)}</>}</div></>
-    :p.readOnly?<div className="r2-box"><strong>This chapter isn’t part of the published summary</strong><p>Pick another chapter from the list.</p></div>
+    :p.readOnly?<div className="r2-box"><strong>{L('This chapter isn’t part of the published summary')}</strong><p>{L('Pick another chapter from the list.')}</p></div>
     :<div className="r2-box">
      <strong>This chapter isn’t summarized yet</strong>
      <p>{bookWords({...book,chapters:[bodyChapter(chapter)]}).toLocaleString()} words{estimate!=null?' · about '+money(estimate)+' with your Gemini key':''}. Or read the original text.</p>
@@ -129,7 +130,8 @@ export default function ReaderPage(p:Props){
    </>}
   </article>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
-  <Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel reading={reading} onChange={setReading}/></Popover>
+  {phone?<Drawer anchor="bottom" open={!!look} onClose={()=>setLook(null)} slotProps={{paper:{className:'look-sheet'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Drawer>
+  :<Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Popover>}
   <Popover open={!!opts} anchorEl={opts} onClose={()=>setOpts(null)} slotProps={{paper:{className:'opts-pop'}}}>
    <TextField select size="small" fullWidth label="Purpose" value={settings.purpose} onChange={e=>p.onPreferences({purpose:e.target.value as Settings['purpose']})}><MenuItem value="understand">Understand</MenuItem><MenuItem value="learn">Learn</MenuItem><MenuItem value="academic">Academic</MenuItem><MenuItem value="apply">Apply</MenuItem></TextField>
    <TextField select size="small" fullWidth label="Summary language" value={settings.language} onChange={e=>p.onPreferences({language:e.target.value})}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>
@@ -139,18 +141,26 @@ export default function ReaderPage(p:Props){
 }
 
 // Size, spacing, width, page colour and fonts for Persian and English text.
-function ReadingPanel({reading,onChange}:{reading:Reading;onChange:(patch:Partial<Reading>)=>void}){
- const seg=<K extends keyof Reading>(key:K,options:[Reading[K],string][])=><div className="look-seg" role="group">{options.map(([v,l])=><button key={String(v)} aria-pressed={reading[key]===v} className={reading[key]===v?'on':''} onClick={()=>onChange({[key]:v} as Partial<Reading>)}>{l}</button>)}</div>;
+// Fonts this device lacks stay folded away, and the font lists open only on request, so the panel fits a phone.
+function ReadingPanel({lang,reading,onChange,onClose}:{lang:string;reading:Reading;onChange:(patch:Partial<Reading>)=>void;onClose:()=>void}){
+ const L=(text:string)=>tr(lang,text);
+ const seg=<K extends keyof Reading>(key:K,options:[Reading[K],string][])=><div className="look-seg" role="group">{options.map(([v,l])=><button key={String(v)} aria-pressed={reading[key]===v} className={reading[key]===v?'on':''} onClick={()=>onChange({[key]:v} as Partial<Reading>)}>{L(l)}</button>)}</div>;
  const[fa]=useState(()=>faFonts.map(f=>({...f,ok:installed(f)})));
- return <div className="look">
-  <div className="look-size"><button aria-label="Smaller text" onClick={()=>onChange({size:Math.max(14,reading.size-1)})}>A</button><input type="range" min={14} max={30} value={reading.size} aria-label="Text size" onChange={e=>onChange({size:+e.target.value})}/><button aria-label="Larger text" className="big" onClick={()=>onChange({size:Math.min(30,reading.size+1)})}>A</button></div>
-  <div className="look-themes" role="group" aria-label="Page colour">{(['paper','white','sepia','night'] as const).map(t=><button key={t} aria-label={t} aria-pressed={reading.theme===t} className={'sw sw-'+t+(reading.theme===t?' on':'')} onClick={()=>onChange({theme:t})}>Aa</button>)}</div>
-  <label>Line spacing</label>{seg('leading',[['tight','Compact'],['normal','Normal'],['airy','Airy']])}
-  <label>Page width</label>{seg('width',[['narrow','Narrow'],['medium','Medium'],['wide','Wide']])}
-  <label>Persian font</label>
-  <div className="look-fonts">{fa.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':'Not installed on this device'}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · not installed'}</small></button>)}</div>
-  <label>English font</label>
+ const[missing,setMissing]=useState(false),[fontsOpen,setFontsOpen]=useState(false);
+ const usable=fa.filter(f=>f.ok),absent=fa.filter(f=>!f.ok),current=fa.find(f=>f.id===reading.fa),currentEn=enFonts.find(f=>f.id===reading.en);
+ return <div className="look" lang={lang} dir={lang==='fa'?'rtl':'ltr'}>
+  <div className="look-head"><strong>{L('Reading settings')}</strong><IconButton size="small" aria-label={L('Close')} onClick={onClose}><CloseRounded/></IconButton></div>
+  <div className="look-size"><button aria-label={L('Smaller text')} onClick={()=>onChange({size:Math.max(14,reading.size-1)})}>A</button><input type="range" min={14} max={30} value={reading.size} aria-label={L('Text size')} onChange={e=>onChange({size:+e.target.value})}/><button aria-label={L('Larger text')} className="big" onClick={()=>onChange({size:Math.min(30,reading.size+1)})}>A</button></div>
+  <div className="look-themes" role="group" aria-label={L('Page colour')}>{(['paper','white','sepia','night'] as const).map(t=><button key={t} aria-label={L(t)} aria-pressed={reading.theme===t} className={'sw sw-'+t+(reading.theme===t?' on':'')} onClick={()=>onChange({theme:t})}>Aa</button>)}</div>
+  <label>{L('Line spacing')}</label>{seg('leading',[['tight','Compact'],['normal','Normal'],['airy','Airy']])}
+  <label>{L('Page width')}</label>{seg('width',[['narrow','Narrow'],['medium','Medium'],['wide','Wide']])}
+  <button className="look-fold" aria-expanded={fontsOpen} onClick={()=>setFontsOpen(!fontsOpen)}><span>{L('Fonts')}</span><small>{current?.label.split(' · ')[0]} · {currentEn?.label}</small></button>
+  {fontsOpen&&<>
+  <label>{L('Persian font')}</label>
+  <div className="look-fonts">{usable.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':L('Not installed on this device')}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · '+L('not installed')}</small></button>)}{absent.length>0&&<button className="look-more" onClick={()=>setMissing(!missing)}>{missing?L('Hide'):L('Show')} · {absent.length} {L('not installed')}</button>}{missing&&absent.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':L('Not installed on this device')}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · '+L('not installed')}</small></button>)}</div>
+  <label>{L('English font')}</label>
   <div className="look-fonts en">{enFonts.map(f=><button key={f.id} className={reading.en===f.id?'on':''} onClick={()=>onChange({en:f.id})} style={{fontFamily:f.family}}><span>The examined life</span><small>{f.label}</small></button>)}</div>
-  <label className="look-switch"><input type="checkbox" checked={reading.justify} onChange={e=>onChange({justify:e.target.checked})}/> Justify text</label>
+  </>}
+  <label className="look-switch"><input type="checkbox" checked={reading.justify} onChange={e=>onChange({justify:e.target.checked})}/> {L('Justify text')}</label>
  </div>;
 }

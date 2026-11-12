@@ -95,7 +95,7 @@ def _public(row)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover' if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':len(d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)
@@ -198,7 +198,7 @@ def narration_status(book_id:str,language:str)->dict:
     rows=q('SELECT status,done,total,tracks,error FROM narration WHERE book_id=? AND language=?',(book_id,language))
     if not rows:return {'status':'none','done':0,'total':0,'tracks':[]}
     status,done,total,tracks,error=rows[0]
-    return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}"} for t in json.loads(tracks)]}
+    return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/8000,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
 def audio_path(book_id:str,language:str,name:str)->Path|None:
     if not re.fullmatch(r'\d{1,4}\.mp3',name) or language not in audio.PIPER_VOICES:return None
     if not re.fullmatch(r'[0-9a-f-]{36}',book_id):return None

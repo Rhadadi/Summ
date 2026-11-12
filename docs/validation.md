@@ -1,5 +1,22 @@
 # Validation
 
+## Six-persona UX follow-up — November 12, 2026
+
+Deployed on top of Claude's `62e8739` reader/reception update. Preserved the new fonts, reading preferences, painting picker, and removal of public page chips and completion controls.
+
+- Added Persian-first public navigation with a separate saved English interface choice; translated discovery titles, reader preferences, metadata and audio controls.
+- Public-library search now filters all available title translations and author names, normalizes Persian/Arabic letter variants, and displays empty results and reset actions.
+- Added audio position/rate persistence, an explicit resume label, restart action and named playlist subdivisions. Listening cards preserve listening intent. Published fixed-bitrate audio exposes an approximate listening duration separately from reading time.
+- Removed the unverified Wikipedia fallback from book reception; new Wikipedia lookups require author and book-type evidence. This suppresses the previously observed unrelated TV-series description without fabricating replacement reviews.
+- Moved takeaways ahead of detailed overviews, aligned reading-time estimates with chapter estimates, recognized Persian front matter, corrected reader language and heading semantics, and moved the skip destination past navigation.
+- Featured books no longer auto-rotate. A 390px browser check found and fixed long Persian featured titles hiding the primary actions.
+
+Validation: 39 frontend tests, production TypeScript/Vite build, and 54 backend tests passed. Backend tests ran in an isolated production image without the production data volume or environment. Browser checks used the actual public catalogue via a local preview, then the deployed website. Production search returned only Midlife for `ميانسالي`. Production narration resumed at 0:15 and 1.25× after refresh. Its estimated listening duration was visible before play. The unrelated TV description was absent from Can Love Last? reception. Local reader skip navigation focused the article, Persian text inherited `lang=fa`, and settings labels were Persian. Desktop and 390px responsive screenshots were inspected; this is not a physical-phone or screen-reader certification.
+
+Deployment source backup: `~/summ-deployment-backups/before-ux-20261111.tar.gz` on the existing home server. The existing reverse proxy and production book data were preserved. Local and server source changes remain uncommitted.
+
+Content refresh remains pending: Chrome's Rumi profile signed in successfully but showed only the sample book; the other available profile was signed out. Requested the Chrome workspace containing the original imports before researching reception, re-importing Staring at the Sun or republishing those books. No live Gemini call or book-content republish is claimed.
+
 ## Sidebar layout and cleanup — November 11, 2026
 
 - New layout: sidebar and search, home with Continue reading, book page, reader with chapter list, and one narration player that stays across pages. Checked with the real 366-page PDF in WebKit and Chromium at desktop and phone width, on the home server (live site, no account).

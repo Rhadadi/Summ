@@ -1,0 +1,7 @@
+Nazli, Nazli Bold and Homa
+Copyright (c) 2003 by Sharif FarsiWeb Inc. (https://farsiweb.ir/wiki/persian_fonts/)
+
+These fonts are free software; you can redistribute them and/or modify them under the terms of the
+GNU General Public License as published by the Free Software Foundation; either version 2, or
+(at your option) any later version. They are distributed WITHOUT ANY WARRANTY.
+Converted to WOFF2 from the Debian package fonts-farsiweb 0.4.dfsg-14.

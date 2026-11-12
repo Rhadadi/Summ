@@ -7,17 +7,20 @@ import{displayName}from'./core';
 import{mainChapters,strip}from'./bookData';
 import Cover from'./Cover';
 import MuseumHero,{galleryBackdrop,type Backdrop,type Slide}from'./MuseumHero';
+import{tr,num}from'./i18n';
+import{publicTitle}from'./discovery';
 import{art,rotation}from'./art';
 
-interface Props{published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
+interface Props{lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
 export const author=(b:Book)=>b.author==='Author not supplied'?'':displayName(b.author);
 export function Shelf({book,url}:{book:Book;url?:string}){return <span className="shelf"><span className="shelf-arc"/><Cover book={book} url={url} className="shelf-cover"/></span>;}
-export default function HomePage({published,canEdit,onOpenPublished,books,covers,saved,onRead,onOpen,onListen,onAdd,navigate}:Props){
+export default function HomePage({lang,published,canEdit,onOpenPublished,books,covers,saved,onRead,onOpen,onListen,onAdd,navigate}:Props){
+ const L=(text:string)=>tr(lang,text);
  const[ready,setReady]=useState<Record<string,number>>({});
  const recent=[...books].sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt)).slice(0,4);
  // Whole-book reports say how many chapters already have summaries to listen to.
  useEffect(()=>{let live=true;Promise.all(recent.map(async b=>{const key=await store.latestReport(b.id).catch(()=>undefined);const r=key?await store.report(key).catch(()=>undefined):undefined;return[b.id,r?Object.keys(r.chapters).length:0]as const;})).then(x=>{if(live)setReady(Object.fromEntries(x));});return()=>{live=false;};},[books]);
- const first=(b:PubBook)=>b.title.split(':')[0];
+ const first=(b:PubBook)=>{const title=publicTitle(b,lang).split(':')[0];return title.match(/^.*?[؟?]/)?.[0]||title;};
  const books_=published||[];
  // The first slide always says what this place is; each published book then gets a painting of its own.
  const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
@@ -28,21 +31,21 @@ export default function HomePage({published,canEdit,onOpenPublished,books,covers
   if(b.slide?.mode==='cover'&&b.cover)return{url:b.cover,position:'50% 50%',blur:true,credit:null};
   return galleryBackdrop(rotation[i%rotation.length]);
  };
- const slides:Slide[]=books_.length?books_.slice(0,6).map((b,i):Slide=>({key:b.id,backdrop:backdropFor(b,i),eyebrow:'Featured · No. '+(i+1),title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||'Every chapter summarized, with page references and a narrated version.'),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:b.rating||undefined,facts:[b.chapters+(b.chapters===1?' chapter':' chapters'),b.languages.map(l=>names[l]||l).join(' · ')],actions:[{label:'Read the summary',primary:true,onClick:()=>onOpenPublished(b)},{label:'See the library',onClick:()=>navigate('/library')}]}))
+ const slides:Slide[]=books_.length?books_.slice(0,6).map((b,i):Slide=>({key:b.id,backdrop:backdropFor(b,i),eyebrow:L('Featured')+' · '+num(lang,i+1),title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:b.rating||undefined,facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const ways=[
-  {art:art.spitzweg,title:'Read in minutes',text:'Every chapter in a few calm paragraphs, with the page numbers to check them against the book.'},
-  {art:art.hammershoi,title:'Listen anywhere',text:'A narrated version of each summary, ready to play while you walk, cook or wait.'},
-  {art:art.friedrich,title:'See the whole book',text:'An overview, the key ideas and what readers made of it, before you decide what to read next.'},
+  {art:art.spitzweg,title:'Read in minutes',text:lang==='fa'?'خلاصهٔ فصل‌ها را با فرصت و حوصله بخوانید.':'Explore each chapter in a focused summary.'},
+  {art:art.hammershoi,title:'Listen anywhere',text:lang==='fa'?'خلاصه‌ها را هنگام قدم زدن یا در فرصت‌های کوتاه بشنوید.':'Listen to available narration while you walk, cook or wait.'},
+  {art:art.friedrich,title:'See the whole book',text:lang==='fa'?'پیش از انتخاب کتاب، ایده‌های اصلی و دیدگاه خوانندگان را ببینید.':'Explore the key ideas before choosing what to read next.'},
  ];
  const intro=<>
-  <MuseumHero slides={slides}/>
-  <section className="m-ways" aria-label="Ways in">
-   <p className="m-kicker">Three ways in</p>
-   <div className="m-ways-grid">{ways.map(w=><button key={w.title} className="m-way" onClick={()=>navigate('/library')}><span className="m-way-img"><img src={import.meta.env.BASE_URL+'art/'+w.art.file} alt="" loading="lazy" style={{objectPosition:w.art.position}}/></span><small><em>{w.art.title}</em>, {w.art.artist}</small><strong>{w.title}</strong><span>{w.text}</span><span className="m-way-go">Start <ArrowForwardRounded/></span></button>)}</div>
+  <MuseumHero slides={slides} lang={lang}/>
+  <section className="m-ways" aria-label={L('Ways in')}>
+   <p className="m-kicker">{L('Three ways in')}</p>
+   <div className="m-ways-grid">{ways.map(w=><button key={w.title} className="m-way" onClick={()=>navigate(w.title==='Listen anywhere'?'/library/listen':'/library')}><span className="m-way-img"><img src={import.meta.env.BASE_URL+'art/'+w.art.file} alt="" loading="lazy" style={{objectPosition:w.art.position}}/></span><small><em>{w.art.title}</em>, {w.art.artist}</small><strong>{L(w.title)}</strong><span>{w.text}</span><span className="m-way-go">{L('Start')} <ArrowForwardRounded/></span></button>)}</div>
   </section>
-  <section className="m-wall" aria-label="The library">
-   <div className="m-wall-head"><div><p className="m-kicker">On the wall now</p><h2>{books_.length?'Pick one and begin.':'The first summaries are on their way.'}</h2></div>{books_.length>0&&<button className="see-all" onClick={()=>navigate('/library')}>See all {books_.length} <ArrowForwardRounded/></button>}</div>
+  <section className="m-wall" aria-label={L('The library')}>
+   <div className="m-wall-head"><div><p className="m-kicker">{L('On the wall now')}</p><h2>{books_.length?L('Pick one and begin.'):'The first summaries are on their way.'}</h2></div>{books_.length>0&&<button className="see-all" onClick={()=>navigate('/library')}>{L('See all')} {num(lang,books_.length)} <ArrowForwardRounded/></button>}</div>
    {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>
  </>;

@@ -221,7 +221,7 @@ body{background:var(--bg);color:var(--ink)}
 .r2-switch button{min-height:36px;padding:0 18px;border:0;border-radius:8px;background:none;color:var(--ink);font:15px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}
 .r2-switch button.on{background:var(--surface);color:var(--brand);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .r2-main h1{margin:0 0 22px;font:700 34px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.3px}
-.r2-p h3{margin:28px 0 6px;font:600 22px/1.3 var(--serif)}
+.r2-p h2{margin:28px 0 6px;font:600 22px/1.3 var(--serif)}
 .r2-p p,.r2-main .text-p p{margin:0 0 18px;font:400 20px/1.75 var(--serif);text-wrap:pretty}
 .r2-main .text-h{margin:36px 0 12px;font:600 22px/1.35 var(--serif)}
 .r2-p p .refs{display:inline-flex;flex-wrap:wrap;gap:4px;margin-inline-start:6px;vertical-align:2px}
@@ -367,7 +367,7 @@ body{background:var(--bg);color:var(--ink)}
 .wizard-found.off{opacity:.55}.wizard-pick{margin:0!important;margin-inline-end:auto!important}.wizard-pick strong{font-size:15px}
 .wizard-peek{margin:10px 0 0;padding:10px 14px;border-inline-start:3px solid var(--line);background:var(--surface-low);border-radius:0 8px 8px 0;font:400 14px/1.6 var(--serif);color:var(--ink)}.wizard-peek small{display:block;margin-top:4px;font:12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted)}
 .rv{margin-bottom:34px}
-.r2-quote{margin:28px 0;padding:6px 22px;border-inline-start:3px solid var(--brand);font:italic 400 1.12em/1.7 var(--serif);color:var(--ink)}.r2-quote h3{font-style:normal}
+.r2-quote{margin:28px 0;padding:6px 22px;border-inline-start:3px solid var(--brand);font:italic 400 1.12em/1.7 var(--serif);color:var(--ink)}.r2-quote h2{font-style:normal}
 .visitor-bar{display:flex;align-items:center;gap:10px;padding:10px 40px;background:#fff3d6;color:#5b4310;font-size:14px;border-bottom:1px solid #ecd9a8}.visitor-bar svg{font-size:20px}.visitor-bar button{margin-inline-start:auto;border:1px solid #b8893b;background:transparent;color:inherit;border-radius:980px;padding:5px 14px}
 @media (max-width:899px){.visitor-bar{padding:10px 16px;flex-wrap:wrap}}
 .rv-themes{display:flex;flex-wrap:wrap;gap:8px}.rv-themes span{border:1px solid var(--line);border-radius:980px;padding:5px 14px;font:500 14px var(--serif);background:var(--surface)}
@@ -402,7 +402,7 @@ body{background:var(--bg);color:var(--ink)}
 .r2-kicker{color:var(--rmuted)}
 .r2-main h1{font:700 clamp(28px,3.4vw,40px)/1.25 var(--read-font,var(--serif));letter-spacing:-.01em;margin-bottom:28px}
 .r2-p p,.r2-main .text-p p{font:400 var(--read-size,20px)/var(--read-lh,1.85) var(--read-font,var(--serif));text-align:var(--read-align,start);color:var(--rink)}
-.r2-p h3{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-font,var(--serif));margin-top:34px}
+.r2-p h2{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-font,var(--serif));margin-top:34px}
 .r2-quote{font:italic 400 calc(var(--read-size,20px)*1.08)/1.7 var(--read-font,var(--serif))}
 [dir=rtl] .r2-quote{font-style:normal}
 .r2-box li{font:400 calc(var(--read-size,20px)*.95)/1.7 var(--read-font,var(--serif))}
@@ -421,6 +421,7 @@ body{background:var(--bg);color:var(--ink)}
 /* Book page: tags in the hero, a lead paragraph, and the reception laid out like a magazine review page */
 .hero-tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}.hero-tags span{padding:4px 12px;border-radius:980px;border:1px solid var(--line);font:500 13px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted)}
 .about .about-lead{font:400 21px/1.75 var(--serif);max-width:760px;margin-bottom:12px}
+.about-section{max-width:760px;margin-bottom:20px}.about-section h3{font:700 20px/1.5 var(--sans);margin:0 0 8px}.about-section p{margin:0}
 .facts-line{margin:18px 0 0!important;font:13px -apple-system,BlinkMacSystemFont,sans-serif!important;color:var(--muted)}
 .rv{gap:36px}
 .rv-board{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:28px 44px;align-items:center;padding:30px 32px;border-radius:18px;background:var(--surface);border:1px solid var(--line)}
@@ -471,3 +472,19 @@ body{background:var(--bg);color:var(--ink)}
 [dir=rtl] .ch-row>svg,[dir=rtl] .text-link2 svg{transform:scaleX(-1)}
 .rv-pros li,.rv-cons li{text-align:start}
 .ap-bar{padding-top:10px}
+
+/* Public discovery and reading improvements. */
+.language-switch{border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);min-height:44px;padding:0 14px;white-space:nowrap}
+.shell[dir=rtl] .shell-side{left:auto;right:0}
+.shell[dir=rtl] .m-text{font-family:"Vazirmatn Variable",sans-serif}.shell[dir=rtl] .m-text h1{font-family:inherit;line-height:1.5;letter-spacing:0}
+.card-foot{gap:12px;flex-wrap:wrap}.card-foot button,.r2-tools button{min-height:44px}
+.quick-takeaways{margin:22px 0;line-height:1.9}.quick-takeaways li{margin-block:10px}
+.player-playlist{position:relative;padding:4px 20px 8px}.player-playlist summary{cursor:pointer;min-height:32px}.player-playlist>div{position:absolute;bottom:100%;inset-inline:0;background:var(--surface);border:1px solid var(--line);box-shadow:0 -8px 32px #0002;max-height:50vh;overflow:auto;padding:12px;display:grid;gap:4px}.player-playlist button{text-align:start;min-height:44px;color:var(--ink);background:transparent;border:0;padding:8px 12px}.player-playlist button[aria-current=true]{background:var(--line)}
+@media(max-width:899px){.shell[dir=rtl] .shell-main{margin-right:0}.language-switch{padding-inline:10px}.search2{min-width:0}.topbar2{gap:8px}}
+
+@media(max-width:899px){.shell[dir=rtl] .m-text h1{font-size:clamp(26px,7vw,34px);line-height:1.5}.m-cover img{height:150px}.m-inner{padding-bottom:110px}.m-btn{padding-inline:16px}}
+.look-head{display:flex;justify-content:space-between;align-items:center;margin:-6px 0 2px}.look-head strong{font-size:16px}
+.look-fold{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:600 14px -apple-system,BlinkMacSystemFont,sans-serif}.look-fold small{font-weight:400;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.look-more{justify-content:center!important;color:var(--brand)!important;font-size:13px}
+.look-sheet{max-height:78dvh;border-radius:20px 20px 0 0!important}.look-sheet .look{padding:18px 18px calc(18px + env(safe-area-inset-bottom))}.look-sheet .look-head{position:sticky;top:-18px;z-index:1;padding:14px 0 8px;margin-top:-18px;background:var(--surface)}
+.look-sheet .look-fonts{max-height:none}
