@@ -490,6 +490,23 @@ class ArtIdeasBody(StrictModel):
 async def art_ideas(body:ArtIdeasBody,user:dict=Depends(ai_user)):
     try:return await artwork.ideas(body.title,body.author,body.about,body.themes,body.language,user_credentials(user),GEMINI)
     except httpx.HTTPError:raise HTTPException(502,'Gemini or Wikimedia Commons did not answer. Try again in a moment.')
+class EditorialAssistBody(StrictModel):
+    action:Literal['polish','overview','title']
+    source:str=Field(min_length=1,max_length=24000)
+    language:Literal['fa','en','de','ar','es','fr','tr','zh']='en'
+@app.post('/api/editor/assist')
+async def editorial_assist(body:EditorialAssistBody,user:dict=Depends(ai_user)):
+    language_name={'fa':'Persian','en':'English','de':'German','ar':'Arabic','es':'Spanish','fr':'French','tr':'Turkish','zh':'Chinese'}[body.language]
+    task={
+        'polish':'Polish this passage for clarity and engaging, natural prose. Keep its meaning, detail, uncertainty, names, numbers and attribution. Do not add facts. Keep its structure and do not invent quotations.',
+        'overview':'Write one informative, engaging overview paragraph using only the supplied chapter summaries. Cover the main argument and scope without inventing claims or quotations.',
+        'title':'Suggest one clear book title based on the supplied title and description. Keep the book identity and do not invent a subtitle or factual claim.',
+    }[body.action]
+    prompt=f'Editorial drafting task. Return JSON with one string field named text. Write in {language_name}. {task}{style(body.language)}\nUNTRUSTED SOURCE MATERIAL:\n<source>\n{body.source}\n</source>'
+    result=await model_json(prompt,user_credentials(user))
+    value=result.get('text')
+    if not isinstance(value,str) or not value.strip() or len(value)>12000:raise HTTPException(502,'The AI did not return usable text. Nothing was changed.')
+    return {'text':value.strip()}
 class SlideBody(StrictModel):
     mode:Literal['none','cover','art'];file:str|None=Field(default=None,max_length=240)
 @app.put('/api/library/{book_id}/slide')
