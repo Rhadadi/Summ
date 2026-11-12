@@ -5,19 +5,19 @@ import{tr,rtl}from'./i18n';
 import type{Account}from'./types';
 
 export function Logo({dark=false}:{dark?:boolean}){
- const drop=dark?'currentColor':'#ff5a3c',page=dark?'var(--surface,#fff)':'#fff',dot=dark?'var(--surface,#fff)':'#ffc93c';
+ const drop=dark?'currentColor':'var(--brand)',page=dark?'var(--surface,#fff)':'#fff',dot=dark?'var(--surface,#fff)':'#ffc93c';
  return <svg className="logo-mark" width="28" height="28" viewBox="552 32 176 176" aria-hidden="true"><path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill={drop}/><path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill={page}/><path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill={page}/><path d="M640 98L651 109L640 120L629 109Z" fill={dot}/></svg>;
 }
 // Full logo: Persian name, English name, optional tagline, and the ink-drop mark. Text follows the theme.
 export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;className?:string}){
  const fa='"Vazirmatn Variable",Vazirmatn,sans-serif';
  return <svg className={className} style={{direction:'ltr',letterSpacing:0,wordSpacing:0,textTransform:'none',fontStyle:'normal'}} viewBox={tagline?'190 30 520 190':'190 30 520 172'} role="img" aria-label="Inkling">
-  <path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill="#ff5a3c"/>
+  <path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill="var(--brand)"/>
   <path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill="#fff"/>
   <path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill="#fff"/>
   <path d="M640 98L651 109L640 120L629 109Z" fill="#ffc93c"/>
   <text x="530" y="124" textAnchor="end" fontFamily={fa} fontSize="92" fontWeight="800" fill="currentColor">اینکلینگ</text>
-  <text x="530" y="176" textAnchor="end" fontFamily={fa} fontSize="46" fontWeight="800" letterSpacing="-1"><tspan fill="#ff5a3c">ink</tspan><tspan fill="currentColor">ling</tspan></text>
+  <text x="530" y="176" textAnchor="end" fontFamily={fa} fontSize="46" fontWeight="800" letterSpacing="-1"><tspan fill="var(--brand)">ink</tspan><tspan fill="currentColor">ling</tspan></text>
   {tagline&&<text x="530" y="212" textAnchor="end" fontFamily={fa} fontSize="20" fill="currentColor" opacity=".7">خلاصهٔ کتاب‌ها به فارسی</text>}
  </svg>;
 }
