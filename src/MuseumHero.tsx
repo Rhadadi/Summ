@@ -10,7 +10,7 @@ export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),position:a.positi
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
 export interface Slide{key:string;backdrop:Backdrop;eyebrow:string;title:string;by?:string;text:string;cover?:string|null;rtl?:boolean;score?:{rating:number;count:number|null;source:string};facts?:string[];actions:{label:string;onClick:()=>void;primary?:boolean}[]}
-const EVERY=8000;
+const EVERY=5000;
 const Stars=({value,lang}:{value:number;lang:string})=><span className="m-stars" role="img" aria-label={num(lang,value)+' '+tr(lang,'out of 5')}>{[1,2,3,4,5].map(i=>value>=i-.25?<StarRounded key={i}/>:value>=i-.75?<StarHalfRounded key={i}/>:<StarBorderRounded key={i}/>)}</span>;
 export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:string}){
  const L=(t:string)=>tr(lang,t);
