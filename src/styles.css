@@ -570,3 +570,12 @@ body{background:var(--bg);color:var(--ink)}
 
 .m-credit{color:#d9c9a6;text-decoration:none;opacity:.6;transition:opacity .2s}a.m-credit:hover{opacity:1;text-decoration:underline;text-underline-offset:3px}
 .pub-caption{display:grid;gap:10px;margin:6px 0 12px}
+
+/* Calmer slide footer: plain dots with no timer bar, and a shorter hero so the shelf of books shows beneath it */
+.m-dot{width:18px;height:18px;justify-content:center}
+.m-dot span{width:7px!important;height:7px!important;border-radius:50%!important;background:rgba(255,247,232,.4)!important;overflow:visible!important}
+.m-dot.on span{background:#f4e3bd!important}
+.m-dot span:after,.m-dot.on span:after{display:none!important;animation:none!important}
+.m-dots{gap:2px}
+.museum{height:clamp(500px,66vh,660px)}
+@media (max-width:899px){.museum{height:min(600px,calc(100svh - 150px))}}
