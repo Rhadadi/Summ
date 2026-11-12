@@ -88,16 +88,20 @@ async def guardian(client:httpx.AsyncClient,title:str,author:str)->list[dict]:
     return found[:3]
 
 async def nyt(client:httpx.AsyncClient,title:str,author:str,isbn:str='')->list[dict]:
-    """New York Times reviews through the NYT Books API (needs NYT_API_KEY). The API gives the link, byline and a short summary."""
+    """New York Times book reviews through the NYT Article Search API (needs NYT_API_KEY with Article Search enabled).
+    The API gives the headline, byline, the paper's own abstract and the opening paragraph."""
     key=os.getenv('NYT_API_KEY','').strip()
     if not key:return []
-    params={'api-key':key,**({'isbn':isbn} if isbn else {'title':title.split(':')[0]})}
-    r=await client.get('https://api.nytimes.com/svc/books/v3/reviews.json',params=params)
+    short=title.split(':')[0].strip();surname=(author.split() or [''])[-1]
+    r=await client.get('https://api.nytimes.com/svc/search/v2/articlesearch.json',params={'q':'"'+short+'" '+surname,'fq':'section.name:("Books") OR typeOfMaterials:("Review")','sort':'relevance','api-key':key})
+    docs=((r.json().get('response') or {}).get('docs') or []) if r.status_code==200 else []
     found=[]
-    for x in (r.json().get('results') or []) if r.status_code==200 else []:
-        if author and (author.split() or [''])[-1].lower() not in (x.get('book_author') or '').lower():continue
-        found.append({'publication':'The New York Times','reviewer':_plain(x.get('byline','')),'date':x.get('publication_dt',''),'headline':'',
-                      'excerpt':'','context':_plain(x.get('summary','')),'summary':_plain(x.get('summary','')),'url':x.get('url'),'via':'The New York Times','verified':True})
+    for d in docs:
+        head=_plain(((d.get('headline') or {}).get('main')) or '');abstract=_plain(d.get('abstract') or '');lead=_plain(d.get('lead_paragraph') or '')
+        if short.lower() not in (head+' '+abstract+' '+lead).lower() or (surname and surname.lower() not in (head+' '+abstract+' '+lead).lower()):continue
+        excerpt=next((x for x in (abstract,lead) if 5<=_words(x)<=45),'')
+        found.append({'publication':'The New York Times','reviewer':_plain(((d.get('byline') or {}).get('original')) or '').removeprefix('By ').strip(),'date':(d.get('pub_date') or '')[:10],
+                      'headline':head,'excerpt':excerpt,'context':' '.join(x for x in (abstract,lead) if x),'url':d.get('web_url'),'via':'The New York Times','verified':bool(excerpt)})
     return found[:2]
 
 def _public(url:str)->bool:
