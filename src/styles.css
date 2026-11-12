@@ -624,3 +624,5 @@ body{background:var(--bg);color:var(--ink)}
 
 .r2-mobile-logo{border:0;background:none;padding:0;display:block}.r2-mobile-logo .lockup{width:124px;max-width:124px}
 .r2-mobilebar{justify-content:space-between}
+
+.m-wall{padding-top:36px}@media (max-width:899px){.m-wall{padding-top:24px}}
