@@ -67,12 +67,18 @@ async def wikipedia(client:httpx.AsyncClient,title:str,author:str)->list[dict]:
                           'date':_field(ref,'date'),'headline':headline,'excerpt':'','context':'','url':url,'via':'Wikipedia','verified':False})
     return found[:10]
 
+_guardian_lock=asyncio.Lock()
 async def guardian(client:httpx.AsyncClient,title:str,author:str)->list[dict]:
     """Guardian and Observer reviews through The Guardian Open Platform (needs GUARDIAN_API_KEY)."""
     key=os.getenv('GUARDIAN_API_KEY','').strip()
     if not key:return []
     surname=(author.split() or [''])[-1]
-    r=await client.get('https://content.guardianapis.com/search',params={'q':'"'+title.split(':')[0]+'"'+(' AND '+surname if surname else ''),'tag':'tone/reviews','show-fields':'headline,standfirst,byline,bodyText','page-size':6,'api-key':key})
+    # The free Guardian key allows about one call a second, so calls queue and retry once when refused.
+    params={'q':'"'+title.split(':')[0]+'"'+(' AND '+surname if surname else ''),'tag':'tone/reviews','show-fields':'headline,standfirst,byline,bodyText','page-size':6,'api-key':key}
+    async with _guardian_lock:
+        for attempt in range(3):
+            r=await client.get('https://content.guardianapis.com/search',params=params);await asyncio.sleep(1.1)
+            if r.status_code!=429:break
     found=[]
     for x in ((r.json().get('response') or {}).get('results') or []) if r.status_code==200 else []:
         f=x.get('fields') or {};body=f.get('bodyText','');stand=_plain(f.get('standfirst',''))
@@ -145,6 +151,8 @@ async def page_text(url:str)->str:
     except (httpx.HTTPError,UnicodeError,ValueError):return ''
 async def gather(title:str,author:str,isbn:str='')->dict:
     """Everything the structured sources hold about the book's reception, with a note on what was searched."""
+    # Library records often give "Yalom, Irvin D."; searches want "Irvin D. Yalom".
+    if ',' in author:last,_,first=author.partition(',');author=(first.strip()+' '+last.strip()).strip()
     async with httpx.AsyncClient(timeout=12,headers=HEADERS,follow_redirects=True) as client:
         async def safe(task):
             try:return await task
@@ -163,7 +171,7 @@ async def cached(book_id:str,title:str,author:str)->dict:
     path=_cache(book_id)
     try:
         saved=_json.loads(path.read_text())
-        if _time.time()-saved.get('at',0)<(14 if saved.get('critics') else 1)*86400:return {'critics':saved['critics']}
+        if _time.time()-saved.get('at',0)<(14*86400 if saved.get('critics') else 3600):return {'critics':saved['critics']}
     except (OSError,ValueError):pass
     try:found=await asyncio.wait_for(gather(title,author),25)
     except asyncio.TimeoutError:found={'critics':[]}
