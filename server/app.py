@@ -466,7 +466,7 @@ async def library_figure_upload(book_id:str,name:str,request:Request,user:dict=D
 async def library_figure(book_id:str,name:str):
     found=library.figure(book_id,name)
     if not found:raise HTTPException(404,'No figure.')
-    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
+    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=60'})
 @app.get('/api/library/{book_id}/cover')
 async def library_cover(book_id:str):
     found=library.cover(book_id)
