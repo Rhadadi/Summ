@@ -63,6 +63,14 @@ class AccessTests(RolesTest):
         self.assertEqual(self.reader().put('/api/library/'+bid+'/figure/f3.png',content=png).status_code,403)
         bad=doc();bad['versions'][0]['chapters']['c1']['paragraphs']=[{'text':'x','image':{'name':'../evil.png','alt':''}}]
         self.assertEqual(owner.post('/api/library',json={'doc':bad,'visibility':'public'}).status_code,422)
+    def test_home_settings_are_public_to_read_and_owner_only_to_change(self):
+        owner,_=self.owner();anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
+        self.assertEqual(anon.get('/api/home').json()['seconds'],3)
+        body={'seconds':6,'slides':[{'id':'11111111-1111-1111-1111-111111111111','hidden':True,'seconds':9}],'shelf':False,'stars':True,'autoplay':True,'title':'','text':''}
+        self.assertEqual(owner.put('/api/home',json=body).status_code,200)
+        got=anon.get('/api/home').json();self.assertEqual((got['seconds'],got['shelf'],got['slides'][0]['seconds']),(6,False,9))
+        self.assertEqual(self.reader().put('/api/home',json=body).status_code,403)
+        self.assertEqual(owner.put('/api/home',json={**body,'seconds':1}).status_code,422)
     def test_editor_request_approval_flow(self):
         owner,_=self.owner();r=self.reader('asker')
         self.assertEqual(r.post('/api/editor-request',json={'message':'I translate books.'}).json()['editorRequest']['status'],'pending')

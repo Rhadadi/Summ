@@ -1,16 +1,17 @@
 import{lazy,Suspense,useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,ButtonBase,CircularProgress,CssBaseline,Dialog,DialogActions,DialogContent,DialogTitle,Divider,Drawer,IconButton,LinearProgress,MenuItem,Snackbar,Tab,Tabs,TextField,ThemeProvider,ToggleButton,ToggleButtonGroup,createTheme,useMediaQuery}from'@mui/material';
 import{ArrowForwardRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,CloseRounded,ContentCopyRounded,DeleteOutlineRounded,EditOutlined,FileUploadOutlined,LinkRounded,LockOutlined}from'@mui/icons-material';
-import type{LocalReview,PubBook,Account,AppConfig,Block,Book,Chapter,ImportedVersion,SavedPassage,Settings,Summary}from'./types';
+import type{HomeConfig,LocalReview,PubBook,Account,AppConfig,Block,Book,Chapter,ImportedVersion,SavedPassage,Settings,Summary}from'./types';
 import{depthLabels,languages,markdownExport,selectedPassages}from'./core';
 import{loadSettings,saveSettings,store}from'./storage';
 import{demoBook}from'./demo';import{extractCover,importFile,textBook}from'./importers';
-import{ApiError,libraryList,libraryMine,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
+import{ApiError,homeConfig,libraryList,libraryMine,bookInfo,composeSummary,config,coverImage,importUrl,me,summarize,summaryKey}from'./api';
 import{summarizeChapter}from'./book-summary';
 import{effectivePrice,estimateChapter,money,usageCost}from'./cost';
 import BookSummaryDialog from'./BookSummaryDialog';import AccountDialog from'./AccountDialog';import CostDialog from'./CostDialog';import PeoplePanel from'./PeoplePanel';import PublishedBook from'./PublishedBook';import PublicLibrary from'./PublicLibrary';import PublishDialog from'./PublishDialog';import Shell from'./Shell';import HomePage from'./HomePage';import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';import LibraryPage from'./LibraryPage';import Cover from'./Cover';import{PlayerBar,usePlayer}from'./Player';import{loadBookData,narrationItems,useBookData}from'./bookData';import type{CostRequest}from'./CostDialog';
 import PublishedEditor from'./PublishedEditor';
 import{tr}from'./i18n';
+const HomeEditor=lazy(()=>import('./HomeEditor'));
 const ImportWizard=lazy(()=>import('./ImportWizard'));
 const ReviewDialog=lazy(()=>import('./ReviewDialog'));
 const info_year=(_:Book)=>'';
@@ -30,6 +31,8 @@ export default function App(){
  // Editors can look at the site as a visitor would without signing out.
  const[asVisitor,setAsVisitor]=useState(false),canEdit=isEditor&&!asVisitor;
  const[published,setPublished]=useState<PubBook[]|null>(null),[editableBooks,setEditableBooks]=useState<PubBook[]>([]),[publishOpen,setPublishOpen]=useState(false);
+ const[home,setHome]=useState<HomeConfig|null>(null),[homeOpen,setHomeOpen]=useState(false);
+ useEffect(()=>{homeConfig().then(setHome).catch(()=>{});},[]);
  const refreshPublished=()=>libraryList().then(setPublished).catch(()=>setPublished(old=>old??[]));
  useEffect(()=>{refreshPublished();},[]);
  useEffect(()=>{if(canEdit)libraryMine().then(setEditableBooks).catch(()=>setEditableBooks([]));},[canEdit]);
@@ -151,7 +154,7 @@ export default function App(){
   :isLibrary?<PublicLibrary lang={uiLang} query={query} onClear={()=>setQuery('')} listening={parts[2]==='listen'} books={published} loading={false} canEdit={canEdit} onOpen={b=>navigate('/b/'+b.slug+(parts[2]==='listen'?'/listen':''))} onWorkspace={()=>navigate('/workspace')}/>
   :isPublishedEditor&&canEdit?<PublishedEditor bookId={parts[2]||''} language={uiLang} onBack={()=>navigate('/workspace')} onSaved={()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onAccount={()=>setAccountOpen(true)}/>
   :isWorkspace&&canEdit?<LibraryPage books={books} published={editableBooks} language={uiLang} covers={covers} filter={filter} query={query} onFilter={setFilter} onOpen={openBook} onOpenPublished={b=>navigate('/b/'+b.slug)} onEditPublished={b=>navigate('/edit/'+b.id)} onAdd={beginImport} canSearchBooks={!!appConfig} onRemove={setDeleting} onClear={()=>{setQuery('');setFilter('all');}}/>
-  :<HomePage lang={uiLang} published={published} canEdit={canEdit} onOpenPublished={b=>navigate('/b/'+b.slug)} books={books} covers={covers} saved={saved} onRead={b=>readBook(b)} onOpen={openBook} onListen={b=>listen(b)} onAdd={beginImport} navigate={navigate}/>;
+  :<HomePage config={home} onEditHome={()=>setHomeOpen(true)} lang={uiLang} published={published} canEdit={canEdit} onOpenPublished={b=>navigate('/b/'+b.slug)} books={books} covers={covers} saved={saved} onRead={b=>readBook(b)} onOpen={openBook} onListen={b=>listen(b)} onAdd={beginImport} navigate={navigate}/>;
  return <ThemeProvider theme={theme}><CssBaseline/><a className="skip-link" href="#main-content" onClick={e=>{e.preventDefault();document.getElementById('main-content')?.focus();}}>{L('Skip to content')}</a>
  <div className={player.state?'has-player':''}>
  {error&&<Alert severity="error">{error}</Alert>}
@@ -163,6 +166,7 @@ export default function App(){
   const src=player.state?.book;if(!src)return;
   if(src.id.startsWith('pub:')){navigate('/b/'+src.id.slice(4)+'/read');return;}
   const b=books.find(x=>x.id===src.id);if(b)readBook(b,chapterId?b.chapters.findIndex(c=>c.id===chapterId):undefined);}}/>
+ {homeOpen&&<Suspense fallback={null}><HomeEditor config={home} books={published||[]} lang={uiLang} onClose={()=>setHomeOpen(false)} onSaved={c=>{setHome(c);setHomeOpen(false);setToast('Home page saved.');}}/></Suspense>}
  {publishOpen&&active&&<PublishDialog hasVoiceKey={!!account?.voice} onAccount={()=>setAccountOpen(true)} book={active} data={data} defaultLanguage={settings.language} defaultType={settings.depth} onClose={()=>setPublishOpen(false)} onPublished={p=>{updateBook({...active,published:p});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onUnpublished={()=>{updateBook({...active,published:undefined});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}}/>}
  {reviewOpen&&active&&<Suspense fallback={null}><ReviewDialog book={active} year={String(info_year(active))} initial={review} language={settings.language} onClose={()=>setReviewOpen(false)} onAccount={()=>setAccountOpen(true)} onSave={async v=>{await store.saveReview(active.id,v);setReview(v);setReviewOpen(false);setToast(v.approved?'Reception approved. It appears when you publish.':'Draft saved.');}}/></Suspense>}
  {wizard!==null&&active&&<Suspense fallback={null}><ImportWizard book={active} language={settings.language} existing={data.versions} canGenerate={!!account?.key} startAt={wizard} onClose={()=>setWizard(null)} onSave={saveVersions} onGenerate={()=>{setWizard(null);setBookSummaryOpen(true);}}/></Suspense>}

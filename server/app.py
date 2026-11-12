@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,home,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -486,6 +486,10 @@ async def library_reception(book_id:str,request:Request,lang:str='en'):
 @app.post('/api/review/research')
 async def review_research(body:reviews.ResearchRequest,user:dict=Depends(ai_user)):
     return (await reviews.research(body,user_credentials(user),GEMINI)).model_dump()
+@app.get('/api/home')
+async def home_config():return home.load()
+@app.put('/api/home')
+async def home_save(body:home.HomeConfig,user:dict=Depends(owner_user)):return home.save(body)
 @app.get('/api/art/search')
 async def art_search(q:str,user:dict=Depends(editor_user)):
     throttle('art:'+user['id'],30)

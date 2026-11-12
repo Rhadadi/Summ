@@ -104,7 +104,7 @@ const fa:Record<string,string>={
 'Save preferences':'ذخیرهٔ تنظیمات',
 'Storage is local to this browser and site address. Export notes before clearing site data. Check AI output against its source.':'اطلاعات در همین مرورگر ذخیره می\u200cشود. پیش از پاک کردن اطلاعات سایت، یادداشت\u200cها را خروجی بگیرید. برای بررسی خلاصه به منبع اصلی مراجعه کنید.',
 
- 'Study guide':'راهنمای مطالعه','Start reading':'شروع خواندن','Continue reading':'ادامهٔ خواندن','Listen':'گوش دادن','What’s it about?':'درباره‌ی چیست؟',
+ 'Study guide':'راهنمای مطالعه','Start reading':'شروع خواندن','Continue reading':'ادامهٔ خواندن','Listen':'گوش دادن','What’s it about?':'درباره‌ی این کتاب',
  'Read the overview and key takeaways':'مرور کلی و نکته‌های کلیدی را بخوانید','Chapters':'فصل‌ها','Reception':'بازتاب کتاب','Library':'کتابخانه',
  'Overview and key takeaways':'مرور کلی و نکته‌های کلیدی','Overview':'مرور کلی','Summary':'خلاصه','Original':'متن اصلی','Next':'بعدی','Previous':'قبلی',
  'Mark this chapter as read':'این فصل را خوانده‌ام','Marked as read ✓':'خوانده‌شده ✓','AI summary':'خلاصهٔ هوش مصنوعی','Contents':'فهرست','Section':'بخش',
