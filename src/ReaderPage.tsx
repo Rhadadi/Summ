@@ -2,7 +2,7 @@ import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
 import{Logo}from'./Shell';
-import{enFonts,faFonts,installed,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
+import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
 import{costRange,estimateChapter,money,usageCost}from'./cost';
@@ -141,13 +141,12 @@ export default function ReaderPage(p:Props){
 }
 
 // Size, spacing, width, page colour and fonts for Persian and English text.
-// Fonts this device lacks stay folded away, and the font lists open only on request, so the panel fits a phone.
+// The font lists open only on request, so the panel fits a phone.
 function ReadingPanel({lang,reading,onChange,onClose}:{lang:string;reading:Reading;onChange:(patch:Partial<Reading>)=>void;onClose:()=>void}){
  const L=(text:string)=>tr(lang,text);
  const seg=<K extends keyof Reading>(key:K,options:[Reading[K],string][])=><div className="look-seg" role="group">{options.map(([v,l])=><button key={String(v)} aria-pressed={reading[key]===v} className={reading[key]===v?'on':''} onClick={()=>onChange({[key]:v} as Partial<Reading>)}>{L(l)}</button>)}</div>;
- const[fa]=useState(()=>faFonts.map(f=>({...f,ok:installed(f)})));
- const[missing,setMissing]=useState(false),[fontsOpen,setFontsOpen]=useState(false);
- const usable=fa.filter(f=>f.ok),absent=fa.filter(f=>!f.ok),current=fa.find(f=>f.id===reading.fa),currentEn=enFonts.find(f=>f.id===reading.en);
+ const[fontsOpen,setFontsOpen]=useState(false);
+ const current=faFonts.find(f=>f.id===reading.fa),currentEn=enFonts.find(f=>f.id===reading.en);
  return <div className="look" lang={lang} dir={lang==='fa'?'rtl':'ltr'}>
   <div className="look-head"><strong>{L('Reading settings')}</strong><IconButton size="small" aria-label={L('Close')} onClick={onClose}><CloseRounded/></IconButton></div>
   <div className="look-size"><button aria-label={L('Smaller text')} onClick={()=>onChange({size:Math.max(14,reading.size-1)})}>A</button><input type="range" min={14} max={30} value={reading.size} aria-label={L('Text size')} onChange={e=>onChange({size:+e.target.value})}/><button aria-label={L('Larger text')} className="big" onClick={()=>onChange({size:Math.min(30,reading.size+1)})}>A</button></div>
@@ -157,7 +156,7 @@ function ReadingPanel({lang,reading,onChange,onClose}:{lang:string;reading:Readi
   <button className="look-fold" aria-expanded={fontsOpen} onClick={()=>setFontsOpen(!fontsOpen)}><span>{L('Fonts')}</span><small>{current?.label.split(' · ')[0]} · {currentEn?.label}</small></button>
   {fontsOpen&&<>
   <label>{L('Persian font')}</label>
-  <div className="look-fonts">{usable.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':L('Not installed on this device')}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · '+L('not installed')}</small></button>)}{absent.length>0&&<button className="look-more" onClick={()=>setMissing(!missing)}>{missing?L('Hide'):L('Show')} · {absent.length} {L('not installed')}</button>}{missing&&absent.map(f=><button key={f.id} disabled={!f.ok} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}} title={f.ok?'':L('Not installed on this device')}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}{f.ok?'':' · '+L('not installed')}</small></button>)}</div>
+  <div className="look-fonts">{faFonts.map(f=><button key={f.id} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}</small></button>)}</div>
   <label>{L('English font')}</label>
   <div className="look-fonts en">{enFonts.map(f=><button key={f.id} className={reading.en===f.id?'on':''} onClick={()=>onChange({en:f.id})} style={{fontFamily:f.family}}><span>The examined life</span><small>{f.label}</small></button>)}</div>
   </>}
