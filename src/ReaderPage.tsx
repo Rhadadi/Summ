@@ -1,7 +1,7 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
-import{Logo}from'./Shell';
+import{Lockup}from'./Shell';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
@@ -81,7 +81,7 @@ export default function ReaderPage(p:Props){
  const row=(c:Chapter)=>{const n=main.includes(c)?main.indexOf(c)+1:Number(c.title.match(/^(\d+)[.\s]/)?.[1]||0);const on=isChapter&&c.id===chapter.id;
   return <button key={c.id} className={'r2-row'+(on?' on':'')+(data.summaries[c.id]||p.readOnly?'':' empty')} aria-current={on?'true':undefined} onClick={()=>choose(c)}><span className="n">{n?num(lang,n):''}</span><span className="t" dir="auto">{chapterTitle(data,c)}</span></button>;};
  const panel=<nav className="r2-list" aria-label={L('Contents')}>
-  <button className="r2-brand" onClick={p.onHome}><Logo/><span>Inkling</span></button>
+  <button className="r2-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button>
   <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
   {guideItems.length>0&&<><p className="r2-head">{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
   {kinds.some(k=>k==='front')&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{book.chapters.filter((_,i)=>kinds[i]==='front').map(row)}</>}
