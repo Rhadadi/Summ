@@ -5,7 +5,8 @@ import{tr,rtl}from'./i18n';
 import type{Account}from'./types';
 
 export function Logo({dark=false}:{dark?:boolean}){
- return <svg className="logo-mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="7" fill={dark?'currentColor':'var(--brand)'}/><path d="M8 9.5c2.5-1 4.5-1 6 .5 1.5-1.5 3.5-1.5 6-.5v9c-2.5-1-4.5-1-6 .5-1.5-1.5-3.5-1.5-6-.5z" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinejoin="round"/></svg>;
+ const drop=dark?'currentColor':'#ff5a3c',page=dark?'var(--surface,#fff)':'#fff',dot=dark?'var(--surface,#fff)':'#ffc93c';
+ return <svg className="logo-mark" width="28" height="28" viewBox="552 32 176 176" aria-hidden="true"><path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill={drop}/><path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill={page}/><path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill={page}/><path d="M640 98L651 109L640 120L629 109Z" fill={dot}/></svg>;
 }
 interface Props{lang:string;onLanguage:(lang:'fa'|'en')=>void;route:string;canEdit:boolean;isEditor:boolean;asVisitor:boolean;onToggleVisitor:()=>void;account:Account|null;query:string;onQuery:(value:string)=>void;navigate:(path:string)=>void;onAdd:()=>void;onSettings:()=>void;onAccount:()=>void;children:ReactNode}
 // Sidebar navigation with a search bar on top; the reader uses its own full-screen layout instead.
