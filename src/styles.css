@@ -553,3 +553,6 @@ body{background:var(--bg);color:var(--ink)}
 .m-arrows button svg{font-size:17px}
 .m-count{font-size:12px;opacity:.8}
 .pub-audio{display:grid;gap:10px;margin-bottom:8px}.pub-audio label{display:flex;align-items:center;justify-content:space-between;gap:14px}.pub-audio .MuiTextField-root{min-width:250px}
+.lockup{display:block;width:100%;max-width:190px;height:auto}.r2-brand .lockup{max-width:170px}
+.m-count{display:none}
+.m-arrows{gap:2px}.m-arrows button{width:24px;height:24px;background:none!important;opacity:.55}.m-arrows button:hover{opacity:1}.m-arrows button svg{font-size:16px}

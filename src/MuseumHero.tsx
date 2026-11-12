@@ -45,8 +45,7 @@ export default function MuseumHero({slides,lang='en'}:{slides:Slide[];lang?:stri
   </div>)}
   <div className="m-bar">
    <div className="m-dots" role="tablist" aria-label={L('Choose a slide')}>{slides.map((s,i)=><button key={s.key} role="tab" aria-selected={i===at} aria-label={L('Show slide')+' '+num(lang,i+1)} className={'m-dot'+(i===at?' on':'')+' held'} onClick={()=>go(i)}><span style={{animationDuration:EVERY+'ms'}}/></button>)}</div>
-   <span className="m-count" aria-hidden="true">{String(at+1).padStart(2,'0')} / {String(n).padStart(2,'0')}</span>
-   <div className="m-arrows"><button aria-label={L('Previous slide')} onClick={()=>go(at-1)}><ArrowBackRounded/></button><button aria-label={L('Next slide')} onClick={()=>go(at+1)}><ArrowForwardRounded/></button></div>
+   <div className="m-arrows"><button aria-label={L('Previous slide')} onClick={()=>go(at-1)}>{lang==='fa'||lang==='ar'?<ArrowForwardRounded/>:<ArrowBackRounded/>}</button><button aria-label={L('Next slide')} onClick={()=>go(at+1)}>{lang==='fa'||lang==='ar'?<ArrowBackRounded/>:<ArrowForwardRounded/>}</button></div>
    {current.backdrop.credit&&<span className="m-credit"><em>{current.backdrop.credit.title}</em>{current.backdrop.credit.artist?', '+current.backdrop.credit.artist:''}{current.backdrop.credit.year?', '+current.backdrop.credit.year:''} · Public domain, Wikimedia Commons</span>}
   </div>
  </section>;
