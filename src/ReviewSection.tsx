@@ -33,6 +33,7 @@ export default function ReviewSection({review,scores=[],title,author,draft=false
    <header><span className="rv-pub">{c.publication}</span>{c.stance&&<span className="rv-stance">{L(stanceLabel[c.stance])}</span>}</header>
    {c.headline&&<h4 dir="auto">{c.headline}</h4>}
    {c.excerpt&&<blockquote dir="auto">“{c.excerpt}”</blockquote>}
+   {c.excerpt&&c.translation&&<p className="rv-translation" dir="auto">{c.translation}</p>}
    {c.summary&&<p dir="auto">{c.summary}</p>}
    <footer>{[c.reviewer,c.date].filter(Boolean).join(' · ')}{c.url&&<a href={c.url} target="_blank" rel="noopener noreferrer">{L('Read the review')}<OpenInNewRounded fontSize="inherit"/></a>}</footer>
   </article>)}</div></section>}
@@ -43,10 +44,6 @@ export default function ReviewSection({review,scores=[],title,author,draft=false
   {review&&(review.pros.length>0||review.cons.length>0)&&<section className="rv-block rv-cols">
    {review.pros.length>0&&<div className="rv-pros"><h3>{L('What readers praise')}</h3><ul>{review.pros.map((p,i)=><li key={i} dir="auto">{p}</li>)}</ul></div>}
    {review.cons.length>0&&<div className="rv-cons"><h3>{L('Where it is faulted')}</h3><ul>{review.cons.map((p,i)=><li key={i} dir="auto">{p}</li>)}</ul></div>}
-  </section>}
-  {review&&(review.audience||review.aboutAuthor)&&<section className="rv-block rv-cols">
-   {review.audience&&<div><h3>{L('Who it is for')}</h3><p dir="auto">{review.audience}</p></div>}
-   {review.aboutAuthor&&<div className="rv-author">{review.authorImage&&<a href={review.authorImage.page||undefined} target="_blank" rel="noopener noreferrer"><img src={review.authorImage.url} alt="" loading="lazy"/></a>}<div><h3>{L('About the author')}</h3><p dir="auto">{review.aboutAuthor}</p></div></div>}
   </section>}
   {review&&((review.awards?.length||0)>0||review.impact)&&<section className="rv-block rv-legacy">
    {(review.awards?.length||0)>0&&<div className="rv-awards">{review.awards!.map(a=><span key={a} dir="auto"><EmojiEventsOutlined/>{a}</span>)}</div>}

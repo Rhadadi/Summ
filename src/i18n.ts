@@ -52,7 +52,7 @@ const fa:Record<string,string>={
 'At a glance':'در یک نگاه',
 'Detailed':'مفصل',
 'Comprehensive':'جامع',
-'Reading settings':'تنظیمات مطالعه','Fonts':'قلم‌ها',
+'Reading settings':'تنظیمات مطالعه','Length':'حجم','Show less':'کمتر','Read more':'بیشتر بخوانید','Key ideas':'ایده‌های کلیدی','Fonts':'قلم‌ها',
 'Smaller text':'نوشتهٔ کوچک\u200cتر',
 'Larger text':'نوشتهٔ بزرگ\u200cتر',
 'Text size':'اندازهٔ نوشته',

@@ -4,6 +4,7 @@ import{CloseRounded,DeleteOutlineRounded,OpenInNewRounded}from'@mui/icons-materi
 import type{Book,LocalReview,Review}from'./types';
 import{ApiError,researchReview}from'./api';
 import{languages}from'./core';
+import{store}from'./storage';
 
 interface Props{book:Book;year:string;initial:LocalReview|null;language:string;onClose:()=>void;onSave:(value:LocalReview)=>Promise<void>;onAccount:()=>void}
 const lines=(items:string[])=>items.join('\n');
@@ -14,7 +15,7 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
  const author=book.author==='Author not supplied'?'':book.author;
  async function run(){
   setBusy(true);setError('');
-  try{setReview(await researchReview({title:book.title,author,year,language:lang}));}
+  try{const info=await store.info(book.id).catch(()=>undefined);setReview(await researchReview({title:book.title,author,year:year||info?.year||'',language:lang,isbn:info?.google_edition?.isbns[0]||''}));}
   catch(e){if(e instanceof ApiError&&(e.status===401||e.status===412))onAccount();setError((e as Error).message);}finally{setBusy(false);}
  }
  const set=(patch:Partial<Review>)=>setReview(r=>r&&{...r,...patch});
@@ -22,11 +23,12 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
  return <Dialog open onClose={()=>{if(!busy)onClose();}} fullWidth maxWidth="md" aria-labelledby="review-title" scroll="paper">
   <DialogTitle id="review-title" className="dialog-heading"><span>Reception of <em dir="auto">{book.title.split(':')[0]}</em></span><IconButton aria-label="Close" disabled={busy} onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard">
-   <p className="dialog-lead">Gemini searches the web for the reader rating, what critics wrote and what readers praise or fault. Check every number and quote against its link, edit what is off, then approve. This uses your own Gemini key.</p>
+   <p className="dialog-lead">Inkling collects reviews from Wikipedia's reception section, The Guardian and The New York Times (when their keys are set) and a Google search, opens each review page and quotes it word for word. This takes a minute or two. Check every number and quote against its link, edit what is off, then approve. This uses your own Gemini key.</p>
    <div className="wizard-bar"><TextField select size="small" label="Write it in" value={lang} onChange={e=>setLang(e.target.value)}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>
     <Button variant={review?'outlined':'contained'} disabled={busy} onClick={run} startIcon={busy?<CircularProgress size={16} color="inherit"/>:undefined}>{busy?'Searching the web…':review?'Research again':'Research reviews'}</Button></div>
    {error&&<Alert severity="error" sx={{mb:2}}>{error}</Alert>}
    {review&&<div className="rv-edit">
+    {(review.searched||[]).length>0&&<p className="settings-help">Searched: {(review.searched||[]).map(x=>x.source+(x.enabled?' ('+x.found+')':' (no API key)')).join(' · ')}</p>}
     <Alert severity="warning" sx={{mb:2}}>Generated from web search. Quotes must be short and attributed; remove anything you cannot confirm at its link.</Alert>
     <TextField fullWidth multiline minRows={2} label="Verdict" value={review.verdict} onChange={e=>set({verdict:e.target.value})} slotProps={{htmlInput:{maxLength:800,dir:'auto'}}}/>
     <div className="settings-grid">
@@ -47,7 +49,7 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
     <h4 className="pub-h">Critics ({(review.critics||[]).length})</h4>
     {(review.critics||[]).map((c,i)=><div className="rv-edit-quote" key={'c'+i}>
      <TextField fullWidth multiline size="small" label={c.publication+(c.reviewer?' · '+c.reviewer:'')+(c.stance?' · '+c.stance:'')} value={c.summary} onChange={e=>set({critics:review.critics!.map((x,j)=>j===i?{...x,summary:e.target.value}:x)})} slotProps={{htmlInput:{dir:'auto'}}}/>
-     <small>{c.excerpt?'“'+c.excerpt+'”':'no excerpt'}{c.url?<> · <a href={c.url} target="_blank" rel="noopener noreferrer">check the review <OpenInNewRounded fontSize="inherit"/></a></>:' · no link'}</small>
+     <small>{c.verified===true?'✓ checked on the page · ':c.verified===false?'✗ not found on the page · ':c.excerpt?'⚠ could not open the page to check · ':''}{c.via?'via '+c.via+' · ':''}{c.excerpt?'“'+c.excerpt+'”':'no quote'}{c.url?<> · <a href={c.url} target="_blank" rel="noopener noreferrer">check the review <OpenInNewRounded fontSize="inherit"/></a></>:' · no link'}</small>
      <IconButton aria-label="Remove critic" onClick={()=>set({critics:review.critics!.filter((_,j)=>j!==i)})}><DeleteOutlineRounded/></IconButton></div>)}
     <h4 className="pub-h">Readers ({(review.readers||[]).length})</h4>
     {(review.readers||[]).map((r,i)=><div className="rv-edit-quote" key={'r'+i}>

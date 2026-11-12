@@ -1,11 +1,12 @@
 """A book's critical reception: gathered by Gemini with Google Search, then checked and approved by a person before it is published."""
 from __future__ import annotations
-import json,re,time
+import asyncio,json,re,time
 from typing import Literal
 from urllib.parse import quote,urlsplit
 import httpx
 from fastapi import HTTPException
 from pydantic import BaseModel,ConfigDict,Field,field_validator
+from . import reception
 
 class Strict(BaseModel):model_config=ConfigDict(extra='forbid')
 def _https(url:str|None)->str|None:
@@ -28,6 +29,7 @@ class Critic(Strict):
     publication:str=Field(min_length=1,max_length=120);reviewer:str=Field(default='',max_length=120);date:str=Field(default='',max_length=40)
     headline:str=Field(default='',max_length=200);stance:Literal['positive','mixed','negative','']=''
     excerpt:str=Field(default='',max_length=400);summary:str=Field(default='',max_length=600);url:str|None=Field(default=None,max_length=600)
+    translation:str=Field(default='',max_length=600);via:str=Field(default='',max_length=60);verified:bool|None=None
     _u=field_validator('url')(_link)
 class Voice(Strict):
     name:str=Field(default='',max_length=80);stars:float|None=Field(default=None,ge=0,le=5)
@@ -40,6 +42,8 @@ class Portrait(Strict):
     def wikimedia(cls,v):
         if not re.match(r'https://upload\.wikimedia\.org/',v or ''):raise ValueError('Portraits come from Wikimedia only.')
         return v
+class Searched(Strict):
+    source:str=Field(max_length=60);found:int=Field(ge=0,le=100);enabled:bool=True
 class Review(Strict):
     verdict:str=Field(default='',max_length=800)
     audience:str=Field(default='',max_length=500);aboutAuthor:str=Field(default='',max_length=900);authorImage:Portrait|None=None
@@ -49,6 +53,7 @@ class Review(Strict):
     awards:list[str]=Field(default=[],max_length=8);impact:str=Field(default='',max_length=900)
     pros:list[str]=Field(default=[],max_length=8);cons:list[str]=Field(default=[],max_length=8)
     quotes:list[Quote]=Field(default=[],max_length=8);sources:list[Source]=Field(default=[],max_length=12)
+    searched:list[Searched]=Field(default=[],max_length=6)
     model:str=Field(default='',max_length=100);createdAt:float=0
     @field_validator('pros','cons','themes','awards')
     @classmethod
@@ -56,6 +61,7 @@ class Review(Strict):
         if any(not isinstance(x,str) or len(x)>300 for x in v):raise ValueError('Each point must be short.')
         return v
 class ResearchRequest(Strict):
+    isbn:str=Field(default='',max_length=20)
     title:str=Field(min_length=1,max_length=300);author:str=Field(default='',max_length=300);year:str=Field(default='',max_length=20)
     language:Literal['en','fa','de','ar','es','fr','tr','zh']='en'
 LANGS={'en':'English','fa':'Persian','de':'German','ar':'Arabic','es':'Spanish','fr':'French','tr':'Turkish','zh':'Chinese'}
@@ -137,23 +143,66 @@ async def portrait(author:str)->dict|None:
         if data.get('type')!='standard' or not src.startswith('https://upload.wikimedia.org/'):return None
         return {'url':src,'page':((data.get('content_urls') or {}).get('desktop') or {}).get('page','')}
     except (httpx.HTTPError,ValueError):return None
-async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Review:
+PICK='''You are preparing a book page that quotes what critics wrote about "{title}"{by}.
+Below are review pages, each with a number. For each page decide whether it is a review of, or substantial comment on, THIS book.
+For each relevant page choose the single most quotable sentence that gives the critic's judgement, copied EXACTLY, word for word, from the page (at most 40 words; never edit or join sentences).
+Return JSON: {{"reviews":[{{"n":page number,"relevant":true or false,"excerpt":"verbatim sentence","stance":"positive"|"mixed"|"negative","reviewer":"critic name if the page names one","summary":"two sentences in {language} on the critic's view","translation":"the excerpt translated into {language}, or empty if it is already in {language}"}}]}}
+
+{pages}'''
+async def _ask(prompt:str,creds:tuple[str,str],gemini:str,search:bool=False,tokens:int=16384)->tuple[dict,set[str]]:
     key,model=creds
-    prompt=PROMPT.format(title=request.title,by=' by '+request.author if request.author else '',year=' ('+request.year+')' if request.year else '',language=LANGS[request.language])
-    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'tools':[{'google_search':{}}],'generationConfig':{'temperature':0.2,'maxOutputTokens':16384}}
-    try:
-        async with httpx.AsyncClient(timeout=240) as client:
-            response=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
-        if response.status_code==429:raise HTTPException(429,'Your Gemini quota is exhausted or the model is busy.')
-        if response.status_code in (400,401,403,404):raise HTTPException(502,'Google rejected the request. Check your API key and model in Account (the model must support Google Search).')
-        response.raise_for_status();data=response.json();candidate=data['candidates'][0]
-        text=''.join(p.get('text','') for p in candidate['content']['parts'] if not p.get('thought'))
-        chunks=[c['web'] for c in (candidate.get('groundingMetadata') or {}).get('groundingChunks',[]) if c.get('web')]
-        # Search results name their site by domain, for example "goodreads.com".
-        grounded={t.lower().removeprefix('www.') for t in (c.get('title','') for c in chunks) if '.' in t and '/' not in t and ' ' not in t}
-        review=clean(_json(text),grounded,model)
-    except HTTPException:raise
-    except (httpx.HTTPError,ValueError,KeyError,IndexError,TypeError):
-        raise HTTPException(502,'The research answer was incomplete or unreadable. Try again.') from None
+    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'temperature':0.2,'maxOutputTokens':tokens,**({} if search else {'responseMimeType':'application/json'})},**({'tools':[{'google_search':{}}]} if search else {})}
+    async with httpx.AsyncClient(timeout=240) as client:
+        response=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
+    if response.status_code==429:raise HTTPException(429,'Your Gemini quota is exhausted or the model is busy.')
+    if response.status_code in (400,401,403,404):raise HTTPException(502,'Google rejected the request. Check your API key and model in Account (the model must support Google Search).')
+    response.raise_for_status();candidate=response.json()['candidates'][0]
+    text=''.join(p.get('text','') for p in candidate['content']['parts'] if not p.get('thought'))
+    chunks=[c['web'] for c in (candidate.get('groundingMetadata') or {}).get('groundingChunks',[]) if c.get('web')]
+    # Search results name their site by domain, for example "goodreads.com".
+    grounded={t.lower().removeprefix('www.') for t in (c.get('title','') for c in chunks) if '.' in t and '/' not in t and ' ' not in t}
+    return _json(text),grounded
+_key=lambda url:re.sub(r'^https?://(www\.)?','',(url or '').split('#')[0].split('?')[0].rstrip('/').lower())
+async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Review:
+    """Three passes. Structured sources (Wikipedia's reception section, the Guardian and NYT APIs) and a Google-grounded search
+    find the reviews; then every review page we can open is read and a sentence is quoted from it, checked word for word."""
+    language=LANGS[request.language];by=' by '+request.author if request.author else ''
+    found,searched=await asyncio.gather(reception.gather(request.title,request.author,request.isbn),
+        _ask(PROMPT.format(title=request.title,by=by,year=' ('+request.year+')' if request.year else '',language=language),creds,gemini,search=True))
+    try:review=clean(searched[0],searched[1],creds[1])
+    except (ValueError,KeyError,TypeError):raise HTTPException(502,'The research answer was incomplete or unreadable. Try again.') from None
+    critics:list[dict]=[]
+    for c in found['critics']+[c.model_dump() for c in review.critics]:
+        if c.get('url') and any(_key(c['url'])==_key(x.get('url')) for x in critics):continue
+        critics.append({**c,'via':c.get('via') or 'Web search'})
+    # Read the pages; Wikipedia's own quotes are already checked against the article.
+    todo=[c for c in critics if c.get('url') and not (c.get('via')=='Wikipedia' and c.get('excerpt'))][:12]
+    texts=await asyncio.gather(*(reception.page_text(c['url']) for c in todo))
+    pages=[(c,t) for c,t in zip(todo,texts) if t]
+    if pages:
+        listing='\n\n'.join(f'PAGE {i+1} ({c["publication"]}, {c["url"]}):\n{t[:7000]}' for i,(c,t) in enumerate(pages))
+        try:
+            picked,_=await _ask(PICK.format(title=request.title,by=by,language=language,pages=listing),creds,gemini,tokens=8192)
+            for r in picked.get('reviews') or []:
+                if not isinstance(r,dict) or not isinstance(r.get('n'),int) or not 0<r['n']<=len(pages):continue
+                c,t=pages[r['n']-1]
+                if r.get('relevant') is False:c['drop']=True;continue
+                excerpt=_verbatim(r.get('excerpt'))
+                if excerpt and reception._norm(excerpt) in reception._norm(t):c['excerpt']=excerpt;c['verified']=True
+                elif c.get('via')!='Wikipedia':c['excerpt']='';c['verified']=None
+                if r.get('stance') in ('positive','mixed','negative'):c['stance']=r['stance']
+                c['summary']=_text(r.get('summary'),600) or c.get('summary','')
+                c['translation']=_text(r.get('translation'),600) if excerpt else ''
+                if not c.get('reviewer') and r.get('reviewer'):c['reviewer']=_text(r['reviewer'],120)
+        except (HTTPException,ValueError,KeyError,TypeError,httpx.HTTPError):pass
+    # Quotes from pages we could not open are checked as far as we can.
+    await reception.verify([c for c in critics if not c.get('drop')])
+    kept=[c for c in critics if not c.get('drop') and (c.get('excerpt') or c.get('summary'))]
+    kept.sort(key=lambda c:(c.get('verified') is not True,not c.get('excerpt')))
+    fields=('publication','reviewer','date','headline','stance','excerpt','summary','url','translation','via','verified')
+    review=review.model_copy(update={'critics':[Critic(**{k:(c.get(k) if k!='publication' else (c.get(k) or 'Review')) for k in fields if c.get(k) is not None or k=='verified'}) for c in kept[:8]]})
+    review=review.model_copy(update={'searched':[Searched(**n) for n in found['notes']]+[Searched(source='Web search',found=sum(1 for c in kept if c.get('via')=='Web search'))]})
+    for c in review.critics:
+        if c.url and not any(_key(s.url)==_key(c.url) for s in review.sources):review.sources.append(Source(name=c.publication,url=c.url))
     photo=await portrait(request.author) if request.author else None
     return review.model_copy(update={'authorImage':Portrait(**photo)}) if photo else review

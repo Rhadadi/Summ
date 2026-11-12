@@ -44,3 +44,28 @@ class ReviewApiTests(RolesTest):
         self.assertEqual(pub.json()['rating']['source'],'Goodreads')
         bad=doc();bad['review']={'verdict':'x','sources':[{'name':'n','url':'javascript:alert(1)'}]}
         self.assertEqual(owner.post('/api/library',json={'doc':bad,'visibility':'public'}).status_code,422)
+class ResearchPipelineTests(unittest.TestCase):
+    def test_review_pages_are_read_and_quotes_checked_word_for_word(self):
+        page='Kahneman has written a masterpiece about how we think. It is long, but every chapter repays the effort.'
+        found={'critics':[{'publication':'The Guardian','reviewer':'Galen Strawson','date':'2011','headline':'review','excerpt':'','context':'','url':'https://www.theguardian.com/books/x','via':'Wikipedia','verified':False},
+                          {'publication':'Sports Desk','reviewer':'','date':'','headline':'','excerpt':'','context':'','url':'https://www.nytimes.com/sports/x','via':'Wikipedia','verified':False},
+                          {'publication':'The Times','reviewer':'John Carey','date':'','headline':'','excerpt':'Sapiens is the kind of book that sweeps cobwebs out of your brain','context':'','url':'https://www.thetimes.com/x','via':'Wikipedia','verified':True}],'notes':[]}
+        calls=[]
+        async def ask(prompt,creds,gemini,search=False,tokens=16384):
+            calls.append(search)
+            if search:return ({'verdict':'Admired.','critics':[{'publication':'Invented Weekly','excerpt':'A sentence nobody wrote anywhere at all.','url':'https://invented.example/x'}]},{'invented.example'})
+            return ({'reviews':[{'n':1,'relevant':True,'excerpt':'Kahneman has written a masterpiece about how we think.','stance':'positive','summary':'ستایش','translation':'شاهکار'},
+                                {'n':2,'relevant':False},{'n':3,'relevant':True,'excerpt':'Words the page does not contain at all here.','summary':'s'}]},set())
+        async def text(url):return page if 'guardian' in url or 'sports' in url or 'invented' in url else ''
+        async def verify(critics):
+            for c in critics:
+                if c.get('url','').startswith('https://invented') and c.get('excerpt'):c['verified']=False;c['excerpt']=''
+        async def gather(*a):return found
+        with patch('server.reviews._ask',ask),patch('server.reception.page_text',text),patch('server.reception.verify',verify),patch('server.reception.gather',gather),patch('server.reviews.portrait',lambda a:asyncio.sleep(0,None)):
+            r=asyncio.run(reviews.research(reviews.ResearchRequest(title='T',author='A',language='fa'),('k','m'),'g'))
+        self.assertEqual(calls,[True,False])
+        by={c.publication:c for c in r.critics}
+        self.assertEqual((by['The Guardian'].excerpt,by['The Guardian'].verified,by['The Guardian'].translation,by['The Guardian'].stance),('Kahneman has written a masterpiece about how we think.',True,'شاهکار','positive'))
+        self.assertNotIn('Sports Desk',by)
+        self.assertTrue(by['The Times'].verified)
+        self.assertEqual(by['Invented Weekly'].excerpt,'')

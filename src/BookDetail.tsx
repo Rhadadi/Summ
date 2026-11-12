@@ -31,6 +31,7 @@ const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
 export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
+ const[more2,setMore2]=useState(false);
  const[query,setQuery]=useState({title:book.title,author:book.author==='Author not supplied'?'':book.author}),[editing,setEditing]=useState(false),[editionOpen,setEditionOpen]=useState(false);
  const[coverMenu,setCoverMenu]=useState<HTMLElement|null>(null),[more,setMore]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[rebuilding,setRebuilding]=useState(false);
  const upload=useRef<HTMLInputElement>(null);
@@ -123,15 +124,36 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
       <Button variant="contained" className="dark" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{done?'Finish the study guide':'Create the study guide'}</Button></>}
    </div>}
   </section>
+  {(()=>{const praise=(review?.critics||[]).filter(c=>c.excerpt).sort((x,y)=>Number(y.verified===true)-Number(x.verified===true)).slice(0,3);
+   return praise.length>0&&<section className="praise" aria-label={L('What the critics said')}>{praise.map((c,i)=><figure key={i} className={i===0?'lead':''}>
+    <blockquote dir="auto">“{c.excerpt}”</blockquote>{lang&&c.translation&&<p className="praise-tr" dir="auto">{c.translation}</p>}
+    <figcaption><strong>{c.publication}</strong>{c.reviewer?' · '+c.reviewer:''}</figcaption></figure>)}</section>;})()}
   <section className="about">
    <h2>{L('What’s it about?')}</h2>
-   {report?.overview?<>
-    {report.overview.paragraphs.map((p,i)=><div className="about-section" key={i} dir="auto">{p.heading&&<h3>{p.heading}</h3>}<p className={i===0?'about-lead':undefined}>{p.text}</p></div>)}
-    {report.overview.takeaways.length>0&&<div className="quick-takeaways"><h3>{L('At a glance')}</h3><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>}
-    <button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button>
-   </>
-    :info?.description?<><p className="about-lead" dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
-    :intro?<><p className="about-lead" dir="auto">{intro.text.length>520?intro.text.slice(0,intro.text.lastIndexOf(' ',520))+'…':intro.text}</p><small>From the book, p. {intro.page}</small></>:null}
+   <div className="about-grid">
+    <div className="about-main">
+     {report?.overview?<>
+      {report.overview.paragraphs.slice(0,more2?undefined:2).map((p,i)=><div className="about-section" key={i} dir="auto">{p.heading&&<h3>{p.heading}</h3>}<p className={i===0?'about-lead':undefined}>{p.text}</p></div>)}
+      {report.overview.paragraphs.length>2&&<button className="text-link2" onClick={()=>setMore2(!more2)}>{L(more2?'Show less':'Read more')}</button>}
+      {report.overview.takeaways.length>0&&<div className="key-ideas"><h3>{L('Key ideas')}</h3><ol>{report.overview.takeaways.slice(0,6).map((t,i)=><li key={i} dir="auto"><span className="ki-n">{num(lang,i+1)}</span><span>{t.heading?<strong>{t.heading}. </strong>:null}{t.text}</span></li>)}</ol></div>}
+      <button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button>
+     </>
+      :info?.description?<><p className="about-lead" dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
+      :intro?<><p className="about-lead" dir="auto">{intro.text.length>520?intro.text.slice(0,intro.text.lastIndexOf(' ',520))+'…':intro.text}</p><small>From the book, p. {intro.page}</small></>:null}
+    </div>
+    <aside className="about-card">
+     <h3>{L('At a glance')}</h3>
+     <dl>
+      {(info?.google_edition?.published_date||info?.year)&&<div><dt>{L('Published')}</dt><dd>{String(info?.year||info?.google_edition?.published_date).slice(0,4).replace(/\d/g,d=>lang==='fa'?'۰۱۲۳۴۵۶۷۸۹'[+d]:d)}</dd></div>}
+      {pages&&<div><dt>{L('Length')}</dt><dd>{num(lang,pages)} {L('pages')}</dd></div>}
+      <div><dt>{L('Chapters')}</dt><dd>{num(lang,main.length)}</dd></div>
+      {readOnly&&<div><dt>{L('Reading time')}</dt><dd>{num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))} {L('min')}</dd></div>}
+      {(review?.ratings?.[0]||review?.rating)&&<div><dt>{(review.ratings?.[0]||review.rating)!.source}</dt><dd>★ {num(lang,+(review.ratings?.[0]||review.rating)!.value.toFixed(1))}</dd></div>}
+     </dl>
+     {review?.audience&&<><h3>{L('Who it is for')}</h3><p dir="auto">{review.audience}</p></>}
+     {review?.aboutAuthor&&<div className="about-author">{review.authorImage&&<img src={review.authorImage.url} alt="" loading="lazy"/>}<div><h3>{L('About the author')}</h3><p dir="auto">{review.aboutAuthor}</p></div></div>}
+    </aside>
+   </div>
   </section>
   <section className="chapters">
    <h2>{L('Chapters')}</h2>
