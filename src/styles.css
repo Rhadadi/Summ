@@ -514,3 +514,4 @@ body{background:var(--bg);color:var(--ink)}
 .about-card p{margin:0 0 18px!important;font:400 15px/1.6 var(--serif)!important}
 .about-author{display:flex;gap:14px;align-items:flex-start}.about-author img{width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none}
 @media (max-width:980px){.praise{grid-template-columns:1fr}.about-grid{grid-template-columns:1fr}.about-card{position:static}}
+.rv-empty{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px;padding:24px 28px;border-radius:18px;background:var(--brand-tint)}.rv-empty div{display:grid;gap:6px;max-width:640px}.rv-empty strong{font-size:18px}.rv-empty span{font-size:14px;line-height:1.6;color:var(--muted)}

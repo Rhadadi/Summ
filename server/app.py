@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -192,6 +192,11 @@ Never invent quotations or references. Do not use direct quotations in generated
 Every substantive paragraph requires supporting evidence_ids from the supplied IDs.
 If the source does not establish an answer, say so. Never claim external fact-checking.
 Do not expose chain-of-thought; return only requested reading content, concise assessments, and references.'''
+# How the summaries should read in Persian: written in Persian, not translated into it.
+PERSIAN_STYLE=('\nPERSIAN STYLE (فارسیِ فاخر و روان): write with the care of an accomplished Persian essayist: precise, warm and engaging, yet easy to read; it must sound written in Persian, not translated from English. '
+ 'Prefer clear sentences and familiar words where they carry the meaning; explain a necessary technical term when it first appears. Use standard نیم‌فاصله, Persian punctuation (« » ، ؛ ؟) and Persian digits in the prose. '
+ 'Keep the author\'s qualifications and the emotional force of important stories. Avoid repeated stock phrases, mechanical "not X but Y" contrasts and a list-like rhythm; use a contrast only when the argument depends on it.\n')
+def style(language:str)->str:return PERSIAN_STYLE if language=='fa' else ''
 async def model_json(prompt:str,creds:tuple[str,str],usage:dict|None=None)->dict:
     key,model=creds
     if not MODEL_NAME.fullmatch(model):raise HTTPException(412,'Choose a valid model in Account.')
@@ -257,7 +262,7 @@ async def summarize(payload:SummaryRequest,request:Request,user:dict=Depends(ai_
         purpose={'understand':'Explain for a general reader.','learn':'Explain difficult terms from context. Label pedagogical interpretation. Do not invent examples.','academic':'Identify thesis, method if supplied, argument, evidence, limitations, and open questions. Do not invent references.','apply':'Explain only source-supported applications and their conditions. Do not add imagined advice.'}[payload.purpose]
         review='Return review as an empty array.' if payload.review=='off' else 'In review, separately analyze assumptions, reasoning, and evidence AS PRESENTED. Label interpretation. Do not attribute objections to the author or claim external checking.'
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-        draft=await model_json('Write a polished, coherent summary in language code '+payload.language+'. '+depth+' '+purpose+' '+review+' Use informative subsection headings where they help explain the argument. Preserve meaningful examples, qualifications, and the progression of reasoning; avoid a list of disconnected facts.\nReturn {"paragraphs":[{"heading":"Optional subsection heading","text":"...","evidence_ids":["ID"]}],"review":[{"text":"...","evidence_ids":["ID"]}]}. Every paragraph needs directly relevant source IDs. No direct quotations or outside facts.\n'+material,creds,usage)
+        draft=await model_json('Write a polished, coherent summary in language code '+payload.language+'. '+depth+' '+purpose+' '+review+' Open with the chapter\'s most compelling question, scene or idea; explain the central idea, how the author develops it, and the examples or stories that make it memorable, retold in your own words. Use informative subsection headings where they help explain the argument. Preserve names, numbers, dates, uncertainty, objections and the limits of the author\'s claims; avoid a list of disconnected facts.'+style(payload.language)+'\nReturn {"paragraphs":[{"heading":"Optional subsection heading","text":"...","evidence_ids":["ID"]}],"review":[{"text":"...","evidence_ids":["ID"]}]}. Every paragraph needs directly relevant source IDs. No direct quotations or outside facts.\n'+material,creds,usage)
         paragraphs=valid_paragraphs(draft.get('paragraphs'),blocks)
         analysis=valid_paragraphs(draft.get('review',[]),blocks,allow_empty=True) if payload.review=='internal' else []
         if payload.review=='internal' and not analysis:raise HTTPException(502,'The requested internal analysis was missing. Please retry.')
@@ -282,10 +287,10 @@ async def compose(payload:CompositionRequest,request:Request,user:dict=Depends(a
     if payload.kind=='book':sections=[{'id':s.id,'title':s.title,'summary':[{k:v for k,v in {'heading':p.heading,'text':p.text}.items() if v} for p in s.paragraphs]} for s in payload.sections]
     else:sections=[s.model_dump(exclude_none=True) for s in payload.sections]
     supplied=json.dumps(sections,ensure_ascii=False)
-    structure='Create an opening overview of the WHOLE BOOK: its central argument, structure, methods when supplied, major themes, and important limitations. Draw on every supplied chapter. Put 4–8 concise key takeaways in takeaways. Cite chapter IDs (each section id).' if payload.kind=='book' else 'Combine these consecutive source-grounded parts into one coherent chapter summary. Preserve the argument, examples, qualifications, and important details. Remove repetition while retaining distinct content. Cite the original evidence_ids attached to the paragraphs you draw on. Return takeaways as an empty array.'
+    structure='Create an opening overview of the WHOLE BOOK in two or three inviting paragraphs: the question the book asks, its central idea, how it proceeds, who would benefit from reading it, and its important limitations. Draw on every supplied chapter. Put four to six specific insights in takeaways, each a complete, readable sentence. Cite chapter IDs (each section id).' if payload.kind=='book' else 'Combine these consecutive source-grounded parts into one coherent chapter summary. Preserve the argument, examples, qualifications, and important details. Remove repetition while retaining distinct content. Cite the original evidence_ids attached to the paragraphs you draw on. Return takeaways as an empty array.'
     async with semaphore:
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-        draft=await model_json('Write in language code '+payload.language+'. '+structure+' The supplied text consists of summaries, not the original book. Do not add external knowledge or claim external fact checking. Use useful subsection headings. Return {"paragraphs":[{"heading":"Subsection","text":"...","evidence_ids":["ID"]}],"takeaways":[{"text":"...","evidence_ids":["ID"]}]}.\nUNTRUSTED TITLE:\n'+json.dumps(payload.title,ensure_ascii=False)+'\nUNTRUSTED SECTIONS:\n'+supplied,creds,usage)
+        draft=await model_json('Write in language code '+payload.language+'. '+structure+style(payload.language)+' The supplied text consists of summaries, not the original book. Do not add external knowledge or claim external fact checking. Use useful subsection headings. Return {"paragraphs":[{"heading":"Subsection","text":"...","evidence_ids":["ID"]}],"takeaways":[{"text":"...","evidence_ids":["ID"]}]}.\nUNTRUSTED TITLE:\n'+json.dumps(payload.title,ensure_ascii=False)+'\nUNTRUSTED SECTIONS:\n'+supplied,creds,usage)
         paragraphs=valid_paragraphs(draft.get('paragraphs'),blocks)
         takeaways=valid_paragraphs(draft.get('takeaways',[]),blocks,allow_empty=payload.kind=='chapter')
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
@@ -314,7 +319,7 @@ async def guide(payload:GuideRequest,request:Request,user:dict=Depends(ai_user))
     templates=json.dumps({kind:{'label':label,'sections':[{'kind':k,'title':t,'instructions':i} for k,t,i in rows]} for kind,(label,rows) in GUIDE_TYPES.items()},ensure_ascii=False)
     async with semaphore:
         if await request.is_disconnected():raise HTTPException(499,'Request cancelled.')
-        draft=await model_json('Create a study guide in language code '+payload.language+' for the book below. First choose the ONE book type whose template fits best. Then fill every section of that template, following its instructions, using only the supplied chapter summaries. Translate section titles into the output language. Each item cites the chapter IDs it draws on. Leave a section\'s items empty rather than guessing. Return {"type":"fiction|narrative|argument|academic|poetry","sections":[{"kind":"...","title":"...","items":[{"heading":"Name or short title","text":"...","evidence_ids":["chapter ID"]}]}]}.\nTEMPLATES:\n'+templates+'\nUNTRUSTED TITLE AND AUTHOR:\n'+json.dumps([payload.title,payload.author],ensure_ascii=False)+'\nUNTRUSTED CHAPTER SUMMARIES:\n'+supplied,creds,usage)
+        draft=await model_json('Create a study guide in language code '+payload.language+' for the book below.'+style(payload.language)+' First choose the ONE book type whose template fits best. Then fill every section of that template, following its instructions, using only the supplied chapter summaries. Translate section titles into the output language. Each item cites the chapter IDs it draws on. Leave a section\'s items empty rather than guessing. Return {"type":"fiction|narrative|argument|academic|poetry","sections":[{"kind":"...","title":"...","items":[{"heading":"Name or short title","text":"...","evidence_ids":["chapter ID"]}]}]}.\nTEMPLATES:\n'+templates+'\nUNTRUSTED TITLE AND AUTHOR:\n'+json.dumps([payload.title,payload.author],ensure_ascii=False)+'\nUNTRUSTED CHAPTER SUMMARIES:\n'+supplied,creds,usage)
         kind=draft.get('type')
         if kind not in GUIDE_TYPES:raise HTTPException(502,'The study guide did not name a known book type. Please retry.')
         expected={k:t for k,t,_ in GUIDE_TYPES[kind][1]};sections=[]
@@ -463,6 +468,13 @@ async def library_cover(book_id:str):
     found=library.cover(book_id)
     if not found:raise HTTPException(404,'No cover.')
     return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
+@app.get('/api/library/{book_id}/reception')
+async def library_reception(book_id:str,request:Request):
+    throttle('rec:'+client_ip(request),30)
+    book=library.get(book_id);doc=book['doc']
+    if doc.get('review'):return {'critics':[]}
+    title=doc['title'].get(doc.get('originalLanguage','en')) or book['title']
+    return await reception.cached(book['id'],title,doc.get('author',''))
 @app.post('/api/review/research')
 async def review_research(body:reviews.ResearchRequest,user:dict=Depends(ai_user)):
     return (await reviews.research(body,user_credentials(user),GEMINI)).model_dump()

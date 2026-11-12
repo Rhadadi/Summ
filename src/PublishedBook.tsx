@@ -1,7 +1,7 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,MenuItem,TextField}from'@mui/material';
-import type{PubBook,PubDoc,Settings}from'./types';
-import{libraryBook,narrationStatus}from'./api';
+import type{PubBook,PubDoc,Review,Settings}from'./types';
+import{libraryBook,libraryReception,narrationStatus}from'./api';
 import{adaptPublished,pickVersion,readPosition,savePosition,versionKey}from'./published';
 import{languages}from'./core';
 import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';
@@ -15,6 +15,9 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const L=(t:string)=>tr(settings.uiLanguage||'fa',t);
  const[pub,setPub]=useState<(PubBook&{doc:PubDoc})|null>(null),[error,setError]=useState(''),[chosen,setChosen]=useState(''),[position,setPosition]=useState({index:0,completed:[] as string[],lastRead:0});
  useEffect(()=>{let live=true;setPub(null);setError('');libraryBook(slug).then(b=>{if(live){setPub(b);setPosition(readPosition(b.id));}}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[slug]);
+ // Until the owner approves a researched reception, the page shows the reviews Wikipedia and the newspapers' own APIs list.
+ const[found,setFound]=useState<Review|null>(null);
+ useEffect(()=>{setFound(null);if(!pub||pub.doc.review)return;let live=true;libraryReception(pub.id).then(r=>{if(live&&r.critics.length)setFound({verdict:'',pros:[],cons:[],quotes:[],sources:[],rating:null,model:'',createdAt:0,critics:r.critics});}).catch(()=>{});return()=>{live=false;};},[pub]);
  const version=pub?pickVersion(pub.doc,chosen,settings.language):undefined;
  const[audioStatus,setAudioStatus]=useState<Awaited<ReturnType<typeof narrationStatus>>|null>(null);
  useEffect(()=>{setAudioStatus(null);if(!pub||!version)return;let live=true;narrationStatus(pub.id,version.language).then(s=>{if(live)setAudioStatus(s);}).catch(()=>{});return()=>{live=false;};},[pub?.id,version?.language]);
@@ -49,6 +52,6 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}<BookDetail searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={pub.doc.review||null}
+ return <>{switcher}<BookDetail searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

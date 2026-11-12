@@ -55,3 +55,4 @@ export const setSlide=(id:string,mode:'none'|'cover'|'art',file?:string)=>call<N
 export const researchReview=(body:{title:string;author:string;year:string;language:string;isbn?:string})=>call<Review>('review/research',{body,signal:AbortSignal.timeout(400000)});
 export const uploadFigure=(id:string,name:string,blob:Blob)=>binary('library/'+id+'/figure/'+name,{method:'PUT',headers:{'Content-Type':blob.type||'image/png','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const artIdeas=(body:{title:string;author:string;about:string;themes:string[];language:string})=>call<{ideas:{artist:string;title:string;why:string;results:ArtResult[]}[];moods:string[]}>('art/ideas',{body,signal:AbortSignal.timeout(150000)});
+export const libraryReception=(id:string)=>call<{critics:NonNullable<Review['critics']>}>('library/'+id+'/reception',{signal:AbortSignal.timeout(40000)});

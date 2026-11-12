@@ -67,7 +67,7 @@ test('the prompt changes with every choice',()=>{
  const a=buildPrompt(book,base);
  assert.match(a,/3\. Rights/);assert.match(a,/2\. Duty \(pp\. 12–30\)/);assert.doesNotMatch(a,/Contents/);assert.match(a,/type=detailed; language=en/);
  const b=buildPrompt(book,{...base,chapters:[2],types:['short'.replace('short','glance'),'academic'],languages:[{code:'fa',name:'Persian'}],pageRefs:false,quotes:true,notes:'Focus on ethics'});
- assert.doesNotMatch(b,/Duty/);assert.match(b,/type=glance; language=fa/);assert.match(b,/type=academic; language=fa/);assert.match(b,/Persian/);assert.doesNotMatch(b,/\[p\. 143\]/);assert.match(b,/pull-quote/);assert.doesNotMatch(buildPrompt(book,{...base,quotes:false}),/pull-quote/);assert.match(buildPrompt(book,{...base,chapterMode:'ai'}),/work out the book's real chapters yourself/i);assert.doesNotMatch(a,/\d+–\d+ words/);assert.match(b,/Focus on ethics/);assert.match(b,/continue/);
+ assert.doesNotMatch(b,/Duty/);assert.match(b,/type=glance; language=fa/);assert.match(b,/type=academic; language=fa/);assert.match(b,/Persian/);assert.doesNotMatch(b,/\[p\. 143\]/);assert.match(b,/pull-quote/);assert.doesNotMatch(buildPrompt(book,{...base,quotes:false}),/pull-quote/);assert.match(buildPrompt(book,{...base,chapterMode:'ai'}),/identify the book's real chapters/i);assert.doesNotMatch(a,/\d+–\d+ words/);assert.match(b,/Focus on ethics/);assert.match(b,/continue/);
  assert.notEqual(a,b);
 });
 test('an imported version carries translated titles and is chosen by language',()=>{

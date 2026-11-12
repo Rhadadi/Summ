@@ -152,3 +152,23 @@ async def gather(title:str,author:str,isbn:str='')->dict:
         wiki,guard,times=await asyncio.gather(safe(wikipedia(client,title,author)),safe(guardian(client,title,author)),safe(nyt(client,title,author,isbn)))
     notes=[('Wikipedia',len(wiki),True),('The Guardian',len(guard),bool(os.getenv('GUARDIAN_API_KEY','').strip())),('The New York Times',len(times),bool(os.getenv('NYT_API_KEY','').strip()))]
     return {'critics':wiki+guard+times,'notes':[{'source':n,'found':k,'enabled':e} for n,k,e in notes]}
+
+# ---- automatic reception for published books: the quotes publishers and Wikipedia print, gathered once and kept a fortnight
+import json as _json,time as _time
+from pathlib import Path as _Path
+def _cache(book_id:str)->_Path:
+    folder=_Path(os.getenv('SUMM_DATA_DIR','data'))/'reception';folder.mkdir(parents=True,exist_ok=True);return folder/(re.sub(r'[^\w-]','',book_id)+'.json')
+async def cached(book_id:str,title:str,author:str)->dict:
+    """Reviews found without any AI step, for books whose owner has not approved a researched reception yet."""
+    path=_cache(book_id)
+    try:
+        saved=_json.loads(path.read_text())
+        if _time.time()-saved.get('at',0)<(14 if saved.get('critics') else 1)*86400:return {'critics':saved['critics']}
+    except (OSError,ValueError):pass
+    try:found=await asyncio.wait_for(gather(title,author),25)
+    except asyncio.TimeoutError:found={'critics':[]}
+    critics=[{k:c.get(k) for k in ('publication','reviewer','date','headline','excerpt','url','via')}|{'stance':'','summary':'','verified':True if c.get('excerpt') else None}
+             for c in found['critics'] if c.get('url') or c.get('excerpt')][:8]
+    try:path.write_text(_json.dumps({'at':_time.time(),'critics':critics},ensure_ascii=False))
+    except OSError:pass
+    return {'critics':critics}
