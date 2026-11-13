@@ -22,8 +22,7 @@ export default function Community({lang,account,mailEnabled}:{lang:string;accoun
  return <section className="m-community" dir={lang==='fa'?'rtl':'ltr'} aria-label={L('Ask for a book')}>
   <div className={'m-community-grid'+(mailEnabled?'':' single')}>
    <div className="m-pane">
-    <span className="m-pane-icon"><MenuBookRounded/></span>
-    <h2>{L('Is there a book you wish you could read in minutes?')}</h2>
+    <div className="m-pane-head"><span className="m-pane-icon"><MenuBookRounded/></span><h2>{L('Is there a book you wish you could read in minutes?')}</h2></div>
     <p>{L('Tell us which one. We read what you ask for, and the most requested books come first.')}</p>
     {asked?<div className="m-thanks" role="status"><CheckRounded/><div><strong>{L('Thank you. Your request is in.')}</strong><span>{reply?L('We will write to you when the summary is ready.'):L('Ask for another any time.')}</span><button onClick={()=>setAsked(false)}>{L('Ask for another book')}</button></div></div>
     :<form className="m-form" onSubmit={ask}>
@@ -37,8 +36,7 @@ export default function Community({lang,account,mailEnabled}:{lang:string;accoun
     </form>}
    </div>
    {mailEnabled&&<div className="m-pane m-pane-dark">
-    <span className="m-pane-icon"><MailOutlineRounded/></span>
-    <h2>{L('Hear about every new book first')}</h2>
+    <div className="m-pane-head"><span className="m-pane-icon"><MailOutlineRounded/></span><h2>{L('Hear about every new book first')}</h2></div>
     <p>{L('One short, beautiful email each time a new summary is published. No account needed, and you can leave with one click.')}</p>
     {joined==='active'?<div className="m-thanks" role="status"><CheckRounded/><div><strong>{L('You are on the list.')}</strong><span>{L('We will write to you when the next book arrives.')}</span>{own&&<button onClick={leave} disabled={mailBusy}>{L('Leave the list')}</button>}</div></div>
     :joined==='pending'?<div className="m-thanks" role="status"><MailOutlineRounded/><div><strong>{L('Check your inbox.')}</strong><span>{L('If this address is not on the list yet, we have sent it a link to confirm. It takes one tap.')}</span></div></div>
