@@ -74,4 +74,4 @@ class ResearchPipelineTests(unittest.TestCase):
         self.assertEqual((by['The Guardian'].excerpt,by['The Guardian'].verified,by['The Guardian'].translation,by['The Guardian'].stance),('Kahneman has written a masterpiece about how we think.',True,'شاهکار','positive'))
         self.assertNotIn('Sports Desk',by)
         self.assertTrue(by['The Times'].verified)
-        self.assertEqual(by['Invented Weekly'].excerpt,'')
+        self.assertNotIn('Invented Weekly',by)
