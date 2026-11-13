@@ -13,4 +13,5 @@ test('read more contains only direct pages found for this book',()=>{
  assert.deepEqual(reviewSourceLinks(review).map(x=>x.name),['Goodreads','IMPACT']);
  assert.deepEqual(reviewSourceLinks(null),[]);
  assert.equal(directReviewPage('https://www.theguardian.com/books/2024/example'),true);
+ assert.equal(directReviewPage('https://openlibrary.org/works/OL20193586W'),true);
 });
