@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,home,images,mailer,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -22,7 +22,8 @@ MODEL_NAME=re.compile(r'[a-zA-Z0-9._-]{3,100}')
 COOKIE='summ_session'
 @asynccontextmanager
 async def lifespan(_:FastAPI):
-    library.reset_jobs();yield
+    library.reset_jobs();watcher=asyncio.create_task(mailing.watch());yield
+    watcher.cancel()
 app=FastAPI(title='Inkling processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
@@ -692,4 +693,63 @@ async def import_source(payload:ImportRequest):
     if len(text)>1_000_000:raise HTTPException(413,'Too much page text. Upload the file or paste one chapter at a time.')
     return {'text':text,'title':title[:500],'url':url,'warnings':warnings}
 dist=Path(__file__).resolve().parents[1]/'dist'
+
+# ---- book requests and the update mailing list
+class BookRequest(StrictModel):
+    title:str=Field(min_length=2,max_length=200);author:str=Field(default='',max_length=200);note:str=Field(default='',max_length=1000)
+    email:str=Field(default='',max_length=254);lang:str=Field(default='fa',max_length=8);website:str=Field(default='',max_length=200)
+async def maybe_user(request:Request)->dict|None:return accounts.session_user(request.cookies.get(COOKIE,''))
+@app.post('/api/requests')
+async def request_book(body:BookRequest,request:Request):
+    throttle('req:'+client_ip(request),5)
+    if body.website:return {'ok':True}  # a hidden field only robots fill in
+    user=await maybe_user(request)
+    try:await asyncio.to_thread(mailing.add_request,body.title,body.author,body.note,body.email or (user or {}).get('email',''),user['id'] if user else None,body.lang)
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+    return {'ok':True}
+@app.get('/api/requests')
+async def requests_list(user:dict=Depends(owner_user)):return {'requests':mailing.requests_list()}
+class RequestStatus(StrictModel):status:str=Field(max_length=20);book_id:str|None=Field(default=None,max_length=64)
+@app.put('/api/requests/{request_id}')
+async def request_status(request_id:int,body:RequestStatus,user:dict=Depends(owner_user)):
+    try:return await mailing.set_request(request_id,body.status,body.book_id)
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.delete('/api/requests/{request_id}')
+async def request_delete(request_id:int,user:dict=Depends(owner_user)):mailing.delete_request(request_id);return {'ok':True}
+class Subscribe(StrictModel):
+    email:str=Field(default='',max_length=254);lang:str=Field(default='fa',max_length=8);website:str=Field(default='',max_length=200)
+@app.post('/api/mailing/subscribe')
+async def mailing_subscribe(body:Subscribe,request:Request):
+    throttle('sub:'+client_ip(request),5)
+    if body.website:return {'status':'pending'}
+    user=await maybe_user(request);email=body.email.strip().lower()
+    # An address the signed-in account has already confirmed needs no second confirmation.
+    verified=bool(user and user['email'] and (not email or email==user['email'].lower()))
+    if not email and user:email=user['email'].lower()
+    try:return {'status':await mailing.subscribe(email,body.lang,'account' if verified else 'form',verified)}
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.get('/api/mailing/me')
+async def mailing_me(user:dict=Depends(current_user)):return {'status':mailing.status_of(user['email'])}
+@app.delete('/api/mailing/me')
+async def mailing_leave(user:dict=Depends(current_user)):mailing.unsubscribe_email(user['email']);return {'status':'unsubscribed'}
+@app.post('/api/mailing/confirm/{token}')
+async def mailing_confirm(token:str,request:Request):
+    throttle('mailtok:'+client_ip(request),20)
+    try:return {'email':mailing.confirm(token)}
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.post('/api/mailing/unsubscribe/{token}')
+async def mailing_unsubscribe(token:str,request:Request):
+    throttle('mailtok:'+client_ip(request),20)
+    try:return {'email':mailing.unsubscribe(token)}
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.get('/api/mailing')
+async def mailing_overview(user:dict=Depends(owner_user)):return mailing.overview()
+@app.delete('/api/mailing/people')
+async def mailing_remove(email:str,user:dict=Depends(owner_user)):mailing.remove_subscriber(email);return {'ok':True}
+class Announce(StrictModel):test:bool=True
+@app.post('/api/mailing/announce/{book_id}')
+async def mailing_announce(book_id:str,body:Announce,user:dict=Depends(owner_user)):
+    if not user['email']:raise HTTPException(422,'Your account has no email address to send the test to.')
+    try:return await mailing.announce(book_id,user['email'].lower() if body.test else None)
+    except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
 if dist.is_dir():app.mount('/',StaticFiles(directory=dist,html=True),name='reader')

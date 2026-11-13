@@ -11,11 +11,13 @@ import MuseumHero,{galleryBackdrop,type Backdrop,type Slide}from'./MuseumHero';
 import{tr,num}from'./i18n';
 import{publicTitle}from'./discovery';
 import{art,rotation}from'./art';
+import Community from'./Community';
+import type{Account}from'./types';
 
-interface Props{config:HomeConfig|null;onEditHome:()=>void;lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
+interface Props{account:Account|null;mailEnabled:boolean;isOwner:boolean;config:HomeConfig|null;onEditHome:()=>void;lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
 export const author=(b:Book)=>b.author==='Author not supplied'?'':displayName(b.author);
 export function Shelf({book,url}:{book:Book;url?:string}){return <span className="shelf"><span className="shelf-arc"/><Cover book={book} url={url} className="shelf-cover"/></span>;}
-export default function HomePage({config,onEditHome,lang,published,canEdit,onOpenPublished,books,covers,saved,onRead,onOpen,onListen,onAdd,navigate}:Props){
+export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,lang,published,canEdit,onOpenPublished,books,covers,saved,onRead,onOpen,onListen,onAdd,navigate}:Props){
  const L=(text:string)=>tr(lang,text);
  const[ready,setReady]=useState<Record<string,number>>({});
  const recent=[...books].sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt)).slice(0,4);
@@ -39,10 +41,11 @@ export default function HomePage({config,onEditHome,lang,published,canEdit,onOpe
  const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:backdropFor(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const intro=<>
-  <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button></div>}
+  <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
    {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>}
+  <Community lang={lang} account={account} mailEnabled={mailEnabled}/>
  </>;
  if(!canEdit)return <div className="museum-home">{intro}</div>;
  if(!books.length)return <div className="museum-home">{intro}<div className="home desk"><h2 className="m-kicker">Your desk</h2><h1 className="home-h"><span className="home-icon"><LibraryBooksOutlined/></span>Your workspace is empty</h1><Button variant="contained" onClick={onAdd}>Add a book</Button></div></div>;

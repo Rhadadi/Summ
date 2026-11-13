@@ -1,4 +1,4 @@
-import type{RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
@@ -65,3 +65,16 @@ export const libraryReception=(id:string,lang='en')=>call<{critics:NonNullable<R
 export const homeConfig=()=>call<HomeConfig>('home');
 export const saveHomeConfig=(body:HomeConfig)=>call<HomeConfig>('home',{method:'PUT',body});
 export const libraryRelated=(id:string)=>call<{books:RelatedBook[]}>('library/'+id+'/related',{signal:AbortSignal.timeout(60000)}).then(r=>r.books);
+// ---- book requests and the update mailing list
+export const requestBook=(b:{title:string;author:string;note:string;email:string;lang:string;website:string})=>call<{ok:boolean}>('requests',{body:b});
+export const subscribeMail=(email:string,lang:string,website='')=>call<{status:'active'|'pending'}>('mailing/subscribe',{body:{email,lang,website}});
+export const mailStatus=()=>call<{status:'none'|'pending'|'active'|'unsubscribed'}>('mailing/me');
+export const leaveMail=()=>call<{status:string}>('mailing/me',{method:'DELETE'});
+export const confirmMail=(token:string)=>call<{email:string}>('mailing/confirm/'+encodeURIComponent(token),{body:{}});
+export const unsubscribeMail=(token:string)=>call<{email:string}>('mailing/unsubscribe/'+encodeURIComponent(token),{body:{}});
+export const mailingOverview=()=>call<MailingOverview>('mailing');
+export const removeSubscriber=(email:string)=>call<{ok:boolean}>('mailing/people?email='+encodeURIComponent(email),{method:'DELETE'});
+export const announceBook=(id:string,test:boolean)=>call<{sent:number;failed:number}>('mailing/announce/'+id,{body:{test}});
+export const bookRequests=()=>call<{requests:BookRequest[]}>('requests').then(r=>r.requests);
+export const setRequest=(id:number,status:string,bookId?:string)=>call<{ok:boolean;told:boolean}>('requests/'+id,{method:'PUT',body:{status,book_id:bookId||null}});
+export const deleteRequest=(id:number)=>call<{ok:boolean}>('requests/'+id,{method:'DELETE'});

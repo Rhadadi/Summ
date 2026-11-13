@@ -39,3 +39,6 @@ export interface AppConfig{google_client_id:string;signup:boolean;email?:boolean
 export interface ArtResult{file:string;title:string;artist:string;year:string;page:string;thumb:string;width:number;height:number}
 export interface RelatedBook{title:string;author:string;year:string;cover:string|null;url:string|null;rating:number|null;why:string;source:string}
 export interface HomeConfig{seconds:number;slides:{id:string;hidden:boolean;seconds:number|null}[];shelf:boolean;stars:boolean;autoplay:boolean;title:string;text:string}
+// ---- book requests and the update mailing list
+export interface BookRequest{id:number;title:string;author:string;note:string;email:string;status:'new'|'planned'|'done'|'declined';bookId:string|null;told:boolean;created:number;same:number}
+export interface MailingOverview{active:number;pending:number;left:number;auto:boolean;people:{email:string;status:string;source:string;created:number}[];sent:{bookId:string;sent:number;count:number}[]}
