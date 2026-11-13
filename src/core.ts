@@ -8,6 +8,7 @@ export const minutes=(n:number)=>Math.max(1,Math.ceil(n/200));
 export const progress=(b:Book)=>Math.round(b.completed.filter(id=>b.chapters.some(c=>c.id===id)).length/Math.max(1,b.chapters.length)*100);
 export function sentenceSpans(t:string){return [...new Intl.Segmenter(undefined,{granularity:'sentence'}).segment(t)].map(s=>s.segment.trim()).filter(Boolean);}
 export function selectedPassages(c:Chapter,depth:Depth){
+ if(!c.blocks.length)return[];
  if(depth==='close')return c.blocks.map(block=>({block,text:block.text}));
  const count=Math.max(1,Math.ceil(c.blocks.length*({glance:.16,overview:.34,detailed:.7}[depth])));
  const indices=new Set<number>();

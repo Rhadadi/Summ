@@ -661,3 +661,4 @@ body{background:var(--bg);color:var(--ink)}
  .museum{height:clamp(500px,calc(100vh - 58px),820px)}
 }
 @media (max-width:899px){.topnav-bar{display:none}}
+.zip-form{display:grid;gap:12px;margin:14px 0}.zip-found{display:grid;margin-bottom:6px}.zip-actions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}
