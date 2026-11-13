@@ -40,7 +40,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
  const reduce=useMediaQuery('(prefers-reduced-motion: reduce)');
  const x=useRef<number|null>(null),swiped=useRef(false);
  const[tone,setTone]=useState<Record<string,Tone>>({});
- useEffect(()=>{let live=true;const rtl=lang==='fa'||lang==='ar',narrow=window.innerWidth<900;for(const s of slides){const key=s.backdrop.url+(rtl?'r':'l')+(narrow?'n':'w');const known=tones.get(key);if(known){setTone(t=>t[s.key]===known?t:{...t,[s.key]:known});continue;}measure(s.backdrop.url,rtl,narrow).then(v=>{tones.set(key,v);if(live)setTone(t=>({...t,[s.key]:v}));});}return()=>{live=false;};},[slides.map(s=>s.key+s.backdrop.url).join('|'),lang]);
+ useEffect(()=>{let live=true;const rtl=lang==='fa'||lang==='ar',narrow=window.innerWidth<900;for(const s of slides){const key=s.backdrop.url+(rtl?'r':'l')+(narrow?'n':'w');const known=tones.get(key);if(known){setTone(t=>t[s.key]===known?t:{...t,[s.key]:known});continue;}measure(s.backdrop.srcset?s.backdrop.srcset.split(' ')[0]:sized(s.backdrop.url,320),rtl,narrow).then(v=>{tones.set(key,v);if(live)setTone(t=>({...t,[s.key]:v}));});}return()=>{live=false;};},[slides.map(s=>s.key+s.backdrop.url).join('|'),lang]);
  const n=slides.length,go=(i:number)=>setAt(((i%n)+n)%n);
 
  useEffect(()=>{if(at>=n)setAt(0);},[n,at]);
