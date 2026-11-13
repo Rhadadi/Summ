@@ -20,6 +20,7 @@ interface Props{
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
  const{book,chapter,section,settings,data,account}=p;
+ const[guideOpen,setGuideOpen]=useState(false);
  const[zoom,setZoom]=useState<{src:string;alt:string}|null>(null);
  const[view,setView]=useState<'summary'|'original'>('summary'),[list,setList]=useState(false),[more,setMore]=useState(false);
  const[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
@@ -87,10 +88,10 @@ export default function ReaderPage(p:Props){
  const panel=<nav className="r2-list" aria-label={L('Contents')}>
   <button className="r2-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button>
   <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
-  {guideItems.length>0&&<><p className="r2-head">{L('Study guide')}</p>{guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
   {front.length>0&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{front.map(row)}</>}
   <p className="r2-head">{L('Chapters')}</p>
   {main.map(row)}
+  {guideItems.length>0&&<><button className="r2-head r2-fold" aria-expanded={guideOpen||guideItems.some(x=>x.id===section)} onClick={()=>setGuideOpen(o=>!o)}>{L('Study guide')}<ExpandMoreRounded/></button>{(guideOpen||guideItems.some(x=>x.id===section))&&guideItems.map(g=><button key={g.id} className={'r2-row'+(section===g.id?' on':'')} onClick={()=>{setList(false);p.onSection(g.id);}}><span className="n"/><span className="t" dir="auto">{g.label}</span></button>)}</>}
   {back.length>0&&<div className="r2-back-list">{back.map(row)}</div>}
   {hidden>0&&<button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>}
  </nav>;

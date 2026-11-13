@@ -662,3 +662,5 @@ body{background:var(--bg);color:var(--ink)}
 }
 @media (max-width:899px){.topnav-bar{display:none}}
 .zip-form{display:grid;gap:12px;margin:14px 0}.zip-found{display:grid;margin-bottom:6px}.zip-actions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}
+
+.r2-fold{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;cursor:pointer;text-align:start;color:var(--rmuted)}.r2-fold svg{font-size:20px;transition:transform .2s}.r2-fold[aria-expanded=true] svg{transform:rotate(180deg)}
