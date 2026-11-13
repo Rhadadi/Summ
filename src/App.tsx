@@ -125,10 +125,10 @@ export default function App(){
  // A finished summary becomes a book of its own, and the Publish dialog opens as soon as its data is ready.
  const[pendingPublish,setPendingPublish]=useState('');
  useEffect(()=>{if(pendingPublish&&active?.id===pendingPublish&&data.loaded&&data.versions.length){setPendingPublish('');setPublishOpen(true);}},[pendingPublish,active?.id,data.loaded,data.versions.length]);
- async function createFromSummary(b:Book,versions:ImportedVersion[]){
+ async function createFromSummary(b:Book,versions:ImportedVersion[],cover?:Blob){
   await store.saveBook(b);await store.saveImports(b.id,versions,true);
   const next={...settings,language:versions[0].language};setSettings(next);saveSettings(next);setDraft(next);
-  setBooks(items=>[b,...items]);setReportVersion(v=>v+1);enrich(b);setImportOpen(false);navigate('/book/'+b.id);setPendingPublish(b.id);
+  setBooks(items=>[b,...items]);setReportVersion(v=>v+1);if(cover)await setCover(b.id,cover,'file');else enrich(b);setImportOpen(false);navigate('/book/'+b.id);setPendingPublish(b.id);
  }
  async function addBook(b:Book,file?:File){
   const old=books.find(x=>x.hash===b.hash);if(old){setImportOpen(false);await openBook(old);setToast('This source is already in your library.');return;}

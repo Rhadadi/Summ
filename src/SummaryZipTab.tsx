@@ -6,13 +6,19 @@ import{languages}from'./core';
 import{summaryTypes}from'./prompt-builder';
 import{mapChapters,parseBlock,splitBlocks,type ParsedBlock}from'./structured-import';
 import{buildVersion,versionLabel}from'./imports';
-import{readSummaryFiles,summaryMarkdown}from'./summary-import';
+import{readSummaryFiles}from'./summary-import';
+import{bookInfo,coverImage}from'./api';
+import{coverBlob}from'./publish';
 
 interface Found{block:ParsedBlock;type:string;lang:string;label:string}
 // A finished summary (a ZIP or Markdown file) becomes a book with no source file: chapters come from the summary itself.
-export default function SummaryZipTab({busy,onCreate}:{busy:boolean;onCreate:(book:Book,versions:ImportedVersion[])=>Promise<void>}){
+export default function SummaryZipTab({busy,onCreate}:{busy:boolean;onCreate:(book:Book,versions:ImportedVersion[],cover?:Blob)=>Promise<void>}){
  const input=useRef<HTMLInputElement>(null);
  const[found,setFound]=useState<Found[]>([]),[images,setImages]=useState<SummaryImage[]>([]),[sourcePath,setSourcePath]=useState(''),[skip,setSkip]=useState<Set<number>>(new Set());
+ // The cover: an image named like "cover" inside the ZIP, one found online for the title, or one the editor uploads.
+ const cover=useRef<HTMLInputElement>(null);
+ const[coverPick,setCoverPick]=useState<{blob:Blob;url:string}|null>(null),[choices,setChoices]=useState<string[]|null>(null),[finding,setFinding]=useState(false);
+ const use=async(blob:Blob)=>{const b=await coverBlob(blob);setCoverPick(old=>{if(old)URL.revokeObjectURL(old.url);return{blob:b,url:URL.createObjectURL(b)};});};
  const[title,setTitle]=useState(''),[author,setAuthor]=useState(''),[error,setError]=useState(''),[working,setWorking]=useState(false),[fileName,setFileName]=useState('');
  async function read(file:File){
   setError('');setWorking(true);setFound([]);setSkip(new Set());
@@ -30,7 +36,9 @@ export default function SummaryZipTab({busy,onCreate}:{busy:boolean;onCreate:(bo
    }
    if(!out.length)throw Error('No chapters were found. Each chapter needs a heading such as “## 1. Title”.');
    setFound(out);
-   const first=out[0].block;setTitle(first.bookTitle||'');setAuthor('');
+   const first=out[0].block;setTitle(first.bookTitle||'');setAuthor('');setChoices(null);setCoverPick(null);
+   const inZip=r.images.find(i=>/(^|[\/_ -])(cover|front)[^\/]*\.(png|jpe?g|webp)$/i.test(i.path));
+   if(inZip)void use(new Blob([inZip.data],{type:inZip.type}));
   }catch(e){setError(e instanceof Error?e.message:'Could not read that file.');}finally{setWorking(false);}
  }
  const picked=found.map((f,i)=>({...f,i})).filter(f=>!skip.has(f.i));
@@ -46,7 +54,7 @@ export default function SummaryZipTab({busy,onCreate}:{busy:boolean;onCreate:(bo
     versions.push(buildVersion(f.block,mapChapters(f.block.chapters,chapters,'position').mapped,f.lang,f.type,{sourcePath,images}));
    }
    const book:Book={id:crypto.randomUUID(),title:title.trim()||lead.block.chapters[0].title,author:author.trim()||'Author not supplied',format:'SUMMARY',category:'book',chapters,warnings:[],addedAt:Date.now(),lastRead:0,chapterIndex:0,completed:[],color:Math.floor(Math.random()*4),hash:'summary:'+crypto.randomUUID()};
-   await onCreate(book,versions);
+   await onCreate(book,versions,coverPick?.blob);
   }catch(e){setError(e instanceof Error?e.message:'Could not create the book.');}
  }
  return <div className="zip-tab">
@@ -56,6 +64,10 @@ export default function SummaryZipTab({busy,onCreate}:{busy:boolean;onCreate:(bo
    <p className="settings-help">Next you set the title and author, then go straight to publishing: background picture, caption, audio and the rest.</p></>
   :<>
    <Alert severity="success" sx={{mt:2}}>{fileName}: {found.length===1?'1 summary':found.length+' summaries'}, {found[0].block.chapters.length} chapters{images.length?', '+images.length+' images':''}.</Alert>
+   <div className="zip-cover">{coverPick?<img src={coverPick.url} alt=""/>:<span className="zip-nocover">No cover yet</span>}<div><strong>Cover</strong><small>{coverPick?'This cover will be used.':'Add one now, or later in the book editor.'}</small>
+    <div className="zip-cover-actions"><Button size="small" variant="outlined" onClick={()=>cover.current?.click()}>Upload an image</Button><Button size="small" variant="outlined" disabled={finding||!title.trim()} onClick={async()=>{setFinding(true);setError('');try{const info=await bookInfo(title.trim(),author.trim());setChoices(info.covers);if(!info.covers.length)setError('No cover was found online for this title. Upload one instead.');}catch(e){setError(e instanceof Error?e.message:'The cover search failed.');}finally{setFinding(false);}}}>{finding?'Searching…':'Find online'}</Button></div></div>
+    <input ref={cover} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void use(f).catch(()=>setError('That image could not be read.'));}}/></div>
+   {choices&&choices.length>0&&<div className="zip-choices">{choices.slice(0,8).map(u=><button key={u} type="button" aria-label="Use this cover" onClick={async()=>{try{await use(await coverImage(u));setChoices(null);}catch{setError('That cover could not be downloaded.');}}}><img src={u} alt="" loading="lazy"/></button>)}</div>}
    <div className="zip-form"><TextField fullWidth size="small" label="Book title" value={title} onChange={e=>setTitle(e.target.value)}/><TextField fullWidth size="small" label="Author" value={author} onChange={e=>setAuthor(e.target.value)}/></div>
    {found.length>1&&<div className="zip-found">{found.map((f,i)=><FormControlLabel key={i} control={<Checkbox size="small" checked={!skip.has(i)} onChange={()=>setSkip(s=>{const n=new Set(s);n.has(i)?n.delete(i):n.add(i);return n;})}/>} label={f.label+' · '+(languages.find(l=>l.code===f.lang)?.label.replace(/ ·.*/,'')||f.lang)+' · '+f.block.chapters.length+' chapters'}/>)}</div>}
    <ol className="wizard-map">{found[0].block.chapters.slice(0,12).map((c,i)=><li key={i}><span dir="auto">{c.title}</span><small dir="auto">{c.original||''}</small></li>)}</ol>
