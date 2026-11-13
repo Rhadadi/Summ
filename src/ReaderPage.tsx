@@ -10,13 +10,14 @@ import{costRange,estimateChapter,money,usageCost}from'./cost';
 import type{Price}from'./cost';
 import{num,rtl as isRtl,tr}from'./i18n';
 import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
+import type{Backdrop}from'./MuseumHero';
 
 interface Props{
  book:Book;chapter:Chapter;section:string;settings:Settings;account:Account|null;price:Price|null;saved:SavedPassage[];data:BookData;
  summary:Summary|null;generating:boolean;generationError:string;
  onPreferences:(patch:Partial<Settings>)=>void;onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
  onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;cover?:string;
- readOnly?:boolean;
+ readOnly?:boolean;backdrop?:Backdrop;
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
@@ -98,26 +99,33 @@ export default function ReaderPage(p:Props){
  </nav>;
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
- return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
+ const curated=p.readOnly&&!!p.backdrop;
+ return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav><span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
-   <div className="r2-mobilebar"><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button></div>
+   {!curated&&<div className="r2-mobilebar"><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button></div>}
+   {curated&&isChapter&&<div className="curated-chapter-art">
+    {p.backdrop!.whole&&<img className="curated-fill" src={p.backdrop!.url} alt="" aria-hidden="true"/>}
+    <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position}}/>
+    <div className="curated-art-shade"/><div className="curated-chapter-inner"><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><h1 dir="auto">{chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
+   </div>}
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
-    <div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1>{L('Overview')}</h1>
+    {!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1>{L('Overview')}</h1>
     <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
     {paragraphs(report.overview.paragraphs)}
    </div>}
-   {guideSection&&<div dir={rtl(report?.language)}><div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div><h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}
+   {guideSection&&<div dir={rtl(report?.language)}>{!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}
    {isChapter&&<>
-    <div className="r2-bar"><span className="r2-chip">{index>=0&&<button className="r2-step" disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{lang==='fa'||lang==='ar'?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button>}<span>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span>{index>=0&&<button className="r2-step" disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{lang==='fa'||lang==='ar'?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button>}</span><span className="grow"/>
+    {!curated&&<div className="r2-bar"><span className="r2-chip">{index>=0&&<button className="r2-step" disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{lang==='fa'||lang==='ar'?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button>}<span>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span>{index>=0&&<button className="r2-step" disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{lang==='fa'||lang==='ar'?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button>}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
      {summary&&<button className="r2-pill" aria-label={L('Listen')} onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/><span>{L('Listen')}</span></button>}
      <IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>
-    </div>
-    <h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>
+    </div>}
+    {!curated&&<h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>}
     {view==='summary'&&(summary?<>
      {!p.readOnly&&<div className="r2-meta">{spent!=null&&<span>{money(spent)}</span>}<span className="grow"/>
       {!p.readOnly&&summary.model!=='imported'&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>

@@ -7,10 +7,11 @@ import{store}from'./storage';
 import{displayName}from'./core';
 import{mainChapters,strip}from'./bookData';
 import Cover from'./Cover';
-import MuseumHero,{galleryBackdrop,type Backdrop,type Slide}from'./MuseumHero';
+import MuseumHero,{galleryBackdrop,type Slide}from'./MuseumHero';
+import{bookBackdrop,homeBooks}from'./bookBackdrop';
 import{tr,num}from'./i18n';
 import{publicTitle}from'./discovery';
-import{art,rotation}from'./art';
+import{art}from'./art';
 import Community from'./Community';
 import type{Account}from'./types';
 
@@ -27,18 +28,12 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  const all=published||[];
  // The owner's order and choices; books not mentioned follow, newest first.
  const setting=(id:string)=>config?.slides.find(x=>x.id===id);
- const ordered=[...all].sort((a,b)=>{const ia=config?.slides.findIndex(x=>x.id===a.id)??-1,ib=config?.slides.findIndex(x=>x.id===b.id)??-1;return (ia<0?1e6:ia)-(ib<0?1e6:ib);});
- const books_=ordered.filter(b=>!setting(b.id)?.hidden);
+ const books_=homeBooks(all,config);
  // The first slide always says what this place is; each published book then gets a painting of its own.
  const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
- const backdropFor=(b:PubBook,i:number):Backdrop=>{
-  if((b.slide?.mode==='art'||b.slide?.mode==='upload')&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit,whole:b.slide.fit==='whole',caption:b.slide.caption?{text:b.slide.caption,url:b.slide.captionUrl}:undefined};
-  if(b.slide?.mode==='cover'&&b.cover)return{url:sized(b.cover,800),position:'50% 50%',blur:true,credit:null};
-  return{...galleryBackdrop(rotation[i%rotation.length]),whole:b.slide?.fit==='whole',...(b.slide?.caption?{caption:{text:b.slide.caption,url:b.slide.captionUrl}}:{})};
- };
- const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:backdropFor(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
+ const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:bookBackdrop(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}

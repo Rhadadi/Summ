@@ -11,13 +11,14 @@ import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 import ReviewSection from'./ReviewSection';
 import{num,rtl,tr}from'./i18n';
+import type{Backdrop}from'./MuseumHero';
 
 interface Props{
  book:Book;cover:string;data:BookData;saved:SavedPassage[];
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  onImport?:()=>void;onVersion?:(id:string)=>void;review?:Review|null;reviewApproved?:boolean;onReview?:()=>void;
- listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
+ listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;backdrop?:Backdrop;
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
@@ -28,7 +29,7 @@ async function downscale(blob:Blob){
 // Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
 export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
+export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[more2,setMore2]=useState(false);
@@ -84,12 +85,27 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
- return <div className="detail" lang={lang} dir={rtl(lang)?'rtl':undefined}>
+ return <div className={'detail'+(readOnly&&backdrop?' curated-detail':'')} lang={lang} dir={rtl(lang)?'rtl':undefined}>
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{L(backLabel||'My library')}</button>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
   {outdated&&!rebuilding&&data.loaded&&(report||Object.keys(summaries).length>0||saved.some(x=>x.bookId===book.id))&&<Alert severity="info" action={<Button onClick={()=>{setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}}>Re-read file</Button>}>Cleaner text extraction is available for this book. Re-reading it resets its summaries and saved passages.</Alert>}
   {error&&<Alert severity="error" onClose={()=>setError('')}>{error}</Alert>}
-  <section className="hero">
+  {readOnly&&backdrop?<section className="curated-intro">
+   <div className="curated-intro-art">
+    {backdrop.whole&&<img className="curated-fill" src={backdrop.url} alt="" aria-hidden="true"/>}
+    <img className={'curated-art'+(backdrop.whole?' whole':'')+(backdrop.blur?' blurred':'')} src={backdrop.url} srcSet={backdrop.srcset} alt="" style={{objectPosition:backdrop.position}}/>
+    <div className="curated-art-shade"/>
+    <div className="curated-intro-inner"><div className="curated-intro-copy">
+     <span className="curated-eyebrow">{L('Study guide')}</span><span className="curated-goldline"/>
+     <h1 dir="auto">{title}</h1>{subtitle&&<p className="curated-subtitle" dir="auto">{subtitle}</p>}
+     {author&&<p className="curated-author"><bdi>{author}</bdi>{info?.year?' · '+String(info.year).replace(/\d/g,d=>lang==='fa'?'۰۱۲۳۴۵۶۷۸۹'[+d]:d):''}</p>}
+     {report?.overview?.paragraphs[0]&&<p className="curated-thought" dir="auto">{report.overview.paragraphs[0].text}</p>}
+    </div><div className="curated-cover">{cover?<img src={cover} alt=""/>:<span dir="auto">{book.title}</span>}</div></div>
+    {backdrop.credit&&<small className="curated-credit">{[backdrop.credit.title,backdrop.credit.artist,backdrop.credit.year].filter(Boolean).join(' · ')}</small>}
+   </div>
+   <div className="curated-actions"><button className="curated-read" onClick={()=>onRead(startAt)}><span>{L(book.lastRead?'Continue reading':'Start reading')}<small>{num(lang,main.length)} {L('key chapters')} · {L('Reading time')} {num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))} {L('min')}</small></span><ChevronRightRounded/></button><button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button>{pages&&<span className="curated-pages">{num(lang,pages)} {L('pages')}</span>}</div>
+   {audioNote&&<p className="curated-audio-note">{audioNote}</p>}
+  </section>:<section className="hero">
    <div className="hero-top">
     <div className="hero-cover"><Shelf book={book} url={cover}/>
      {!readOnly&&<div className="hero-tools">
@@ -123,7 +139,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
     :<><div><strong>{done} of {main.length} chapters summarized</strong><span>{done?'Finish the study guide to get the overview, key takeaways, themes and a typeset PDF.':'Summarize every chapter, then get the overview, key takeaways, themes and a typeset PDF.'} You see the cost before anything runs.</span></div>
       <Button variant="contained" className="dark" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{done?'Finish the study guide':'Create the study guide'}</Button></>}
    </div>}
-  </section>
+  </section>}
   {(()=>{const praise=(review?.critics||[]).filter(c=>c.excerpt).sort((x,y)=>Number(y.verified===true)-Number(x.verified===true)).slice(0,3);
    return praise.length>0&&<section className="praise" aria-label={L('What the critics said')}>{praise.map((c,i)=><figure key={i} className={i===0?'lead':''}>
     <blockquote dir="auto">“{c.excerpt}”</blockquote>{lang&&c.translation&&<p className="praise-tr" dir="auto">{c.translation}</p>}
