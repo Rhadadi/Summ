@@ -81,7 +81,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
  const firstUnread=main.find(c=>!book.completed.includes(c.id))||main[0]||book.chapters[0];
  const startAt=book.lastRead?book.chapterIndex:book.chapters.indexOf(firstUnread);
  const row=(c:Chapter)=>{const s=summaries[c.id];const n=data.titles[c.id]?(main.includes(c)?String(main.indexOf(c)+1):''):c.title.match(/^(\d+)[.\s]/)?.[1]||(main.includes(c)?String(main.indexOf(c)+1):'');
-  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n?num(lang,+n):'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span><span className={'ch-status'+(s?' has':'')}>{s?L('Summary')+' · '+shortL(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></button>;};
+  return <button key={c.id} className="ch-row" onClick={()=>onRead(book.chapters.indexOf(c))}><span className="ch-num">{n?num(lang,+n):'–'}</span><span className="ch-title" dir="auto">{chapterTitle(data,c)}</span>{!readOnly&&<><span className={'ch-status'+(s?' has':'')}>{s?L('Summary')+' · '+shortL(minutes(s.paragraphs.reduce((t,p)=>t+p.text.split(/\s+/).length,0))):'Original · '+short(minutes(chapterWords(bodyChapter(c))))}</span><ChevronRightRounded/></>}</button>;};
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
@@ -97,14 +97,14 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
     <div className="curated-art-shade"/>
     <div className="curated-intro-inner"><div className="curated-intro-copy">
      <span className="curated-eyebrow">{L('Study guide')}</span><span className="curated-goldline"/>
-     <h1 dir="auto">{title}</h1>{subtitle&&<p className="curated-subtitle" dir="auto">{subtitle}</p>}
+     <h1 dir="auto" className={title.length>30?'curated-long':undefined}>{title}</h1>{subtitle&&<p className="curated-subtitle" dir="auto">{subtitle}</p>}
      {author&&<p className="curated-author"><bdi>{author}</bdi>{info?.year?' · '+String(info.year).replace(/\d/g,d=>lang==='fa'?'۰۱۲۳۴۵۶۷۸۹'[+d]:d):''}</p>}
      {report?.overview?.paragraphs[0]&&<p className="curated-thought" dir="auto">{report.overview.paragraphs[0].text}</p>}
     </div><div className="curated-cover">{cover?<img src={cover} alt=""/>:<span dir="auto">{book.title}</span>}</div></div>
-    {backdrop.credit&&<small className="curated-credit">{[backdrop.credit.title,backdrop.credit.artist,backdrop.credit.year].filter(Boolean).join(' · ')}</small>}
    </div>
    <div className="curated-actions"><button className="curated-read" onClick={()=>onRead(startAt)}><span>{L(book.lastRead?'Continue reading':'Start reading')}<small>{num(lang,main.length)} {L('key chapters')} · {L('Reading time')} {num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))} {L('min')}</small></span><ChevronRightRounded/></button><button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button>{pages&&<span className="curated-pages">{num(lang,pages)} {L('pages')}</span>}</div>
    {audioNote&&<p className="curated-audio-note">{audioNote}</p>}
+   {backdrop.credit&&<small className="curated-credit">{[backdrop.credit.title,backdrop.credit.artist,backdrop.credit.year].filter(Boolean).join(' · ')}</small>}
   </section>:<section className="hero">
    <div className="hero-top">
     <div className="hero-cover"><Shelf book={book} url={cover}/>
@@ -140,10 +140,6 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
       <Button variant="contained" className="dark" startIcon={<AutoAwesomeRounded/>} onClick={onCreate}>{done?'Finish the study guide':'Create the study guide'}</Button></>}
    </div>}
   </section>}
-  {(()=>{const praise=(review?.critics||[]).filter(c=>c.excerpt).sort((x,y)=>Number(y.verified===true)-Number(x.verified===true)).slice(0,3);
-   return praise.length>0&&<section className="praise" aria-label={L('What the critics said')}>{praise.map((c,i)=><figure key={i} className={i===0?'lead':''}>
-    <blockquote dir="auto">“{c.excerpt}”</blockquote>{lang&&c.translation&&<p className="praise-tr" dir="auto">{c.translation}</p>}
-    <figcaption><strong>{c.publication}</strong>{c.reviewer?' · '+c.reviewer:''}</figcaption></figure>)}</section>;})()}
   <section className="about">
    <h2>{L('What’s it about?')}</h2>
    <div className="about-grid">

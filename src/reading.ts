@@ -2,12 +2,12 @@ import{useEffect,useState}from'react';
 
 // How the reader looks: per device, for visitors as well as editors.
 export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean;zen:boolean}
-export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'vazirmatn',en:'literata',justify:false,zen:false};
+export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'nazli',en:'literata',justify:false,zen:false};
 // Every font ships with the site under a free licence, so each reader sees the same choices.
 interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
 export const faFonts:Font[]=[
  {id:'vazirmatn',label:'Vazirmatn · وزیرمتن',family:'"Vazirmatn Variable"'},
- {id:'nazli',label:'Nazli · نازلی (بر پایهٔ نازنین)',family:'"Nazli"',load:()=>import('./fonts/farsiweb.css')},
+ {id:'nazli',label:'Nazli · نازلی (بر پایهٔ نازنین)',family:'"Nazli"'},
  {id:'homa',label:'Homa · هما',family:'"Homa"',load:()=>import('./fonts/farsiweb.css')},
  {id:'naskh',label:'Noto Naskh · نسخ کلاسیک',family:'"Noto Naskh Arabic Variable"',load:()=>import('@fontsource-variable/noto-naskh-arabic/index.css')},
  {id:'amiri',label:'Amiri · امیری',family:'"Amiri"',load:()=>Promise.all([import('@fontsource/amiri/arabic-400.css'),import('@fontsource/amiri/arabic-700.css')])},
@@ -24,8 +24,13 @@ export const enFonts:Font[]=[
  {id:'atkinson',label:'Atkinson Hyperlegible',family:'"Atkinson Hyperlegible"',load:()=>Promise.all([import('@fontsource/atkinson-hyperlegible/400.css'),import('@fontsource/atkinson-hyperlegible/700.css')])},
  {id:'system',label:'System sans',family:'-apple-system,BlinkMacSystemFont,"Segoe UI"'},
 ];
-const KEY='inkling-reading';
-function load():Reading{try{return{...readingDefaults,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return{...readingDefaults};}}
+const KEY='inkling-reading-v2',OLD_KEY='inkling-reading';
+function load():Reading{try{
+  const current=localStorage.getItem(KEY);
+  if(current)return{...readingDefaults,...JSON.parse(current)};
+  const old=JSON.parse(localStorage.getItem(OLD_KEY)||'{}');
+  return{...readingDefaults,...old,fa:!old.fa||old.fa==='vazirmatn'?'nazli':old.fa};
+ }catch{return{...readingDefaults};}}
 export function useReading(){
  const[reading,setReading]=useState<Reading>(load);
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(reading));}catch{/* private mode */}
@@ -33,7 +38,7 @@ export function useReading(){
  return[reading,(patch:Partial<Reading>)=>setReading(r=>({...r,...patch}))] as const;
 }
 export function readingStyle(r:Reading):Record<string,string>{
- const fa=faFonts.find(f=>f.id===r.fa)||faFonts[0],en=enFonts.find(f=>f.id===r.en)||enFonts[0];
+ const fa=faFonts.find(f=>f.id===r.fa)||faFonts.find(f=>f.id===readingDefaults.fa)!,en=enFonts.find(f=>f.id===r.en)||enFonts[0];
  return{'--read-size':r.size+'px','--read-lh':String({tight:1.6,normal:1.85,airy:2.1}[r.leading]),'--read-width':{narrow:'620px',medium:'760px',wide:'920px'}[r.width],
   '--read-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
 }
