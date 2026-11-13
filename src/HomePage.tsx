@@ -1,4 +1,5 @@
 import{useEffect,useState}from'react';
+import{sized}from'./img';
 import{AccessTimeRounded,ArrowForwardRounded,BookmarkBorderRounded,ChevronRightRounded,LibraryBooksOutlined,PlayArrowRounded}from'@mui/icons-material';
 import{Button}from'@mui/material';
 import type{Book,HomeConfig,PubBook,SavedPassage}from'./types';
@@ -32,7 +33,7 @@ export default function HomePage({config,onEditHome,lang,published,canEdit,onOpe
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
  const backdropFor=(b:PubBook,i:number):Backdrop=>{
   if((b.slide?.mode==='art'||b.slide?.mode==='upload')&&b.slide.art)return{url:b.slide.art,position:'50% 40%',credit:b.slide.credit,whole:b.slide.fit==='whole',caption:b.slide.caption?{text:b.slide.caption,url:b.slide.captionUrl}:undefined};
-  if(b.slide?.mode==='cover'&&b.cover)return{url:b.cover,position:'50% 50%',blur:true,credit:null};
+  if(b.slide?.mode==='cover'&&b.cover)return{url:sized(b.cover,800),position:'50% 50%',blur:true,credit:null};
   return{...galleryBackdrop(rotation[i%rotation.length]),whole:b.slide?.fit==='whole',...(b.slide?.caption?{caption:{text:b.slide.caption,url:b.slide.captionUrl}}:{})};
  };
  const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:backdropFor(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
@@ -40,7 +41,7 @@ export default function HomePage({config,onEditHome,lang,published,canEdit,onOpe
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button></div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
-   {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
+   {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>}
  </>;
  if(!canEdit)return <div className="museum-home">{intro}</div>;

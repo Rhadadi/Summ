@@ -1,4 +1,5 @@
 import type{PubBook}from'./types';
+import{sized}from'./img';
 import{displayName}from'./core';
 import{Logo}from'./Shell';
 import{matchesBook,publicTitle}from'./discovery';
@@ -13,7 +14,7 @@ export default function PublicLibrary({books,loading,canEdit,onOpen,onWorkspace,
  <button className="card-open" onClick={()=>onOpen(b)} aria-label={L('Read the summary')+': '+publicTitle(b,lang)}>
  <div className="card-top"><span className="card-brand"><Logo dark/>{L('Summary')}</span><span className="card-tag">{b.languages.map(l=>l==='fa'?'فارسی':l==='en'?'English':l).join(' · ')}</span></div>
  <h2 dir="auto">{publicTitle(b,lang)}</h2>{b.title!==publicTitle(b,lang)&&<p dir="auto" lang="en">{b.title}</p>}<p className="card-author" dir="auto">{displayName(b.author)}</p>
- <div className={'cover card-cover'+(b.cover?' has-image':' cover-0')} aria-hidden="true">{b.cover?<img src={b.cover} alt=""/>:<span dir="auto">{publicTitle(b,lang)}</span>}</div></button>
+ <div className={'cover card-cover'+(b.cover?' has-image':' cover-0')} aria-hidden="true">{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{publicTitle(b,lang)}</span>}</div></button>
  <div className="card-foot"><span>{num(lang,b.chapters)} {L('chapters')}</span><button className="text-link2" onClick={()=>onOpen(b)}>{L(listening?'Listen':'Read the summary')}</button></div>
  </article>)}</div></div>;
 }

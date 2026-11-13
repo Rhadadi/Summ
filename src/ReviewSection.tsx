@@ -44,7 +44,7 @@ export default function ReviewSection({review,scores=[],draft=false,lang,related
    {review.impact&&<p dir="auto">{review.impact}</p>}
   </section>}
   {(related.length>0||(review?.similar?.length||0)>0)&&<section className="rv-block rv-similar"><h3>{L('If you liked this')}</h3><div className="rv-shelf">{(related.length?related:review!.similar!.map(b=>({title:b.title,author:b.author,year:'',cover:null,url:null,rating:null,why:b.why,source:'recommended'}))).map((b,i)=>{
-   const content=<><span className={'rv-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{b.title}</span>}</span><strong dir="auto">{b.title}</strong><span dir="auto">{b.author}{b.year?' · '+b.year:''}</span>{b.why&&<small dir="auto">{b.why}</small>}</>;
+   const content=<><span className={'rv-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy" decoding="async"/>:<span dir="auto">{b.title}</span>}</span><strong dir="auto">{b.title}</strong><span dir="auto">{b.author}{b.year?' · '+b.year:''}</span>{b.why&&<small dir="auto">{b.why}</small>}</>;
    return b.url&&directReviewPage(b.url)?<a key={i} className="rv-book" href={b.url} target="_blank" rel="noopener noreferrer">{content}</a>:<div key={i} className="rv-book">{content}</div>;
   })}</div></section>}
   {sources.length>0&&<div className="rv-links"><span>{L('Read more:')}</span>{sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">{s.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div>}

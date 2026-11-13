@@ -2,11 +2,12 @@ import{useEffect,useRef,useState}from'react';
 import{ArrowBackRounded,ArrowForwardRounded,StarRounded,StarHalfRounded,StarBorderRounded}from'@mui/icons-material';
 import{useMediaQuery}from'@mui/material';
 import{tr,num}from'./i18n';
-import{artUrl,type Art}from'./art';
+import{artSrcSet,artUrl,type Art}from'./art';
+import{sized,srcSet}from'./img';
 
 // Where a slide's picture comes from: a gallery painting, a painting chosen for the book, or the cover itself.
-export interface Backdrop{url:string;position:string;whole?:boolean;caption?:{text:string;url?:string};blur?:boolean;credit?:{title:string;artist:string;year:string;page?:string}|null}
-export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),position:a.position,credit:{title:a.title,artist:a.artist,year:a.year}});
+export interface Backdrop{url:string;srcset?:string;position:string;whole?:boolean;caption?:{text:string;url?:string};blur?:boolean;credit?:{title:string;artist:string;year:string;page?:string}|null}
+export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),srcset:artSrcSet(a),position:a.position,credit:{title:a.title,artist:a.artist,year:a.year}});
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
 export interface Slide{key:string;backdrop:Backdrop;eyebrow:string;title:string;by?:string;text:string;cover?:string|null;rtl?:boolean;seconds?:number;score?:{rating:number;count:number|null;source:string};facts?:string[];actions:{label:string;onClick:()=>void;primary?:boolean}[]}
@@ -43,6 +44,8 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
  const n=slides.length,go=(i:number)=>setAt(((i%n)+n)%n);
 
  useEffect(()=>{if(at>=n)setAt(0);},[n,at]);
+ // Only the slide on screen and its neighbours load their pictures; the rest wait until they come close.
+ const near=(i:number)=>n<4||i===at||i===(at+1)%n||i===(at-1+n)%n;
  const every=(slides[Math.min(at,n-1)]?.seconds||seconds)*1000;
  // The slideshow advances by itself, on phones too; a mouse resting on it pauses it, a finger never does.
  useEffect(()=>{if(hold||reduce||!autoplay||n<2)return;const t=setTimeout(()=>setAt(a=>(a+1)%n),every);return()=>clearTimeout(t);},[at,hold,reduce,autoplay,n,every]);
@@ -54,8 +57,8 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
   onPointerDown={e=>{x.current=e.clientX;}} onPointerUp={e=>{swiped.current=x.current!==null&&Math.abs(e.clientX-x.current)>60;if(swiped.current)go(at+(e.clientX<x.current!?1:-1));x.current=null;}}>
   {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')+(tone[s.key]&&tone[s.key]!=='dark'?' tone-'+tone[s.key]:'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} onClick={()=>{if(!swiped.current&&s.cover)s.actions[0]?.onClick();}} style={s.cover?{cursor:'pointer'}:undefined} {...(i!==at?{inert:true}:{})}>
    {/* The painting is shown whole; a blurred copy of it fills the rest of the frame. */}
-   <img className="m-fill" src={s.backdrop.url} alt="" aria-hidden="true" loading={i===0?'eager':'lazy'} decoding="async"/>
-   <img className={'m-art'+(s.backdrop.blur?' blur':'')+(s.backdrop.whole?' whole':'')} src={s.backdrop.url} alt="" loading={i===0?'eager':'lazy'} decoding="async"/>
+   {near(i)&&s.backdrop.whole&&<img className="m-fill" src={sized(s.backdrop.url,480)} alt="" aria-hidden="true" decoding="async"/>}
+   {near(i)&&<img className={'m-art'+(s.backdrop.blur?' blur':'')+(s.backdrop.whole?' whole':'')} src={s.backdrop.blur?sized(s.backdrop.url,480):s.backdrop.url} srcSet={s.backdrop.blur?undefined:(s.backdrop.srcset||srcSet(s.backdrop.url))} sizes="100vw" alt="" fetchPriority={i===at?'high':'low'} decoding="async"/>}
    <div className="m-shade"/>
    <div className="m-inner">
     <div className="m-text">
@@ -66,7 +69,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
      {s.score&&<div className="m-meta"><span className="m-score"><Stars value={s.score.rating} lang={lang}/><b>{num(lang,s.score.rating)}</b></span></div>}
      {!s.cover&&<div className="m-actions">{s.actions.map(a=><button key={a.label} className={'m-btn'+(a.primary?' primary':'')} onClick={a.onClick} tabIndex={i===at?0:-1}>{a.label}{a.primary&&<ArrowForwardRounded/>}</button>)}</div>}
     </div>
-    {s.cover&&<button className="m-cover" tabIndex={i===at?0:-1} aria-label={L('Open')+' '+s.title} onClick={s.actions[0]?.onClick}><img src={s.cover} alt="" loading="lazy"/></button>}
+    {s.cover&&<button className="m-cover" tabIndex={i===at?0:-1} aria-label={L('Open')+' '+s.title} onClick={s.actions[0]?.onClick}>{near(i)&&<img src={sized(s.cover,480)} alt="" decoding="async"/>}</button>}
    </div>
   </div>)}
   <div className="m-bar">

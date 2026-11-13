@@ -1,4 +1,5 @@
 import{useEffect,useMemo,useRef,useState}from'react';
+import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
@@ -63,7 +64,7 @@ export default function ReaderPage(p:Props){
   return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
  }
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||x.image.path} alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{x.text}</figcaption></figure>
+  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{x.text}</figcaption></figure>
    :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}{x.text}{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
    :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
@@ -87,7 +88,7 @@ export default function ReaderPage(p:Props){
  const front=ofKind('front').filter(shown),back=ofKind('back').filter(shown),hidden=[...ofKind('front'),...ofKind('back')].filter(c=>!data.summaries[c.id]&&c.id!==chapter.id).length;
  const panel=<nav className="r2-list" aria-label={L('Contents')}>
   <button className="r2-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button>
-  <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={p.cover} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
+  <button className="r2-bookline" onClick={p.onBack}>{p.cover?<img src={sized(p.cover,320)} alt=""/>:<span className="r2-nocover"/>}<span><small>{L('Back to the book')}</small><strong dir="auto">{(data.version?.bookTitle||book.title).split(':')[0]}</strong></span></button>
   {front.length>0&&<><p className="r2-head">{lang==='fa'?'پیش از فصل‌ها':'Before the chapters'}</p>{front.map(row)}</>}
   <p className="r2-head">{L('Chapters')}</p>
   {main.map(row)}

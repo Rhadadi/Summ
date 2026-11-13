@@ -10,6 +10,7 @@ export const art:Record<string,Art>={
  layla:{file:'layla.jpg',artist:'Yar Muhammad al-Haravi',title:'Laylá and Majnun at School',year:'1516',position:'50% 38%'},
  spitzweg:{file:'spitzweg.jpg',artist:'Carl Spitzweg',title:'The Bookworm',year:'c. 1850',position:'50% 35%'},
 };
-export const artUrl=(a:Art)=>import.meta.env.BASE_URL+'art/'+a.file;
+export const artUrl=(a:Art)=>import.meta.env.BASE_URL+'art/'+a.file.replace(/\.jpg$/,'-1600.webp');
+export const artSrcSet=(a:Art)=>{const b=import.meta.env.BASE_URL+'art/'+a.file.replace(/\.jpg$/,'');return b+'-800.webp 800w, '+b+'-1600.webp 1600w';};
 // Slides take paintings in turn so neighbouring books never share one.
 export const rotation:Art[]=[art.vangogh,art.monet,art.friedrich,art.vermeer,art.hokusai,art.hammershoi];

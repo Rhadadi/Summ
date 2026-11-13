@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,home,mailer,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,home,images,mailer,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -41,7 +41,8 @@ async def body_limit(request:Request,call_next):
     response=await call_next(request)
     response.headers['X-Content-Type-Options']='nosniff'
     response.headers['Referrer-Policy']='strict-origin-when-cross-origin'
-    if request.url.path.startswith('/api/'):response.headers['Cache-Control']='no-store'
+    # API answers are fresh every time, except files that set their own caching (covers, art, figures, audio).
+    if request.url.path.startswith('/api/'):response.headers.setdefault('Cache-Control','no-store')
     elif response.headers.get('content-type','').startswith('text/html'):response.headers['Cache-Control']='no-cache'
     return response
 @app.exception_handler(accounts.AccountError)
@@ -490,15 +491,18 @@ async def library_cover_remove(book_id:str,user:dict=Depends(editor_user)):
 async def library_figure_upload(book_id:str,name:str,request:Request,user:dict=Depends(editor_user)):
     own_or_owner(user,book_id);throttle('fig:'+user['id'],200);library.save_figure(book_id,name,await request.body());return {'ok':True}
 @app.get('/api/library/{book_id}/figure/{name}')
-async def library_figure(book_id:str,name:str):
+async def library_figure(book_id:str,name:str,w:int|None=None):
     found=library.figure(book_id,name)
     if not found:raise HTTPException(404,'No figure.')
-    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=60'})
+    body,kind=await asyncio.to_thread(images.sized,found[0],w,found[1])
+    return Response(body,media_type=kind,headers={'Cache-Control':'public, max-age=60'})
 @app.get('/api/library/{book_id}/cover')
-async def library_cover(book_id:str):
+async def library_cover(book_id:str,w:int|None=None,v:str=''):
     found=library.cover(book_id)
     if not found:raise HTTPException(404,'No cover.')
-    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=3600'})
+    body,kind=await asyncio.to_thread(images.sized,found[0],w,found[1])
+    # Cover links carry a version, so a versioned copy can be kept for a long time.
+    return Response(body,media_type=kind,headers={'Cache-Control':'public, max-age=31536000, immutable' if v else 'public, max-age=3600'})
 @app.get('/api/library/{book_id}/reception')
 async def library_reception(book_id:str,request:Request,lang:str='en'):
     throttle('rec:'+client_ip(request),30)
@@ -571,10 +575,11 @@ async def library_slide(book_id:str,body:SlideBody,user:dict=Depends(editor_user
     library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
     return artwork.slide(book_id)
 @app.get('/api/library/{book_id}/art')
-async def library_art(book_id:str):
+async def library_art(book_id:str,w:int|None=None,v:str=''):
     found=artwork.image(book_id)
     if not found:raise HTTPException(404,'No artwork.')
-    return Response(found[0],media_type=found[1],headers={'Cache-Control':'public, max-age=86400'})
+    body,kind=await asyncio.to_thread(images.sized,found[0],w,found[1])
+    return Response(body,media_type=kind,headers={'Cache-Control':'public, max-age=31536000, immutable' if v else 'public, max-age=86400'})
 @app.put('/api/library/{book_id}/background')
 async def library_background_upload(book_id:str,request:Request,user:dict=Depends(editor_user)):
     own_or_owner(user,book_id)
