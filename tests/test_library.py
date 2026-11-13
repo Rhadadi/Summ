@@ -193,6 +193,10 @@ class NarrationTests(RolesTest):
                 if status['status']!='running':break
                 time.sleep(.1)
         self.assertEqual(status['status'],'ready',status);self.assertEqual(calls[0],('sk-test-0000000000000000000000','VoiceX'))
+        first=library.audio_path(book['id'],'en','0.mp3')
+        self.assertIsNotNone(first)
+        first.write_bytes(b'ID3'+b'0'*15997)
+        self.assertEqual(library.narration_status(book['id'],'en')['tracks'][0]['seconds'],1.0)
     def test_narration_failure_is_reported(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
         with patch('server.audio.piper_mp3',side_effect=OSError('voice missing')):

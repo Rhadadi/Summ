@@ -1,6 +1,6 @@
 """The public library: published summaries, covers, and narration. The original book text is never stored here."""
 from __future__ import annotations
-import json,os,re,threading,time,unicodedata,uuid
+import json,os,re,sqlite3,threading,time,unicodedata,uuid
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field,model_validator
@@ -206,7 +206,10 @@ def narration_status(book_id:str,language:str)->dict:
     rows=q('SELECT status,done,total,tracks,error FROM narration WHERE book_id=? AND language=?',(book_id,language))
     if not rows:return {'status':'none','done':0,'total':0,'tracks':[]}
     status,done,total,tracks,error=rows[0]
-    return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/8000,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
+    try:engine=q('SELECT engine FROM narration WHERE book_id=? AND language=?',(book_id,language))[0][0]
+    except sqlite3.OperationalError:engine='offline'  # Older databases may not have the engine column yet.
+    bytes_per_second=16000 if engine=='elevenlabs' else 8000
+    return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/bytes_per_second,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
 def audio_path(book_id:str,language:str,name:str)->Path|None:
     if not re.fullmatch(r'\d{1,4}\.mp3',name) or not re.fullmatch(r'[a-z]{2}',language):return None
     if not re.fullmatch(r'[0-9a-f-]{36}',book_id):return None
