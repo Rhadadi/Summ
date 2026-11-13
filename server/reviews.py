@@ -224,3 +224,9 @@ async def translate_critics(critics:list[dict],language:str,creds:tuple[str,str]
             if x.get('summary'):c['summary']=_text(x['summary'],600)
             if x.get('headline') and c.get('headline'):c['headlineTranslation']=_text(x['headline'],200)
     return out
+
+SUGGEST='''A reader has just finished the book "{title}"{by}. Recommend 8 books they would want to read next: the best-known works in the same field, close companions of this book's questions, and a few newer accessible ones. Never recommend this book itself or other books by the same author. Use real, well-known books only, with their usual English titles and real authors.
+Return JSON: {{"books":[{{"title":"...","author":"...","why":"one short sentence in {language} on the link"}}]}}'''
+async def suggest_books(title:str,author:str,language:str,creds:tuple[str,str],gemini:str)->list[dict]:
+    data,_=await _ask(SUGGEST.format(title=title[:200],by=' by '+author[:100] if author else '',language=LANGS.get(language,'English')),creds,gemini,tokens=4096)
+    return [{'title':_text(b.get('title'),200),'author':_text(b.get('author'),120),'why':_text(b.get('why'),300)} for b in (data.get('books') or []) if isinstance(b,dict) and _text(b.get('title'),200)][:8]

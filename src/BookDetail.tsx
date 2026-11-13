@@ -1,7 +1,7 @@
 import{useEffect,useRef,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
 import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
-import type{Review,Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
+import type{RelatedBook,Review,Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
 import{referenceLabels,reportComplete}from'./book-summary';
@@ -17,7 +17,7 @@ interface Props{
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  onImport?:()=>void;onVersion?:(id:string)=>void;review?:Review|null;reviewApproved?:boolean;onReview?:()=>void;
- listenLabel?:string;audioNote?:string;searchTitle?:string;readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
+ listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
@@ -28,7 +28,7 @@ async function downscale(blob:Blob){
 // Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
 export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
+export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[more2,setMore2]=useState(false);
@@ -166,7 +166,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
    <h2>{L('What others say')}</h2>
    {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
-    <ReviewSection lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} title={searchTitle||book.title} author={author} draft={!!review&&!reviewApproved&&!readOnly}/>
+    <ReviewSection related={related} lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} title={searchTitle||book.title} author={author} draft={!!review&&!reviewApproved&&!readOnly}/>
 
     {info&&<p className="facts-line">{[info.publisher||info.google_edition?.publisher,info.google_edition?.published_date||info.year,pages?num(lang,pages)+' '+L('pages'):'',info.google_edition?.isbns[0]?'ISBN '+info.google_edition.isbns[0]:''].filter(Boolean).join(' · ')}</p>}
    </>}

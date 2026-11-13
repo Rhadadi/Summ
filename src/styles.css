@@ -668,3 +668,11 @@ body{background:var(--bg);color:var(--ink)}
 .zip-cover{display:flex;gap:14px;align-items:center;margin:14px 0}.zip-cover img{width:64px;height:92px;object-fit:cover;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.18)}.zip-nocover{display:grid;place-items:center;width:64px;height:92px;border:1px dashed var(--line);border-radius:4px;font-size:11px;color:var(--muted);text-align:center}
 .zip-cover small{display:block;color:var(--muted);margin:2px 0 8px}.zip-cover-actions{display:flex;gap:8px;flex-wrap:wrap}
 .zip-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.zip-choices button{padding:0;border:2px solid transparent;border-radius:6px;background:none;overflow:hidden}.zip-choices button:hover{border-color:var(--brand)}.zip-choices img{display:block;width:100%;aspect-ratio:2/3;object-fit:cover}
+
+/* Books to read next: a shelf of covers */
+.rv-shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:22px 18px}
+.rv-book{display:flex;flex-direction:column;gap:3px;color:inherit;text-decoration:none}
+.rv-cover{display:block;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:var(--brand-tint);box-shadow:0 10px 22px -12px rgba(0,0,0,.45);transition:transform .25s ease;margin-bottom:8px}
+.rv-book:hover .rv-cover{transform:translateY(-5px)}
+.rv-cover img{width:100%;height:100%;object-fit:cover;display:block}.rv-cover.blank{display:grid;place-items:center;padding:10px;text-align:center;font:600 15px/1.3 var(--serif);color:var(--brand)}
+.rv-book strong{font:600 15px/1.3 var(--serif)}.rv-book>span:not(.rv-cover){font-size:13px;color:var(--muted)}.rv-book small{font-size:12px;line-height:1.45;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}

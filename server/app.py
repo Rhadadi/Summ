@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,home,mailer,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,home,mailer,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -510,6 +510,16 @@ async def library_reception(book_id:str,request:Request,lang:str='en'):
     owner=library.owner_of(book['id']);creds=accounts.credentials(owner) if owner else None
     translate=(lambda critics,l:reviews.translate_critics(critics,l,creds,GEMINI)) if creds else None
     return await reception.cached(book['id'],title,doc.get('author',''),language,translate)
+@app.get('/api/library/{book_id}/related')
+async def library_related(book_id:str,request:Request):
+    throttle('rel:'+client_ip(request),30)
+    book=library.get(book_id);doc=book['doc'];info=doc.get('info') or {}
+    title=(doc['title'].get('en') or doc['title'].get(doc.get('originalLanguage','en')) or book['title'])
+    picks=[{'title':x['title'],'author':x.get('author',''),'why':x.get('why','')} for x in ((doc.get('review') or {}).get('similar') or [])]
+    language=(doc['versions'][0]['language'] if doc.get('versions') else 'en')
+    owner=library.owner_of(book['id']);creds=accounts.credentials(owner) if owner else None
+    suggest=(lambda:reviews.suggest_books(title,doc.get('author',''),language,creds,GEMINI)) if creds else None
+    return {'books':await related.cached(book['id'],title,doc.get('author',''),info.get('categories') or [],picks,suggest)}
 @app.post('/api/review/research')
 async def review_research(body:reviews.ResearchRequest,user:dict=Depends(ai_user)):
     return (await reviews.research(body,user_credentials(user),GEMINI)).model_dump()

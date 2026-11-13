@@ -1,4 +1,4 @@
-import type{HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
@@ -64,3 +64,4 @@ export const artIdeas=(body:{title:string;author:string;about:string;themes:stri
 export const libraryReception=(id:string,lang='en')=>call<{critics:NonNullable<Review['critics']>}>('library/'+id+'/reception?lang='+encodeURIComponent(lang),{signal:AbortSignal.timeout(60000)});
 export const homeConfig=()=>call<HomeConfig>('home');
 export const saveHomeConfig=(body:HomeConfig)=>call<HomeConfig>('home',{method:'PUT',body});
+export const libraryRelated=(id:string)=>call<{books:RelatedBook[]}>('library/'+id+'/related',{signal:AbortSignal.timeout(60000)}).then(r=>r.books);
