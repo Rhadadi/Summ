@@ -166,7 +166,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
    <h2>{L('What others say')}</h2>
    {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
-    <ReviewSection related={related} lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} title={searchTitle||book.title} author={author} draft={!!review&&!reviewApproved&&!readOnly}/>
+    <ReviewSection related={related} lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} draft={!!review&&!reviewApproved&&!readOnly}/>
 
     {info&&<p className="facts-line">{[info.publisher||info.google_edition?.publisher,info.google_edition?.published_date||info.year,pages?num(lang,pages)+' '+L('pages'):'',info.google_edition?.isbns[0]?'ISBN '+info.google_edition.isbns[0]:''].filter(Boolean).join(' · ')}</p>}
    </>}

@@ -27,7 +27,7 @@ class Similar(Strict):
     title:str=Field(min_length=1,max_length=200);author:str=Field(default='',max_length=200);why:str=Field(default='',max_length=300)
 class Critic(Strict):
     publication:str=Field(min_length=1,max_length=120);reviewer:str=Field(default='',max_length=120);date:str=Field(default='',max_length=40)
-    headline:str=Field(default='',max_length=200);stance:Literal['positive','mixed','negative','']=''
+    headline:str=Field(default='',max_length=200);headlineTranslation:str=Field(default='',max_length=200);stance:Literal['positive','mixed','negative','']=''
     excerpt:str=Field(default='',max_length=400);summary:str=Field(default='',max_length=600);url:str|None=Field(default=None,max_length=600)
     translation:str=Field(default='',max_length=600);via:str=Field(default='',max_length=60);verified:bool|None=None
     _u=field_validator('url')(_link)
@@ -90,6 +90,10 @@ def _json(text:str)->dict:
     if not isinstance(data,dict):raise ValueError('not an object')
     return data
 def _host(url:str)->str:return (urlsplit(url).hostname or '').lower().removeprefix('www.')
+def _direct_review_url(url:str|None)->bool:
+    if not _https(url):return False
+    path=urlsplit(url).path.strip('/')
+    return bool(path) and not re.search(r'(?:^|/)(?:search|browse)(?:/|$)',path,re.I)
 _text=lambda v,n:' '.join(str(v or '').split())[:n]
 def _verbatim(v)->str:
     """An excerpt survives only when it is short; long "quotes" are usually paraphrase."""
@@ -103,7 +107,7 @@ def clean(raw:dict,grounded:set[str],model:str)->Review:
     """Keep only what the search actually touched: a link survives only when its site appeared in the search results,
     and an excerpt survives only beside such a link."""
     ok=lambda url:bool(url) and any(_host(url)==d or _host(url).endswith('.'+d) or d.endswith('.'+_host(url)) for d in grounded)
-    def link(url):return url if isinstance(url,str) and _https(url) and ok(url) else None
+    def link(url):return url if isinstance(url,str) and _direct_review_url(url) and ok(url) else None
     items=lambda key:[x for x in (raw.get(key) or []) if isinstance(x,dict)]
     ratings=[]
     for r in items('ratings')+([raw['rating']] if isinstance(raw.get('rating'),dict) else []):
@@ -113,7 +117,7 @@ def clean(raw:dict,grounded:set[str],model:str)->Review:
     critics=[]
     for c in items('critics'):
         url=link(c.get('url'));stance=c.get('stance') if c.get('stance') in ('positive','mixed','negative') else ''
-        if not _text(c.get('publication'),120):continue
+        if not url or not _text(c.get('publication'),120):continue
         critics.append({'publication':_text(c.get('publication'),120),'reviewer':_text(c.get('reviewer'),120),'date':_text(c.get('date'),40),'headline':_text(c.get('headline'),200),'stance':stance,
                         'excerpt':_verbatim(c.get('excerpt')) if url else '','summary':_text(c.get('summary'),600),'url':url})
     readers=[]
@@ -123,7 +127,8 @@ def clean(raw:dict,grounded:set[str],model:str)->Review:
     quotes=[]
     for q in items('quotes'):
         text=_verbatim(q.get('text'))
-        if text and _text(q.get('who') or q.get('source'),120):quotes.append({'text':text,'who':_text(q.get('who'),120),'source':_text(q.get('source'),120),'url':link(q.get('url'))})
+        url=link(q.get('url'))
+        if text and url and _text(q.get('who') or q.get('source'),120):quotes.append({'text':text,'who':_text(q.get('who'),120),'source':_text(q.get('source'),120),'url':url})
     sources=[{'name':_text(s.get('name'),120) or _host(s['url']),'url':s['url']} for s in items('sources') if isinstance(s.get('url'),str) and link(s['url'])]
     for c in critics:
         if c['url'] and not any(s['url']==c['url'] for s in sources):sources.append({'name':c['publication'],'url':c['url']})
@@ -198,7 +203,7 @@ async def research(request:ResearchRequest,creds:tuple[str,str],gemini:str)->Rev
         except (HTTPException,ValueError,KeyError,TypeError,httpx.HTTPError):pass
     # Quotes from pages we could not open are checked as far as we can.
     await reception.verify([c for c in critics if not c.get('drop')])
-    kept=[c for c in critics if not c.get('drop') and (c.get('excerpt') or c.get('summary'))]
+    kept=[c for c in critics if c.get('url') and not c.get('drop') and (c.get('excerpt') or c.get('summary')) and (c.get('via')!='Web search' or c.get('verified') is True)]
     kept.sort(key=lambda c:(c.get('verified') is not True,not c.get('excerpt')))
     fields=('publication','reviewer','date','headline','stance','excerpt','summary','url','translation','via','verified')
     review=review.model_copy(update={'critics':[Critic(**{k:(c.get(k) if k!='publication' else (c.get(k) or 'Review')) for k in fields if c.get(k) is not None or k=='verified'}) for c in kept[:8]]})

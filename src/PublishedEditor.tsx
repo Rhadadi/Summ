@@ -83,6 +83,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   <Tabs value={tab} onChange={(_,n)=>setTab(n)} variant="scrollable" scrollButtons="auto" aria-label={L('Book editor sections')}><Tab label={L('Details & images')}/><Tab label={L('Overview')}/><Tab label={L('Chapters')}/><Tab label={L('Study guide')}/><Tab label={L('Reception')}/></Tabs>
   {tab===0&&<div className="editor-panel"><h2>{L('Book details')}</h2><div className="editor-fields">
    <TextField label={L('Title')+' · '+lang} value={doc.title[lang]||''} onChange={e=>update(d=>{d.title[lang]=e.target.value;})} fullWidth/>
+   {lang!=='en'&&<TextField label={lang==='fa'?'عنوان انگلیسی برای یافتن نقدها':'English title for review research'} value={doc.title.en||''} onChange={e=>update(d=>{d.title.en=e.target.value;})} fullWidth/>}
    <TextField label={L('Author')} value={doc.author} onChange={e=>update(d=>{d.author=e.target.value;})} fullWidth/>
    <TextField label={L('Original language')} value={doc.originalLanguage} onChange={e=>update(d=>{d.originalLanguage=e.target.value;})} fullWidth/>
    <TextField label={L('Year')} value={doc.info?.year||''} onChange={e=>update(d=>{d.info={...d.info,year:e.target.value};})} fullWidth/>
@@ -116,6 +117,6 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   </div>}
   <div className="editor-footer"><Button color="error" disabled={!!busy} onClick={unpublish}>{L('Unpublish book')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></div>
   {pick&&<ArtPicker title={title} author={doc.author} about={about} themes={doc.review?.themes||[]} tags={doc.info?.categories||[]} language={lang==='fa'?'Persian':'English'} initial={null} onAccount={onAccount} onClose={()=>setPick(null)} onPick={useArt}/>}
-  {reviewOpen&&<ReviewDialog book={{id:book.id,title,author:doc.author,format:'SUMMARY',category:'book',chapters:[],warnings:[],addedAt:0,lastRead:0,chapterIndex:0,completed:[],color:0,hash:''}} year={doc.info?.year||''} initial={reviewDraft||(doc.review?{review:doc.review,approved:true}:null)} language={lang} onClose={()=>setReviewOpen(false)} onAccount={onAccount} onSave={async value=>{setReviewDraft(value);if(value.approved)update(d=>{d.review=value.review;});setReviewOpen(false);setNotice(value.approved?'Reception draft updated. Save changes to publish it.':'Research draft kept in this editor. Approve it before publishing.');}}/>}
+  {reviewOpen&&<ReviewDialog book={{id:book.id,title:doc.title.en||title,author:doc.author,format:'SUMMARY',category:'book',chapters:[],warnings:[],addedAt:0,lastRead:0,chapterIndex:0,completed:[],color:0,hash:''}} year={doc.info?.year||''} initial={reviewDraft||(doc.review?{review:doc.review,approved:true}:null)} language={lang} onClose={()=>setReviewOpen(false)} onAccount={onAccount} onSave={async value=>{setReviewDraft(value);if(value.approved)update(d=>{d.review=value.review;});setReviewOpen(false);setNotice(value.approved?'Reception draft updated. Save changes to publish it.':'Research draft kept in this editor. Approve it before publishing.');}}/>}
  </div>;
 }

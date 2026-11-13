@@ -1,27 +1,21 @@
 import{StarBorderRounded,StarHalfRounded,StarRounded,OpenInNewRounded,EmojiEventsOutlined}from'@mui/icons-material';
 import type{RelatedBook,Review}from'./types';
 import{num,tr}from'./i18n';
+import{reviewSourceLinks}from'./review-links';
 
 export const Stars=({value}:{value:number})=><span className="rv-stars" role="img" aria-label={value.toFixed(1)+' out of 5'}>{[1,2,3,4,5].map(i=>value>=i-.25?<StarRounded key={i}/>:value>=i-.75?<StarHalfRounded key={i}/>:<StarBorderRounded key={i}/>)}</span>;
 const host=(url:string)=>{try{return new URL(url).hostname.replace(/^www\./,'');}catch{return url;}};
-const find=(title:string,author:string)=>encodeURIComponent((title.split(':')[0]+' '+author).trim());
-// Where to read the rest: links only, because those sites do not allow copying their reviews.
-export const lookupLinks=(title:string,author:string)=>[
- {name:'Goodreads',url:'https://www.goodreads.com/search?q='+find(title,author)},
- {name:'The New York Times',url:'https://www.nytimes.com/search?query='+find(title,author)},
- {name:'The Guardian',url:'https://www.theguardian.com/search?q='+find(title,author)},
-];
 type Score={value:number;source:string;count:number|null;url:string|null};
 const stanceLabel:Record<string,string>={positive:'Praised',mixed:'Mixed',negative:'Critical'};
 // The reception of a book, laid out like the reviews page of a magazine: scores, the critics, readers, praise and doubts,
 // who it is for, the author, prizes and what to read next. Every excerpt links to where it was published.
-export default function ReviewSection({review,scores=[],title,author,draft=false,lang,related=[]}:{review:Review|null;scores?:Score[];title:string;author:string;draft?:boolean;lang?:string;related?:RelatedBook[]}){
+export default function ReviewSection({review,scores=[],draft=false,lang,related=[]}:{review:Review|null;scores?:Score[];draft?:boolean;lang?:string;related?:RelatedBook[]}){
  const L=(t:string)=>tr(lang,t);
  const all:Score[]=[...(review?.ratings?.length?review.ratings:review?.rating?[review.rating]:[]),...scores].filter((s,i,a)=>a.findIndex(x=>x.source.toLowerCase()===s.source.toLowerCase())===i).slice(0,4);
  const critics=review?.critics||[],readers=review?.readers||[];
  // Older reviews kept plain quotes; they are shown with the critics.
  const quotes=critics.length||readers.length?[]:review?.quotes||[];
- const sources=[...(review?.sources||[]),...lookupLinks(title,author)].filter((s,i,a)=>a.findIndex(x=>host(x.url)===host(s.url))===i);
+ const sources=reviewSourceLinks(review);
  return <div className="rv">
   {draft&&<p className="rv-draft">{L('Draft · not yet approved for readers')}</p>}
   {(all.length>0||review?.verdict)&&<div className="rv-board">
@@ -50,6 +44,6 @@ export default function ReviewSection({review,scores=[],title,author,draft=false
    {review.impact&&<p dir="auto">{review.impact}</p>}
   </section>}
   {(related.length>0||(review?.similar?.length||0)>0)&&<section className="rv-block rv-similar"><h3>{L('If you liked this')}</h3><div className="rv-shelf">{(related.length?related:review!.similar!.map(b=>({title:b.title,author:b.author,year:'',cover:null,url:null,rating:null,why:b.why,source:'recommended'}))).map((b,i)=><a key={i} className="rv-book" href={'https://www.goodreads.com/search?q='+encodeURIComponent(b.title+' '+b.author)} target="_blank" rel="noopener noreferrer"><span className={'rv-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy"/>:<span dir="auto">{b.title}</span>}</span><strong dir="auto">{b.title}</strong><span dir="auto">{b.author}{b.year?' · '+b.year:''}</span>{b.why&&<small dir="auto">{b.why}</small>}</a>)}</div></section>}
-  <div className="rv-links"><span>{L('Read more:')}</span>{sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">{s.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div>
+  {sources.length>0&&<div className="rv-links"><span>{L('Read more:')}</span>{sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">{s.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div>}
  </div>;
 }

@@ -19,15 +19,21 @@ class ReviewCleanTests(unittest.TestCase):
     def test_only_what_search_touched_survives(self):
         r=reviews.clean(RAW,{'goodreads.com','theguardian.com'},'m')
         self.assertEqual(r.verdict,'Warmly received.');self.assertEqual(r.pros,['Clear writing'])
-        self.assertEqual([q.who for q in r.quotes],['A. Critic','B. Reader'])
-        self.assertEqual(r.quotes[0].text,'A rare book that changes how you read.');self.assertIsNone(r.quotes[1].url)
+        self.assertEqual([q.who for q in r.quotes],['A. Critic'])
+        self.assertEqual(r.quotes[0].text,'A rare book that changes how you read.')
         self.assertEqual([s.name for s in r.sources],['Guardian'])
-        self.assertEqual([(c.publication,c.stance,bool(c.excerpt)) for c in r.critics],[('The Guardian','positive',True),('Made Up Weekly','',False)])
+        self.assertEqual([(c.publication,c.stance,bool(c.excerpt)) for c in r.critics],[('The Guardian','positive',True)])
         self.assertEqual([v.name for v in r.readers],['Sam']);self.assertEqual(r.readers[0].stars,5)
         self.assertEqual((r.awards,r.impact,len(r.ratings)),(['A prize'],'Widely taught.',1))
         self.assertEqual((r.rating.value,r.rating.count,r.rating.url),(4.21,1873,'https://www.goodreads.com/book/show/1'))
     def test_bad_rating_is_dropped(self):
         self.assertIsNone(reviews.clean({'rating':{'value':9}},set(),'m').rating)
+    def test_site_search_is_not_a_review_source(self):
+        raw={'sources':[{'name':'Guardian','url':'https://www.theguardian.com/search?q=book'}],
+             'critics':[{'publication':'Guardian','summary':'A review was found.','url':'https://www.theguardian.com/search?q=book'}]}
+        result=reviews.clean(raw,{'theguardian.com'},'m')
+        self.assertEqual(result.sources,[])
+        self.assertEqual(result.critics,[])
     def test_json_is_found_inside_chatter(self):
         self.assertEqual(reviews._json('Here you go:\n```json\n{"a":1}\n```'),{'a':1})
 class ReviewApiTests(RolesTest):
