@@ -9,6 +9,7 @@ import{buildVersion,versionLabel}from'./imports';
 import{rechapter}from'./rechapter';
 import{mainChapters}from'./bookData';
 import{readSummaryFiles,summaryMarkdown}from'./summary-import';
+import{persianImportIssue}from'./persian-import';
 
 interface Props{book:Book;language:string;existing:ImportedVersion[];canGenerate:boolean;startAt?:number;onClose:()=>void;onSave:(versions:ImportedVersion[],chapters?:Book['chapters'])=>Promise<void>;onGenerate:()=>void}
 // Several files in one ZIP become one list of summaries; a file without a delimiter line takes its style from its name.
@@ -18,13 +19,12 @@ const joinDocuments=(docs:{name:string;markdown:string}[])=>docs.length===1?docs
 }).join('\n\n');
 const STEPS=['Chapters','Style','Prompt','Bring it back'];
 const languageName=(code:string)=>languages.find(l=>l.code===code)?.label.replace(/ ·.*|\s*\(.*/,'')||code;
-const nativeName=(code:string)=>({fa:'Persian (Farsi)',ar:'Arabic',en:'English',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'} as Record<string,string>)[code]||languageName(code);
 
 // Choose chapters and styles, copy a prompt that reflects them, then bring the answer back as real chapter summaries.
-export default function ImportWizard({book,language,existing,canGenerate,startAt=0,onClose,onSave,onGenerate}:Props){
+export default function ImportWizard({book,existing,canGenerate,startAt=0,onClose,onSave,onGenerate}:Props){
  const kinds=useMemo(()=>book.chapters.map((c,i)=>sectionKind(c,i,book.chapters)),[book]);
  const[step,setStep]=useState(startAt);
- const[opts,setOpts]=useState<PromptOptions>(()=>({...defaultOptions({code:language,name:nativeName(language)}),chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')}));
+ const[opts,setOpts]=useState<PromptOptions>(()=>({...defaultOptions({code:'fa',name:'Persian (Farsi)'}),chapters:book.chapters.map((_,i)=>i).filter(i=>kinds[i]==='main')}));
  const[raw,setRaw]=useState(''),[files,setFiles]=useState<{sourcePath:string;images:SummaryImage[]}>({sourcePath:'',images:[]}),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
  const[restructure,setRestructure]=useState<boolean|null>(null),[skipped,setSkipped]=useState<Set<number>>(new Set());
  const[overrides,setOverrides]=useState<Record<number,{type?:string;language?:string}>>({});
@@ -35,8 +35,8 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  const parsed=useMemo(()=>{
   if(!raw.trim())return[];
   return splitBlocks(summaryMarkdown(raw)).map((part,i)=>{
-   const block=parseBlock(part.text,part.type,part.language||language);
-   const lang=overrides[i]?.language||part.language||block.language,type=overrides[i]?.type||part.type||'detailed';
+   const block=parseBlock(part.text,part.type,'fa');
+   const lang='fa',type=overrides[i]?.type||part.type||'detailed';
    // Answers to the "find the chapters" prompt carry original titles or pages: match those against the book's own chapters,
    // never by position into the front matter. Older answers fall back to numbers in the book's titles or to the prompt's list.
    const smart=block.chapters.some(c=>c.original||c.range)
@@ -44,7 +44,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     :[mapChapters(block.chapters,book.chapters,'title'),mapChapters(block.chapters,book.chapters,'position')].sort((a,b)=>b.mapped.length-a.mapped.length)[0];
    return{block,lang,type,result};
   });
- },[raw,book,language,overrides]);
+ },[raw,book,overrides]);
  // A summary that names its chapters with page numbers can replace the book's contents, which the app may have cut badly.
  const lead=parsed.find((p,i)=>!skipped.has(i)&&p.block.chapters.length>=2&&p.block.chapters.every(c=>c.range));
  // Printed page numbers usually trail the file's page numbers by the front matter; chapters both sides agree on reveal the gap.
@@ -61,6 +61,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
  async function save(){
   setBusy(true);setError('');
   try{
+   for(const p of picked){const issue=persianImportIssue(p.block);if(issue)throw Error(issue);}
    const versions=picked.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
    if(new Set(versions.map(v=>v.id)).size!==versions.length)throw Error('Two of the summaries share a language and style. Change one of them below.');
    await onSave(versions,useNew&&plan?plan.chapters:undefined);
@@ -88,8 +89,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     <p className="dialog-lead">Pick one style or several. Each one becomes its own summary of every chapter you chose.</p>
     <h4 className="pub-h">Summary styles</h4>
     <div className="wizard-types">{summaryTypes.map(t=><label key={t.id} className={'wizard-type'+(opts.types.includes(t.id)?' on':'')}><Checkbox size="small" checked={opts.types.includes(t.id)} onChange={()=>set({types:toggle(opts.types,t.id)})}/><span><strong>{t.label}</strong><small>{t.hint}</small></span></label>)}</div>
-    <h4 className="pub-h">Languages</h4>
-    <div className="wizard-langs">{languages.map(l=><FormControlLabel key={l.code} control={<Checkbox size="small" checked={opts.languages.some(x=>x.code===l.code)} onChange={()=>{const has=opts.languages.some(x=>x.code===l.code);if(has&&opts.languages.length===1)return;set({languages:has?opts.languages.filter(x=>x.code!==l.code):[...opts.languages,{code:l.code,name:nativeName(l.code)}]});}}/>} label={l.label}/>)}</div>
+    <p className="settings-help">The imported study guide will be in Persian. Original book titles and proper names may remain in their source language for identification.</p>
     <div className="settings-grid" style={{marginTop:16}}>
      <TextField select size="small" label="Written for" value={opts.audience} onChange={e=>set({audience:e.target.value})}>{audiences.map(a=><MenuItem key={a.id} value={a.id}>{a.label}</MenuItem>)}</TextField>
      <TextField select size="small" label="Voice" value={opts.tone} onChange={e=>set({tone:e.target.value})}>{tones.map(a=><MenuItem key={a.id} value={a.id}>{a.label}</MenuItem>)}</TextField>
@@ -130,7 +130,7 @@ export default function ImportWizard({book,language,existing,canGenerate,startAt
     {parsed.map((p,i)=>{const{mapped,missing,extra}=mapFor(p);return <div className={'wizard-found'+(skipped.has(i)?' off':'')} key={i}>
      <div className="wizard-found-head">{parsed.length>1?<FormControlLabel className="wizard-pick" control={<Checkbox checked={!skipped.has(i)} onChange={()=>setSkipped(set=>{const n=new Set(set);n.has(i)?n.delete(i):n.add(i);return n;})}/>} label={<strong>Summary {i+1} of {parsed.length}{skipped.has(i)?' · left out':''}</strong>}/>:<strong>Found a summary</strong>}
       <TextField select size="small" label="Style" value={p.type} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],type:e.target.value}}))}>{summaryTypes.map(t=><MenuItem key={t.id} value={t.id}>{t.label}</MenuItem>)}{!summaryTypes.some(t=>t.id===p.type)&&<MenuItem value={p.type}>{versionLabel(p.type)}</MenuItem>}</TextField>
-      <TextField select size="small" label="Language" value={p.lang} onChange={e=>setOverrides(o=>({...o,[i]:{...o[i],language:e.target.value}}))}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField></div>
+      <Chip size="small" label="فارسی"/></div>
      <p className="settings-help">{mapped.length} of {mapped.length+extra.length} chapters matched{p.block.overview.length?' · overview':''}{p.block.takeaways.length?' · key takeaways':''}{p.block.sections.length?' · '+p.block.sections.length+' more sections':''}{existing.some(v=>v.id===p.lang+':'+p.type)?' · replaces your saved '+versionLabel(p.type)+' summary':''}</p>
      {(p.block.overview[0]||p.block.chapters[0]?.paragraphs[0])&&<blockquote className="wizard-peek" dir="auto">{(p.block.overview[0]||p.block.chapters[0].paragraphs[0]).text.slice(0,260)}…<small>{p.block.chapters[0]?.paragraphs.reduce((n,x)=>n+x.text.split(/\s+/).length,0)} words in the first chapter</small></blockquote>}
      <ol className="wizard-map">{mapped.slice(0,40).map(m=>{const c=(useNew&&plan?plan.chapters:book.chapters).find(x=>x.id===m.chapterId);return <li key={m.chapterId}><span dir="auto">{m.parsed.title}</span><small dir="auto">{c?chapterLabel(c.title):''}</small></li>;})}</ol>

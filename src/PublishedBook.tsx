@@ -9,6 +9,7 @@ import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';
 import{tr,num}from'./i18n';
 import{listeningPlace,trackSignature}from'./listening';
 import type{PlayerApi}from'./Player';
+import{persianReception}from'./persian-reception';
 
 interface Props{listenOnOpen?:boolean;slug:string;mode:'detail'|'read';section:string;settings:Settings;player:PlayerApi;navigate:(path:string)=>void;toast:(message:string)=>void;onPreferences:(patch:Partial<Settings>)=>void;published:PubBook[]|null;home:HomeConfig|null}
 const noop=()=>{};
@@ -56,6 +57,6 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}<BookDetail related={related} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={pub.doc.review||found}
+ return <>{switcher}<BookDetail related={related} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

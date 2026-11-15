@@ -2,6 +2,7 @@ import{StarBorderRounded,StarHalfRounded,StarRounded,OpenInNewRounded,EmojiEvent
 import type{RelatedBook,Review}from'./types';
 import{num,tr}from'./i18n';
 import{directReviewPage,reviewSourceLinks}from'./review-links';
+import{relatedInPersian}from'./persian-display';
 
 export const Stars=({value}:{value:number})=><span className="rv-stars" role="img" aria-label={value.toFixed(1)+' out of 5'}>{[1,2,3,4,5].map(i=>value>=i-.25?<StarRounded key={i}/>:value>=i-.75?<StarHalfRounded key={i}/>:<StarBorderRounded key={i}/>)}</span>;
 const host=(url:string)=>{try{return new URL(url).hostname.replace(/^www\./,'');}catch{return url;}};
@@ -43,8 +44,9 @@ export default function ReviewSection({review,scores=[],draft=false,lang,related
    {(review.awards?.length||0)>0&&<div className="rv-awards">{review.awards!.map(a=><span key={a} dir="auto"><EmojiEventsOutlined/>{a}</span>)}</div>}
    {review.impact&&<p dir="auto">{review.impact}</p>}
   </section>}
-  {(related.length>0||(review?.similar?.length||0)>0)&&<section className="rv-block rv-similar"><h3>{L('If you liked this')}</h3><div className="rv-shelf">{(related.length?related:review!.similar!.map(b=>({title:b.title,author:b.author,year:'',cover:null,url:null,rating:null,why:b.why,source:'recommended'}))).map((b,i)=>{
-   const content=<><span className={'rv-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy" decoding="async"/>:<span dir="auto">{b.title}</span>}</span><strong dir="auto">{b.title}</strong><span dir="auto">{b.author}{b.year?' · '+b.year:''}</span>{b.why&&<small dir="auto">{b.why}</small>}</>;
+  {(related.length>0||(review?.similar?.length||0)>0)&&<section className="rv-block rv-similar"><h3>{L('If you liked this')}</h3><div className="rv-shelf">{(related.length?related:review!.similar!.map(b=>({title:b.title,author:b.author,year:'',cover:null,url:null,rating:null,why:b.why,source:'recommended'}))).filter(b=>lang!=='fa'||!!relatedInPersian(b.title)).map((b,i)=>{
+   const localized=lang==='fa'?relatedInPersian(b.title):null,title=localized?.[0]||b.title,author=localized?.[1]||b.author;
+   const content=<><span className={'rv-cover'+(b.cover?'':' blank')}>{b.cover?<img src={b.cover} alt="" loading="lazy" decoding="async"/>:<span dir="auto">{title}</span>}</span><strong dir="auto">{title}</strong><span dir="auto">{author}{b.year?' · '+num(lang,Number(b.year)):''}</span>{b.why&&<small dir="auto">{lang==='fa'&&/^[\p{Script=Latin}\s\p{P}\p{N}]+$/u.test(b.why)?'':b.why}</small>}</>;
    return b.url&&directReviewPage(b.url)?<a key={i} className="rv-book" href={b.url} target="_blank" rel="noopener noreferrer">{content}</a>:<div key={i} className="rv-book">{content}</div>;
   })}</div></section>}
   {sources.length>0&&<div className="rv-links"><span>{L('Read more:')}</span>{sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">{s.name}<OpenInNewRounded fontSize="inherit"/></a>)}</div>}

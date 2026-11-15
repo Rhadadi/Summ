@@ -12,6 +12,7 @@ import GoogleBooksDialog from'./GoogleBooksDialog';
 import ReviewSection from'./ReviewSection';
 import{num,rtl,tr}from'./i18n';
 import type{Backdrop}from'./MuseumHero';
+import{displayAuthor,displayPainting}from'./persian-display';
 
 interface Props{
  book:Book;cover:string;data:BookData;saved:SavedPassage[];
@@ -98,13 +99,11 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
     <div className="curated-intro-inner"><div className="curated-intro-copy">
      <span className="curated-eyebrow">{L('Study guide')}</span><span className="curated-goldline"/>
      <h1 dir="auto" className={title.length>30?'curated-long':undefined}>{title}</h1>{subtitle&&<p className="curated-subtitle" dir="auto">{subtitle}</p>}
-     {author&&<p className="curated-author"><bdi>{author}</bdi>{info?.year?' · '+String(info.year).replace(/\d/g,d=>lang==='fa'?'۰۱۲۳۴۵۶۷۸۹'[+d]:d):''}</p>}
-     {report?.overview?.paragraphs[0]&&<p className="curated-thought" dir="auto">{report.overview.paragraphs[0].text}</p>}
+     {author&&<p className="curated-author"><bdi>{displayAuthor(author,lang)}</bdi></p>}
+     <div className="curated-actions"><button className="curated-read" onClick={()=>onRead(startAt)}>{L(book.lastRead?'Continue reading':'Start reading')}<ChevronRightRounded/></button><button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button></div>
     </div><div className="curated-cover">{cover?<img src={cover} alt=""/>:<span dir="auto">{book.title}</span>}</div></div>
+    {backdrop.credit&&<small className="curated-credit">{displayPainting(backdrop.credit,lang)}</small>}
    </div>
-   <div className="curated-actions"><button className="curated-read" onClick={()=>onRead(startAt)}><span>{L(book.lastRead?'Continue reading':'Start reading')}<small>{num(lang,main.length)} {L('key chapters')} · {L('Reading time')} {num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))} {L('min')}</small></span><ChevronRightRounded/></button><button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button>{pages&&<span className="curated-pages">{num(lang,pages)} {L('pages')}</span>}</div>
-   {audioNote&&<p className="curated-audio-note">{audioNote}</p>}
-   {backdrop.credit&&<small className="curated-credit">{[backdrop.credit.title,backdrop.credit.artist,backdrop.credit.year].filter(Boolean).join(' · ')}</small>}
   </section>:<section className="hero">
    <div className="hero-top">
     <div className="hero-cover"><Shelf book={book} url={cover}/>

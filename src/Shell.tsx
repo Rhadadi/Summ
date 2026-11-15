@@ -27,7 +27,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
  const L=(text:string)=>tr(lang,text);
  const[open,setOpen]=useState(false),[searching,setSearching]=useState(false);
  // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
- const topNav=route==='/',here:string=route;
+ const topNav=route==='/'||/^\/b\/[^/]+$/.test(route),here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
