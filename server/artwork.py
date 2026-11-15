@@ -91,7 +91,7 @@ async def ideas(title:str,author:str,about:str,themes:list[str],language:str,cre
     import asyncio
     key,model=creds
     prompt=IDEAS.format(title=title[:300],by=' by '+author[:200] if author else '',about=' '.join(about.split())[:2000] or 'unknown',themes=', '.join(themes)[:300] or 'unknown',language=language)
-    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseMimeType':'application/json','temperature':0.6,'maxOutputTokens':4096}}
+    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseMimeType':'application/json','maxOutputTokens':4096}}
     async with httpx.AsyncClient(timeout=90) as client:
         r=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
     if r.status_code==429:raise accounts.AccountError(429,'Your Gemini quota is exhausted or the model is busy.')

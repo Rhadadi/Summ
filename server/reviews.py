@@ -157,7 +157,7 @@ Return JSON: {{"reviews":[{{"n":page number,"relevant":true or false,"excerpt":"
 {pages}'''
 async def _ask(prompt:str,creds:tuple[str,str],gemini:str,search:bool=False,tokens:int=16384)->tuple[dict,set[str]]:
     key,model=creds
-    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'temperature':0.2,'maxOutputTokens':tokens,**({} if search else {'responseMimeType':'application/json'})},**({'tools':[{'google_search':{}}]} if search else {})}
+    payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'maxOutputTokens':tokens,**({} if search else {'responseMimeType':'application/json'})},**({'tools':[{'google_search':{}}]} if search else {})}
     async with httpx.AsyncClient(timeout=240) as client:
         response=await client.post(gemini+model+':generateContent',headers={'x-goog-api-key':key},json=payload)
     if response.status_code==429:raise HTTPException(429,'Your Gemini quota is exhausted or the model is busy.')
