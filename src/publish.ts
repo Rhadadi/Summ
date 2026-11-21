@@ -1,6 +1,6 @@
 import type{Book,BookInfo,Chapter,ImportedVersion,Review,SummaryImage,PubChapter,PubDoc,PubPara,PubVersion,Summary,SummaryParagraph}from'./types';
-import type{BookData}from'./bookData';
-import{depthLabels,sectionKind}from'./core';
+import type{BookData}from'./bookData.ts';
+import{depthLabels,sectionKind}from'./core.ts';
 
 const arabic=/[؀-ۿ]/;
 export const guessLanguage=(text:string)=>arabic.test(text)?'fa':'en';

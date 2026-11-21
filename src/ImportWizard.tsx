@@ -28,6 +28,7 @@ export default function ImportWizard({book,existing,canGenerate,startAt=0,onClos
  const[raw,setRaw]=useState(''),[files,setFiles]=useState<{sourcePath:string;images:SummaryImage[]}>({sourcePath:'',images:[]}),[error,setError]=useState(''),[copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
  const[restructure,setRestructure]=useState<boolean|null>(null),[skipped,setSkipped]=useState<Set<number>>(new Set());
  const[overrides,setOverrides]=useState<Record<number,{type?:string;language?:string}>>({});
+ const[allowMixed,setAllowMixed]=useState(false);
  const file=useRef<HTMLInputElement>(null);
  const set=(patch:Partial<PromptOptions>)=>{setOpts(o=>({...o,...patch}));setCopied(false);};
  const toggle=<T,>(list:T[],value:T)=>list.includes(value)?list.filter(x=>x!==value):[...list,value];
@@ -61,7 +62,8 @@ export default function ImportWizard({book,existing,canGenerate,startAt=0,onClos
  async function save(){
   setBusy(true);setError('');
   try{
-   for(const p of picked){const issue=persianImportIssue(p.block);if(issue)throw Error(issue);}
+   // a summary that is partly English is reported once; pressing Import again takes it as it is
+   if(!allowMixed)for(const p of picked){const issue=persianImportIssue(p.block);if(issue){setAllowMixed(true);throw Error(issue+' Press Import again to import it as it is.');}}
    const versions=picked.map(p=>buildVersion(p.block,p.result.mapped,p.lang,p.type,files));
    if(new Set(versions.map(v=>v.id)).size!==versions.length)throw Error('Two of the summaries share a language and style. Change one of them below.');
    await onSave(versions,useNew&&plan?plan.chapters:undefined);

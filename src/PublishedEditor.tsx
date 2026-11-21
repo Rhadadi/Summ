@@ -3,6 +3,9 @@ import{Alert,Button,CircularProgress,IconButton,MenuItem,Tab,Tabs,TextField}from
 import{AddRounded,AutoAwesomeRounded,DeleteOutlineRounded,ArrowBackRounded}from'@mui/icons-material';
 import ArtPicker from'./ArtPicker';
 import ReviewDialog from'./ReviewDialog';
+import ReplaceDialog from'./ReplaceDialog';
+import{publishProblems,type Replaced}from'./replace-import';
+import type{SummaryImage}from'./types';
 import type{ArtResult,LocalReview,PubBook,PubDoc,PubPara,PubVersion}from'./types';
 import{bookInfo,coverImage,editorialAssist,libraryBook,publishBook,removeCover,setSlide,unpublishBook,uploadBackground,uploadCover,uploadFigure}from'./api';
 import{coverBlob,figureBlob}from'./publish';
@@ -18,6 +21,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
  const L=(text:string)=>tr(language,text);
  const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(0),[versionIndex,setVersionIndex]=useState(0);
  const[figStamp,setFigStamp]=useState(Date.now());
+ const[replaceOpen,setReplaceOpen]=useState(false),[pendingFigures,setPendingFigures]=useState<{name:string;image:SummaryImage}[]>([]);
  const[capText,setCapText]=useState(''),[capUrl,setCapUrl]=useState('');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[pick,setPick]=useState<Pick>(null),[reviewOpen,setReviewOpen]=useState(false),[reviewDraft,setReviewDraft]=useState<LocalReview|null>(null),[coverChoices,setCoverChoices]=useState<string[]>([]);
  useEffect(()=>{let live=true;setBook(null);setDoc(null);libraryBook(bookId).then(b=>{if(live){setBook(b);setDoc(copy(b.doc));setCapText(b.slide?.caption||'');setCapUrl(b.slide?.captionUrl||'');}}).catch(e=>{if(live)setError((e as Error).message);});return()=>{live=false;};},[bookId]);
@@ -55,7 +59,8 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   if(currentDoc.chapters.some(c=>!Object.values(c.title).some(t=>t.trim()))){setError('Every chapter needs a title.');return;}
   if(currentDoc.chapters.some(c=>currentDoc.versions.every(v=>!v.chapters[c.id]?.paragraphs.length))){setError('Add a summary to each chapter before saving.');return;}
   for(const v of currentDoc.versions){if(v.overview?.paragraphs.some(p=>!p.text.trim())||v.overview?.takeaways?.some(p=>!p.text.trim())||Object.values(v.chapters).some(c=>[...c.paragraphs,...(c.review||[])].some(p=>!p.text.trim()))||v.guide?.sections.some(s=>!s.title.trim()||s.items.some(p=>!p.text.trim()))){setError('Finish or remove empty paragraphs before saving.');return;}}
-  setBusy('save');try{const updated=await publishBook({id:currentBook.id,doc:currentDoc,visibility:currentBook.visibility});setBook(updated);setDoc(copy(updated.doc));setNotice('Saved. Readers now see these changes.');onSaved();}catch(e){setError((e as Error).message);}finally{setBusy('');}
+  const problems=publishProblems(currentDoc);if(problems.length){setError('This cannot be saved yet: '+problems.slice(0,3).join(' ')+(problems.length>3?' (and '+(problems.length-3)+' more)':''));return;}
+  setBusy('save');try{const updated=await publishBook({id:currentBook.id,doc:currentDoc,visibility:currentBook.visibility});for(const f of pendingFigures)await uploadFigure(currentBook.id,f.name,await figureBlob(f.image));setPendingFigures([]);setFigStamp(Date.now());setBook(updated);setDoc(copy(updated.doc));setNotice('Saved. Readers now see these changes.');onSaved();}catch(e){setError((e as Error).message);}finally{setBusy('');}
  }
  async function upload(file:File){setBusy('cover');setError('');try{const blob=await coverBlob(file);await uploadCover(currentBook.id,blob);setBook({...currentBook,cover:'/api/library/'+currentBook.id+'/cover?v='+Date.now()});setNotice('Cover updated.');onSaved();}catch(e){setError((e as Error).message);}finally{setBusy('');}}
  async function useArt(art:ArtResult){setPick(null);setBusy('art');setError('');try{
@@ -77,7 +82,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
  }catch(e){setError((e as Error).message);}finally{setBusy('');}}
  return <div className="editor-workspace">
   <Button startIcon={<ArrowBackRounded/>} onClick={onBack}>{L('Workspace')}</Button>
-  <div className="editor-heading"><div><span className="eyebrow">{L('BOOK EDITOR')}</span><h1 dir="auto">{title}</h1><p>{L('Change the published book directly. Text changes go live when you save.')}</p></div><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></div>
+  <div className="editor-heading"><div><span className="eyebrow">{L('BOOK EDITOR')}</span><h1 dir="auto">{title}</h1><p>{L('Change the published book directly. Text changes go live when you save.')}</p></div><span><Button sx={{mr:1}} variant="outlined" disabled={!!busy} onClick={()=>setReplaceOpen(true)}>{L('Replace from a ZIP')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></span></div>
   {error&&<Alert severity="error" onClose={()=>setError('')} sx={{mb:2}}>{error}</Alert>}{notice&&<Alert severity="success" onClose={()=>setNotice('')} sx={{mb:2}}>{notice}</Alert>}
   {doc.versions.length>1&&<TextField select size="small" label={L('Summary version')} value={versionIndex} onChange={e=>setVersionIndex(Number(e.target.value))} sx={{minWidth:260,mb:2}}>{doc.versions.map((v,i)=><MenuItem key={i} value={i}>{v.label} · {v.language}</MenuItem>)}</TextField>}
   <Tabs value={tab} onChange={(_,n)=>setTab(n)} variant="scrollable" scrollButtons="auto" aria-label={L('Book editor sections')}><Tab label={L('Details & images')}/><Tab label={L('Overview')}/><Tab label={L('Chapters')}/><Tab label={L('Study guide')}/><Tab label={L('Reception')}/></Tabs>
@@ -116,6 +121,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
    {!doc.review&&<Alert severity="info">No reception has been approved yet. Research and approve it from the book’s local editor, then republish.</Alert>}
   </div>}
   <div className="editor-footer"><Button color="error" disabled={!!busy} onClick={unpublish}>{L('Unpublish book')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></div>
+  {replaceOpen&&<ReplaceDialog doc={doc} onClose={()=>setReplaceOpen(false)} onApply={(r:Replaced)=>{setDoc(r.doc);setVersionIndex(r.versionIndex);setPendingFigures(old=>[...old,...r.figures]);setReplaceOpen(false);setNotice('Replaced in the draft: '+r.lines.slice(0,4).join('; ')+(r.lines.length>4?' and '+(r.lines.length-4)+' more':'')+'. Look it over, then press Save changes.');}}/>}
   {pick&&<ArtPicker title={title} author={doc.author} about={about} themes={doc.review?.themes||[]} tags={doc.info?.categories||[]} language={lang==='fa'?'Persian':'English'} initial={null} onAccount={onAccount} onClose={()=>setPick(null)} onPick={useArt}/>}
   {reviewOpen&&<ReviewDialog book={{id:book.id,title:doc.title.en||title,author:doc.author,format:'SUMMARY',category:'book',chapters:[],warnings:[],addedAt:0,lastRead:0,chapterIndex:0,completed:[],color:0,hash:''}} year={doc.info?.year||''} initial={reviewDraft||(doc.review?{review:doc.review,approved:true}:null)} language={lang} onClose={()=>setReviewOpen(false)} onAccount={onAccount} onSave={async value=>{setReviewDraft(value);if(value.approved)update(d=>{d.review=value.review;});setReviewOpen(false);setNotice(value.approved?'Reception draft updated. Save changes to publish it.':'Research draft kept in this editor. Approve it before publishing.');}}/>}
  </div>;

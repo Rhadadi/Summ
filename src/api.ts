@@ -1,11 +1,13 @@
 import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
+// The reason the server gave: a sentence, or a list of schema problems turned into one. Never just the bare status code.
+export const detailText=(detail:unknown,status:number)=>typeof detail==='string'?detail:Array.isArray(detail)&&detail.length?detail.slice(0,3).map((d:{loc?:unknown[];msg?:string})=>[...(d.loc||[]).filter(x=>x!=='body'),d.msg||'invalid'].join(' › ')).join('; '):'The server refused this ('+status+').';
 // The session lives in an HttpOnly cookie, so requests stay same-origin; the header lets the server refuse cross-site writes.
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
  const verb=method||(body===undefined?'GET':'POST');
  const r=await fetch('/api/'+path,{method:verb,headers:{...(body!==undefined?{'Content-Type':'application/json'}:{}),...(verb!=='GET'?{'X-Summ-Request':'1'}:{})},body:body!==undefined?JSON.stringify(body):undefined,signal:signal||AbortSignal.timeout(verb==='GET'?45000:300000),credentials:'same-origin'});
  if(!r.headers.get('content-type')?.includes('application/json'))throw new ApiError([502,503,504].includes(r.status)?'The server was restarting or took too long to answer. Please try again in a minute.':'No Inkling server was found at this address. File imports and original-passage reading still work.',r.status);
- const data=await r.json();if(!r.ok)throw new ApiError(typeof data.detail==='string'?data.detail:'Request failed ('+r.status+').',r.status);return data as T;
+ const data=await r.json();if(!r.ok)throw new ApiError(detailText(data.detail,r.status),r.status);return data as T;
 }
 export const config=()=>call<AppConfig>('config');
 export const me=()=>call<Account>('me').catch(e=>{if(e instanceof ApiError&&e.status===401)return null;throw e;});
@@ -31,7 +33,7 @@ export const removeVoiceKey=()=>call<Account>('me/voice-key',{method:'DELETE'});
 async function binary(path:string,init:RequestInit):Promise<Blob>{
  const r=await fetch('/api/'+path,{credentials:'same-origin',...init});
  if(r.ok)return r.blob();
- const data=r.headers.get('content-type')?.includes('application/json')?await r.json():{};throw new ApiError(typeof data.detail==='string'?data.detail:'Request failed ('+r.status+').',r.status);
+ const data=r.headers.get('content-type')?.includes('application/json')?await r.json():{};throw new ApiError(detailText(data.detail,r.status),r.status);
 }
 const post=(body:unknown,signal?:AbortSignal):RequestInit=>({method:'POST',headers:{'Content-Type':'application/json','X-Summ-Request':'1'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(300000)});
 export const coverImage=(src:string)=>binary('cover?'+new URLSearchParams({src}),{signal:AbortSignal.timeout(30000)});

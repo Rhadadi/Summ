@@ -22,6 +22,16 @@ class RolesTest(ServerTest):
     def setUp(self):
         super().setUp();self.env2=patch.dict(os.environ,{'SUMM_OWNER_EMAIL':'owner@example.com'});self.env2.start()
     def tearDown(self):self.env2.stop();super().tearDown()
+class LongChapterTests(RolesTest):
+    def test_a_long_chapter_publishes_and_a_refusal_says_why(self):
+        c,_=self.owner()
+        long=doc();long['versions'][0]['chapters']['c1']['paragraphs']=[para('Paragraph %d.'%i) for i in range(237)]
+        self.assertEqual(c.post('/api/library',json={'doc':long,'visibility':'public'}).status_code,200)
+        # a refusal is one sentence that names where and why, not just "Request failed (422)"
+        long['versions'][0]['chapters']['c1']['paragraphs']=[para('P%d.'%i) for i in range(401)]
+        r=c.post('/api/library',json={'doc':long,'visibility':'public'})
+        self.assertEqual(r.status_code,422);self.assertIsInstance(r.json()['detail'],str)
+        self.assertIn('paragraphs',r.json()['detail']);self.assertIn('400',r.json()['detail'])
 class AccessTests(RolesTest):
     def test_owner_is_the_google_verified_email_only(self):
         c,_=self.owner();self.assertEqual(c.get('/api/me').json()['role'],'owner')

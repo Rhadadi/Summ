@@ -9,6 +9,7 @@ from typing import Literal
 from urllib.parse import urljoin,urlsplit
 import httpx
 from fastapi import Depends,FastAPI,HTTPException,Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
@@ -48,6 +49,17 @@ async def body_limit(request:Request,call_next):
     return response
 @app.exception_handler(accounts.AccountError)
 async def account_error(_:Request,error:accounts.AccountError):return JSONResponse({'detail':error.detail},status_code=error.status)
+def describe_invalid(errors:list[dict])->str:
+    """A validation failure as one sentence a person can act on: where it is, and what is wrong with it."""
+    parts=[]
+    for e in errors[:3]:
+        where=' › '.join(str(x) for x in e.get('loc',()) if x not in ('body',))
+        parts.append((where+': ' if where else '')+str(e.get('msg','invalid')))
+    more=len(errors)-3
+    return '; '.join(parts)+(f' (and {more} more)' if more>0 else '')
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_:Request,error:RequestValidationError):
+    return JSONResponse({'detail':describe_invalid(error.errors())},status_code=422)
 @app.exception_handler(google_books.BooksError)
 async def books_error(_:Request,error:google_books.BooksError):
     return JSONResponse({'detail':error.detail},status_code=error.status,headers={'Cache-Control':'no-store'})

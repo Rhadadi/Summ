@@ -8,6 +8,7 @@ import type{BookData}from'./bookData';
 import{artSearch,narrationStatus,publishBook,setSlide,startNarration,unpublishBook,uploadCover,uploadFigure}from'./api';
 import{store}from'./storage';
 import{availableVersions,buildDoc,collectFigures,coverBlob,figureBlob,versionData,type Entry}from'./publish';
+import{publishProblems}from'./replace-import';
 import{depthLabels,displayName,languages,sectionKind}from'./core';
 import{chapterTitle}from'./bookData';
 
@@ -53,6 +54,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
    const info:BookInfo|null=(await store.info(book.id).catch(()=>undefined))||null;
    const figures=withFigures?collectFigures(entries,include):{names:new Map<string,string>(),files:[]};
    const doc=buildDoc(book,entries,info,title,author,include,localReview?.approved&&withReview?localReview.review:null,{pages:withPages,figures:figures.names});
+   const problems=publishProblems(doc);if(problems.length)throw Error('This cannot be published yet: '+problems.slice(0,3).join(' ')+(problems.length>3?' (and '+(problems.length-3)+' more)':''));
    const result=await publishBook({id:book.published?.id,doc,visibility});
    const cover=(await store.cover(book.id).catch(()=>undefined))?.blob;
    if(cover)await uploadCover(result.id,await coverBlob(cover)).catch(()=>setError('Published, but the cover could not be uploaded.'));

@@ -29,8 +29,9 @@ class Para(Strict):
 class Section(Strict):
     kind:str=Field(max_length=40);title:str=Field(min_length=1,max_length=200);items:list[Para]=Field(max_length=200)
 class Guide(Strict):type_label:str=Field(max_length=80);sections:list[Section]=Field(max_length=20)
-class Overview(Strict):paragraphs:list[Para]=Field(max_length=100);takeaways:list[Para]=Field(default=[],max_length=30)
-class ChapterText(Strict):paragraphs:list[Para]=Field(max_length=150);review:list[Para]=Field(default=[],max_length=100)
+# A long chapter of a scholarly book can run to a few hundred short paragraphs (headings, quotations, verses); the whole document is still capped by MAX_DOC.
+class Overview(Strict):paragraphs:list[Para]=Field(max_length=200);takeaways:list[Para]=Field(default=[],max_length=30)
+class ChapterText(Strict):paragraphs:list[Para]=Field(max_length=400);review:list[Para]=Field(default=[],max_length=200)
 class Version(Strict):
     language:Language;type:str=Field(pattern=r'^[a-z][a-z0-9_-]{1,39}$');label:str=Field(min_length=1,max_length=80)
     model:str=Field(default='',max_length=100);createdAt:float=0
