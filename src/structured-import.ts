@@ -96,6 +96,13 @@ export function parseBlock(text:string,type:string|null=null,fallbackLanguage='e
   if(i===0&&h.level===1&&heads.length>1&&heads[1].level>1&&heads.filter(x=>x.level===1).length===1){block.bookTitle=h.title.replace(/^(?:summary|study guide|خلاصه(?:ٔ)?)\s*[:：—–-]\s*/i,'');continue;}
   // "Chapter-by-chapter summary" only groups the chapters beneath it.
   if(chapterAt.has(i+1)&&heads[i+1].level>h.level)continue;
+  // An unnumbered heading at the chapters' level that names the book's own title ("Introduction", "مقدمه") is a chapter too.
+  const chapterLevel=[...chapterAt].map(j=>heads[j].level)[0];
+  if(h.level===chapterLevel){
+   const items_=paragraphs(body(i,true));
+   const orig=items_[0]&&!items_[0].heading&&items_[0].text.match(/^(?:original title|عنوان اصلی)\s*[:：]\s*(.+)$/i);
+   if(orig){items_.shift();const head=splitHeading(h.title);block.chapters.push({n:null,title:head.title||h.title,paragraphs:items_,...(head.range?{range:head.range}:{}),original:orig[1].trim()});used=endOf(i,true);continue;}
+  }
   const items=paragraphs(body(i,true));used=endOf(i,true);
   if(overviewHead.test(h.title)&&!block.overview.length)block.overview=items;
   else if(takeawayHead.test(h.title)&&!block.takeaways.length)block.takeaways=items;

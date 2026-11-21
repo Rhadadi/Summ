@@ -129,3 +129,9 @@ test('images in the ZIP that the text never links become figures beside their de
  const again=buildVersion(b,[{chapterId:'a',parsed:b.chapters[0]}],'en','detailed',{sourcePath:'summary.md',images:[img('images/figure-1.png')]});
  assert.equal(again.report.guide!.sections.find(s=>s.title==='Figures and tables')!.items.filter(i=>i.image).length,1);
 });
+test('an unnumbered introduction with its original title is a chapter, in its place',()=>{
+ const b=parseBlock('# کتاب\n\n## مرور کلی\n\nنمای کلی.\n\n## مقدمه: گوش سپردن (pp. 1–2)\nOriginal title: Introduction\n\nمتن مقدمه.\n\n## 1. آغاز راه\nOriginal title: One\n\nمتن فصل.\n\n## 2. پایان راه\nOriginal title: Two\n\nمتن فصل دو.\n\n## چند واژهٔ مهم\n\nواژه‌ای.','detailed','fa');
+ assert.deepEqual(b.chapters.map(c=>[c.n,c.title,c.original]),[[null,'مقدمه: گوش سپردن','Introduction'],[1,'آغاز راه','One'],[2,'پایان راه','Two']]);
+ assert.deepEqual(b.chapters[0].range,[1,2]);
+ assert.deepEqual(b.sections.map(s=>s.title),['چند واژهٔ مهم']);
+});

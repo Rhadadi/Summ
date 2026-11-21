@@ -166,6 +166,22 @@ class PublishTests(RolesTest):
             self.assertEqual(result.json(),{'text':'A clear sentence.'})
             self.assertIn('Do not add facts',model.await_args.args[0])
         self.assertEqual(self.client.post('/api/editor/assist',json={**body,'source':'x'*24001}).status_code,422)
+    def test_revise_follows_the_request_and_needs_one(self):
+        self.sign_up(username='writer')
+        body={'action':'revise','source':'A long and winding sentence.','language':'en','instruction':'Make it shorter'}
+        with patch('server.app.model_json',new=AsyncMock(return_value={'text':'A short sentence.'})) as model:
+            result=self.client.post('/api/editor/assist',json=body)
+            self.assertEqual(result.json(),{'text':'A short sentence.'})
+            self.assertIn('Make it shorter',model.await_args.args[0]);self.assertIn('add no facts',model.await_args.args[0])
+        missing=self.client.post('/api/editor/assist',json={**body,'instruction':'  '})
+        self.assertEqual(missing.status_code,422);self.assertIn('change',missing.json()['detail'])
+    def test_identify_returns_only_clean_fields(self):
+        self.assertEqual(self.reader().post('/api/editor/identify',json={'title':'x'}).status_code,403)
+        self.sign_up(username='writer')
+        answer={'original_title':' The Qur\'an and Its Biblical Subtext ','author':'Gabriel Said Reynolds','year':'about 2010','original_language':'en','extra':'x'}
+        with patch('server.app.model_json',new=AsyncMock(return_value=answer)):
+            got=self.client.post('/api/editor/identify',json={'title':'قرآن و زیرمتن','text':'رینولدز'}).json()
+        self.assertEqual(got,{'original_title':"The Qur'an and Its Biblical Subtext",'author':'Gabriel Said Reynolds','year':'','original_language':'en'})
     def test_uploaded_background_is_private_to_editor_and_visible_to_readers(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
         image=b'\xff\xd8\xff'+b'0'*1000

@@ -15,6 +15,8 @@ const HomeEditor=lazy(()=>import('./HomeEditor'));
 const SummaryZipTab=lazy(()=>import('./SummaryZipTab'));
 const ImportWizard=lazy(()=>import('./ImportWizard'));
 const ReviewDialog=lazy(()=>import('./ReviewDialog'));
+const NewBookWizard=lazy(()=>import('./NewBookWizard'));
+import type{Source}from'./new-book';
 const info_year=(_:Book)=>'';
 function routeValue(){try{return decodeURIComponent(location.hash.slice(1))||'/';}catch{return'/';}}
 export default function App(){
@@ -53,6 +55,8 @@ export default function App(){
  const[pick,setPick]=useState('');
  const data=useBookData(active,settings,model,reportVersion,pick||undefined);
  const player=usePlayer(()=>setAccountOpen(true));
+ // The new-book wizard; a whole book goes through the prompt wizard first and comes back to it with its summaries.
+ const[newBook,setNewBook]=useState<{initial:Source|null;cover:Blob|null}|null>(null),fromWizard=useRef(false);
  const[wizard,setWizard]=useState<number|null>(null),[reviewOpen,setReviewOpen]=useState(false),[review,setReview]=useState<LocalReview|null>(null);
  useEffect(()=>{setReview(null);if(!active)return;let live=true;store.review(active.id).then(r=>{if(live)setReview(r||null);}).catch(()=>{});return()=>{live=false;};},[active?.id]);
  // Quiet, near-monochrome themes: ink-colored buttons, one warm accent for links and selection.
@@ -119,9 +123,14 @@ export default function App(){
   if(chapters)await updateBook({...active,chapters,chapterIndex:0,completed:[],importVersion:Math.max(active.importVersion||1,2)});
   await store.saveImports(active.id,versions,!!chapters);
   const next={...settings,language:versions[0].language};setSettings(next);saveSettings(next);setDraft(next);setPick(versions[0].type);setReportVersion(v=>v+1);setWizard(null);
+  if(fromWizard.current){
+   fromWizard.current=false;const fresh=chapters?{...active,chapters,chapterIndex:0,completed:[]}:active;
+   const d=await loadBookData(fresh,next,model);const cover=(await store.cover(active.id).catch(()=>undefined))?.blob||null;
+   setNewBook({initial:{book:fresh,versions,data:d,images:versions.flatMap(v=>v.images||[]),cover:null},cover});return;
+  }
   navigate('/book/'+active.id);setToast(versions.length===1?'Summary added: '+versions[0].label+'.':versions.length+' summaries added.');
  }
- function beginImport(){setImportError('');setImportOpen(true);}
+ function beginImport(){setImportError('');if(canEdit)setNewBook({initial:null,cover:null});else setImportOpen(true);}
  // A finished summary becomes a book of its own, and the Publish dialog opens as soon as its data is ready.
  const[pendingPublish,setPendingPublish]=useState('');
  useEffect(()=>{if(pendingPublish&&active?.id===pendingPublish&&data.loaded&&data.versions.length){setPendingPublish('');setPublishOpen(true);}},[pendingPublish,active?.id,data.loaded,data.versions.length]);
@@ -182,7 +191,11 @@ export default function App(){
  {homeOpen&&<Suspense fallback={null}><HomeEditor config={home} books={published||[]} lang={uiLang} onClose={()=>setHomeOpen(false)} onSaved={c=>{setHome(c);setHomeOpen(false);setToast('Home page saved.');}}/></Suspense>}
  {publishOpen&&active&&<PublishDialog hasVoiceKey={!!account?.voice} onAccount={()=>setAccountOpen(true)} book={active} data={data} defaultLanguage={settings.language} defaultType={settings.depth} onClose={()=>setPublishOpen(false)} onPublished={p=>{updateBook({...active,published:p});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onUnpublished={()=>{updateBook({...active,published:undefined});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}}/>}
  {reviewOpen&&active&&<Suspense fallback={null}><ReviewDialog book={active} year={String(info_year(active))} initial={review} language={settings.language} onClose={()=>setReviewOpen(false)} onAccount={()=>setAccountOpen(true)} onSave={async v=>{await store.saveReview(active.id,v);setReview(v);setReviewOpen(false);setToast(v.approved?'Reception approved. It appears when you publish.':'Draft saved.');}}/></Suspense>}
- {wizard!==null&&active&&<Suspense fallback={null}><ImportWizard book={active} language={settings.language} existing={data.versions} canGenerate={!!account?.key} startAt={wizard} onClose={()=>setWizard(null)} onSave={saveVersions} onGenerate={()=>{setWizard(null);setBookSummaryOpen(true);}}/></Suspense>}
+ {newBook&&<Suspense fallback={null}><NewBookWizard hasKey={!!account?.key} hasVoiceKey={!!account?.voice} initial={newBook.initial} initialCover={newBook.cover} onAccount={()=>setAccountOpen(true)} onClose={()=>setNewBook(null)}
+  onWholeBook={file=>{setNewBook(null);fromWizard.current=true;setImportOpen(true);setImportTab(0);void handleFile(file);}} onOtherSource={()=>{setNewBook(null);setImportTab(1);setImportOpen(true);}}
+  onPublished={b=>{const local=newBook.initial?.book;if(local&&books.some(x=>x.id===local.id))void updateBook({...local,published:{id:b.id,slug:b.slug,visibility:b.visibility,at:Date.now()}});refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}}
+  onOpen={slug=>{setNewBook(null);navigate('/b/'+slug);}} onEdit={id=>{setNewBook(null);navigate('/edit/'+id);}}/></Suspense>}
+ {wizard!==null&&active&&<Suspense fallback={null}><ImportWizard book={active} language={settings.language} existing={data.versions} canGenerate={!!account?.key} startAt={wizard} onClose={()=>{setWizard(null);fromWizard.current=false;}} onSave={saveVersions} onGenerate={()=>{setWizard(null);setBookSummaryOpen(true);}}/></Suspense>}
  <Dialog open={importOpen} onClose={()=>{if(!importMessage)setImportOpen(false);}} fullWidth maxWidth="sm" aria-labelledby="import-title"><DialogTitle id="import-title" className="dialog-heading"><span>Add something worth reading</span><IconButton aria-label="Close import" disabled={!!importMessage} onClick={()=>setImportOpen(false)}><CloseRounded/></IconButton></DialogTitle><DialogContent><p className="dialog-lead">A book, an article, a few pages of ideas. Start with the source.</p><Tabs value={importTab} onChange={(_,v)=>{setImportTab(v);setImportError('');}} aria-label="Source type"><Tab label="Upload file" icon={<FileUploadOutlined/>} iconPosition="start"/><Tab label="Link" icon={<LinkRounded/>} iconPosition="start"/><Tab label="Paste text" icon={<EditOutlined/>} iconPosition="start"/><Tab label="Summary ZIP" icon={<FolderZipOutlined/>} iconPosition="start"/></Tabs>
  {importTab===3?<Suspense fallback={<LinearProgress/>}><SummaryZipTab busy={false} onCreate={createFromSummary}/></Suspense>:importTab===0?<><input ref={fileInput} type="file" hidden accept=".pdf,.epub,.txt,.md,.html,.htm,.srt,.vtt" onChange={e=>{if(e.target.files?.[0])handleFile(e.target.files[0]);}}/><ButtonBase className="upload-zone" disabled={!!importMessage} onClick={()=>fileInput.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!importMessage&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);}}><span className="upload-icon"><FileUploadOutlined/></span><strong>Choose a file or drop it here</strong><span>PDF, EPUB, TXT, Markdown, HTML, SRT or VTT</span><small>Up to 50 MB · Text-based PDFs · DRM-free EPUBs</small></ButtonBase><div className="small-note"><LockOutlined fontSize="small"/><span>Files are read in your browser and saved on this device. AI generation sends the selected chapter to your server.</span></div></>:<div className="import-form">{importTab===1?<><TextField fullWidth autoFocus label="Source URL" placeholder="https://…" value={url} onChange={e=>setUrl(e.target.value)}/><Alert severity="info">Links use your processing server. For YouTube, upload or paste a transcript. A book preview only supplies preview text.</Alert></>:null}<TextField fullWidth autoFocus={importTab===2} label={importTab===2?'Source title':'Title (optional)'} value={title} onChange={e=>setTitle(e.target.value)}/>{importTab===2&&<TextField fullWidth multiline minRows={8} maxRows={16} label="Source text" placeholder="Paste a chapter, article, or transcript. Use # headings to organize sections." value={text} onChange={e=>setText(e.target.value)} slotProps={{htmlInput:{maxLength:12*1024*1024}}}/>}<Button variant="contained" disabled={!!importMessage||!(importTab===2?text.trim():url.trim())} onClick={importOther}>{importTab===2?'Add to library':'Import link'}</Button></div>}
  {importMessage&&<div className="import-progress" role="status"><LinearProgress/><p>{importMessage}</p></div>}{importError&&<Alert severity="error" sx={{mt:2}}>{importError}{importTab===1&&!account&&<Button onClick={()=>setAccountOpen(true)}>Sign in</Button>}</Alert>}</DialogContent></Dialog>
