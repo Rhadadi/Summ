@@ -43,7 +43,6 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
-   {wall.length>0&&<h2 className="m-wall-h">{L('All books')} · {num(lang,wall.length)}</h2>}
    <CategoryChips books={wall} lang={lang} active={null} all={false} onPick={id=>navigate(id?'/library/c/'+id:'/library')}/>
    {wall.length>0&&<BookRow label={L('All books')} dir={lang==='fa'?'rtl':'ltr'}>{wall.map(b=><button key={b.id} role="listitem" className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong>{b.author&&<span dir="auto">{lang==='fa'?'نوشتهٔ ':'By '}<b>{lang==='fa'?authorFor(b,lang):displayName(b.author)}</b></span>}</button>)}</BookRow>}
   </section>}

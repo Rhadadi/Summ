@@ -837,3 +837,7 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 .rel-sheet[lang=fa],.rel-sheet[lang=fa] .MuiButton-root{font-family:"Vazirmatn Variable",-apple-system,sans-serif}
 .rel-sheet .MuiButton-startIcon{margin-inline:-4px 8px}.rel-sheet .MuiButton-endIcon{margin-inline:8px -4px}
 .rel-sheet[dir=rtl] .MuiButton-startIcon svg{transform:scaleX(-1)}
+/* Previewing as a visitor: no extra bar over the page, just one pill in the top bar to go back. */
+.visitor-pill{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 12px;border:1px solid var(--brand);border-radius:999px;background:var(--brand-tint);color:var(--brand);font:600 13px -apple-system,BlinkMacSystemFont,"Vazirmatn Variable",sans-serif;cursor:pointer;white-space:nowrap}
+.visitor-pill svg{font-size:18px}
+@media (max-width:899px){.topbar2 .visitor-pill{order:1}.visitor-pill span{display:none}.visitor-pill{padding:4px 9px}}

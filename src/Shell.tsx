@@ -88,8 +88,8 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
     <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
     <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
+   {asVisitor&&<button className="visitor-pill" onClick={onToggleVisitor} title={L('You are seeing the site as a visitor does. Editing tools are hidden.')}><EditNoteRounded/><span>{L('Back to editing')}</span></button>}
    <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage}/></header>
-   {asVisitor&&<div className="visitor-bar" role="status"><VisibilityOutlined/><span>{L('You are seeing the site as a visitor does. Editing tools are hidden.')}</span><button onClick={onToggleVisitor}>{L('Back to editing')}</button></div>}
    <main id="main-content" tabIndex={-1}>{children}</main>
   </div>
  </div>;
