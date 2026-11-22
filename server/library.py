@@ -88,6 +88,7 @@ def _slug(title:str,taken=lambda slug:False)->str:
     with the same title gets -2, -3."""
     def latin(t):
         t=re.sub(r'(?<!\S)و(?!\S)','va',unicodedata.normalize('NFKC',t))  # the word "and"
+        t=re.sub(r"['’‘`ʼ]",'',t)  # Qur'an, Triathlete's: one word, not two
         t=''.join(_LATIN.get(ch,ch) for ch in t)
         return re.sub(r'[^a-z0-9]+','-',unicodedata.normalize('NFKD',t).encode('ascii','ignore').decode().lower()).strip('-')
     main=re.split(r'\s*[:：؟?]',title.strip())[0]
@@ -108,8 +109,9 @@ def _readable_slugs(db:sqlite3.Connection):
     Latin link once; every earlier one stays an alias, so links already shared keep working."""
     if not {'slug','title','doc'}<={r[1] for r in db.execute('PRAGMA table_info(library)')}:return
     for book_id,slug,doc in db.execute('SELECT id,slug,doc FROM library').fetchall():
-        if slug.isascii() and not slug.endswith('-'+book_id[:6]):continue
-        new=_slug(_slug_title(json.loads(doc)),lambda s:_slug_taken(s,db))
+        if slug.isascii() and not slug.endswith('-'+book_id[:6]) and not re.search(r'-(?:s|an|t|re|ll|d)(?:-|$)',slug):continue
+        new=_slug(_slug_title(json.loads(doc)),lambda s:s!=slug and _slug_taken(s,db))
+        if new==slug:continue
         db.execute('INSERT OR IGNORE INTO slug_alias(slug,book_id) VALUES(?,?)',(slug,book_id));db.execute('UPDATE library SET slug=? WHERE id=?',(new,book_id))
 accounts.EXTRA_MIGRATIONS.append(_readable_slugs)
 def _title(doc:dict)->str:return doc['title'].get(doc.get('originalLanguage','en')) or next(iter(doc['title'].values()))

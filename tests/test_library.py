@@ -533,3 +533,14 @@ class ShareImageTests(RolesTest):
         img=Image.open(io.BytesIO(r.content));self.assertEqual(img.size,(1200,630))
         self.assertGreater(img.getpixel((600,315))[0],150)  # the cover itself, red, in the middle
         self.assertIn('/share.jpg',c.get('/b/'+book['slug']).text)
+class SlugApostropheTests(RolesTest):
+    def test_apostrophes_join_words_and_split_links_are_renamed_once(self):
+        self.assertEqual(library._slug("The Triathlete's Training Bible"),'the-triathletes-training-bible')
+        c,_=self.owner()
+        b=c.post('/api/library',json={'doc':doc(title={'en':"The Qur'an Today"}),'visibility':'public'}).json()
+        self.assertEqual(b['slug'],'the-quran-today')
+        library.q('UPDATE library SET slug=? WHERE id=?',('the-qur-an-today',b['id']))
+        for _ in range(2):library._readable_slugs(library._db())
+        self.assertEqual(c.get('/api/library/the-qur-an-today').json()['slug'],'the-quran-today')
+        m=c.post('/api/library',json={'doc':doc(title={'en':'Midlife'}),'visibility':'public'}).json()
+        library._readable_slugs(library._db());self.assertEqual(c.get('/api/library/'+m['id']).json()['slug'],'midlife')

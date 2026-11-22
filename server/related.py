@@ -101,9 +101,10 @@ async def cached(book_id:str,title:str,author:str,categories:list[str],picks:lis
     path=_cache(book_id,lang)
     try:
         saved=json.loads(path.read_text())
-        if not force and saved.get('v')==CACHE_VERSION and saved.get('lang')==lang and time.time()-saved['at']<(14*86400 if saved['books'] else 3600):return saved['books']
+        if not force and saved.get('v')==CACHE_VERSION and saved.get('lang')==lang and time.time()-saved['at']<(14*86400 if saved['books'] else 600):return saved['books']
     except (OSError,ValueError,KeyError):pass
-    try:books=await asyncio.wait_for(related(title,author,categories,picks,suggest),40)
+    # the model's picks plus up to ten edition lookups: 40 s was too short and left some books with an empty shelf
+    try:books=await asyncio.wait_for(related(title,author,categories,picks,suggest),100)
     except asyncio.TimeoutError:books=[]
     # Titles and the "why" line in the reader's language when the owner's key allows; a failure keeps every card as it is.
     if books and lang!='en' and localize:
