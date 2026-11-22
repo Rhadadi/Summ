@@ -841,3 +841,10 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 .visitor-pill{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 12px;border:1px solid var(--brand);border-radius:999px;background:var(--brand-tint);color:var(--brand);font:600 13px -apple-system,BlinkMacSystemFont,"Vazirmatn Variable",sans-serif;cursor:pointer;white-space:nowrap}
 .visitor-pill svg{font-size:18px}
 @media (max-width:899px){.topbar2 .visitor-pill{order:1}.visitor-pill span{display:none}.visitor-pill{padding:4px 9px}}
+/* The reader's top bar matches the site's: same height, padding, logo size and link style. */
+.curated-reader .curated-reader-sitebar{min-height:58px;height:58px;padding:0 28px;gap:6px}
+.curated-reader .curated-site-brand{width:128px}
+.curated-reader-sitebar nav{margin-inline-start:18px}
+.curated-reader-sitebar nav button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:980px;font:500 15px -apple-system,BlinkMacSystemFont,"Segoe UI","Vazirmatn Variable",sans-serif}
+.curated-reader-sitebar nav button:hover{background:var(--brand-tint);color:var(--brand)}
+@media(max-width:899px){.curated-reader .curated-reader-sitebar{height:auto;min-height:54px;padding:8px 12px}.curated-reader .curated-site-brand{width:120px}.curated-reader-sitebar nav{margin-inline-start:6px}}

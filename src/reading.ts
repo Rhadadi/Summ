@@ -2,7 +2,7 @@ import{useEffect,useState}from'react';
 
 // How the reader looks: per device, for visitors as well as editors.
 export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean;zen:boolean}
-export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'samim',en:'literata',justify:false,zen:false};
+export const readingDefaults:Reading={size:20,leading:'airy',width:'wide',theme:'paper',fa:'scheherazade',en:'literata',justify:false,zen:false};
 // Every font ships with the site under a free licence, so each reader sees the same choices.
 export interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
 export const faFonts:Font[]=[
@@ -29,14 +29,14 @@ export const enFonts:Font[]=[
  {id:'atkinson',label:'Atkinson Hyperlegible',family:'"Atkinson Hyperlegible"',load:()=>Promise.all([import('@fontsource/atkinson-hyperlegible/400.css'),import('@fontsource/atkinson-hyperlegible/700.css')])},
  {id:'system',label:'System sans',family:'-apple-system,BlinkMacSystemFont,"Segoe UI"'},
 ];
-const KEY='inkling-reading-v3',V2_KEY='inkling-reading-v2',OLD_KEY='inkling-reading';
+const KEY='inkling-reading-v4',V3_KEY='inkling-reading-v3',V2_KEY='inkling-reading-v2',OLD_KEY='inkling-reading';
 function load():Reading{try{
   const current=localStorage.getItem(KEY);
   if(current)return{...readingDefaults,...JSON.parse(current)};
-  // v3 made Samim the default: Nazli was v2's default, so a reader still on it never chose it and moves to Samim
-  const v2=localStorage.getItem(V2_KEY);if(v2){const r=JSON.parse(v2);return{...readingDefaults,...r,fa:!r.fa||r.fa==='nazli'?'samim':r.fa};}
+  // v4: Scheherazade, airy and wide are the new house look; earlier choices keep size, theme and the rest
+  const v3=localStorage.getItem(V3_KEY)||localStorage.getItem(V2_KEY);if(v3){const r=JSON.parse(v3);return{...readingDefaults,...r,fa:readingDefaults.fa,leading:readingDefaults.leading,width:readingDefaults.width};}
   const old=JSON.parse(localStorage.getItem(OLD_KEY)||'{}');
-  return{...readingDefaults,...old,fa:!old.fa||old.fa==='vazirmatn'||old.fa==='nazli'?'samim':old.fa};
+  return{...readingDefaults,...old,fa:readingDefaults.fa,leading:readingDefaults.leading,width:readingDefaults.width};
  }catch{return{...readingDefaults};}}
 export function useReading(){
  const[reading,setReading]=useState<Reading>(load);
@@ -51,8 +51,8 @@ export function useReading(){
 export function readingStyle(r:Reading):Record<string,string>{
  const fa=faFonts.find(f=>f.id===r.fa)||faFonts.find(f=>f.id===readingDefaults.fa)!,en=enFonts.find(f=>f.id===r.en)||enFonts[0];
  return{'--read-size':r.size+'px','--read-lh':String({tight:1.6,normal:1.85,airy:2.1}[r.leading]),'--read-width':{narrow:'620px',medium:'760px',wide:'920px'}[r.width],
-  // the chosen font is for the summary text itself; titles, contents and chapter banners keep the house faces
-  '--read-font':en.family+',"Nazli","Vazirmatn Variable",Georgia,serif','--read-text-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
+  // the chosen font is for the summary's body text only; titles, headings, contents and banners are Vazirmatn, as on every other page
+  '--read-font':en.family+',"Vazirmatn Variable",Georgia,serif','--read-text-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
 }
 // Where the reader stopped in each book: the chapter and how far down it.
 const POS='inkling-place:';

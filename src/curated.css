@@ -46,7 +46,7 @@
 @media(max-width:900px){.curated-intro-art .curated-credit{bottom:54px;max-width:65%}}
 
 /* Shorter opening and a calmer type scale, including long translated titles. */
-.curated-reader[lang=fa]{--serif:"Nazli",Georgia,serif}
+.curated-reader[lang=fa]{--serif:"Vazirmatn Variable",Georgia,serif}
 .curated-detail>.back-link{margin-top:12px;margin-bottom:12px}
 .curated-intro-art,.curated-intro-inner{min-height:400px}
 .curated-intro-inner{padding:34px 48px;grid-template-columns:minmax(0,1fr) minmax(130px,180px);gap:36px}

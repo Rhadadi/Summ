@@ -49,7 +49,8 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
  const[open,setOpen]=useState(false),[searching,setSearching]=useState(false),[catAnchor,setCatAnchor]=useState<HTMLElement|null>(null);
  const shelves=books?categoryCounts(books):[];
  // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
- const topNav=route==='/'||/^\/b\/[^/]+$/.test(route),here:string=route;
+ // Every page a reader sees (home, library, categories, a book) has the same slim top bar; the editor's own pages keep the side panel.
+ const topNav=route==='/'||/^\/b\/[^/]+$/.test(route)||route==='/library'||route.startsWith('/library/'),here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
