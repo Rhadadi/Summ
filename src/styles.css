@@ -722,3 +722,5 @@ body{background:var(--bg);color:var(--ink)}
 .nb-progress{margin-top:16px;padding:12px;border-radius:12px;background:var(--surface-low)}
 @media (max-width:699px){.nb-chapters li{flex-wrap:wrap}.nb-chapters li .MuiTextField-root:first-of-type{flex:1 1 70%}}
 :root[data-mode="dark"] .nb-task.nb-failed{background:color-mix(in srgb,#ff8a80 12%,var(--surface))}
+
+.editor-chapter{scroll-margin-top:16px}.editor-chapter.flash{outline:2px solid var(--brand);outline-offset:4px;border-radius:10px;transition:outline-color .6s}

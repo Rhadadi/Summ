@@ -1,7 +1,7 @@
 import{useEffect,useMemo,useRef,useState}from'react';
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded}from'@mui/icons-material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
@@ -18,6 +18,8 @@ interface Props{
  onPreferences:(patch:Partial<Settings>)=>void;onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
  onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;cover?:string;
  readOnly?:boolean;backdrop?:Backdrop;
+ // Editors see these in the site bar: where they read is where they switch views.
+ owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void};
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
@@ -102,7 +104,7 @@ export default function ReaderPage(p:Props){
  const curated=p.readOnly&&!!p.backdrop;
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
-  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav><span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{!p.owner.asVisitor&&p.owner.onEdit&&<button onClick={p.owner.onEdit}><EditOutlined/><span>{L('Edit book')}</span></button>}<button onClick={p.owner.onToggle}>{p.owner.asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(p.owner.asVisitor?'Back to editing':'View as visitor')}</span></button></span>}<span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>

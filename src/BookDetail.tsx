@@ -1,4 +1,4 @@
-import{useEffect,useRef,useState}from'react';
+import{useEffect,useRef,useState,type ReactNode}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
 import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
 import type{RelatedBook,Review,Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
@@ -20,6 +20,8 @@ interface Props{
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  onImport?:()=>void;onVersion?:(id:string)=>void;review?:Review|null;reviewApproved?:boolean;onReview?:()=>void;
  listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;backdrop?:Backdrop;
+ // The owner strip above the book page. Each later feature (audio, background) adds an entry here.
+ ownerActions?:{key:string;label:string;icon?:ReactNode;onClick:()=>void}[];
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
@@ -30,7 +32,7 @@ async function downscale(blob:Blob){
 // Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
 export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop}:Props){
+export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop,ownerActions}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[more2,setMore2]=useState(false);
@@ -87,6 +89,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
  const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
  return <div className={'detail'+(readOnly&&backdrop?' curated-detail':'')} lang={lang} dir={rtl(lang)?'rtl':undefined}>
+  {!!ownerActions?.length&&<div className="home-edit" role="toolbar" aria-label={L('Owner tools')}>{ownerActions.map(a=><button key={a.key} onClick={a.onClick}>{a.icon}{a.label}</button>)}</div>}
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{L(backLabel||'My library')}</button>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
   {outdated&&!rebuilding&&data.loaded&&(report||Object.keys(summaries).length>0||saved.some(x=>x.bookId===book.id))&&<Alert severity="info" action={<Button onClick={()=>{setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}}>Re-read file</Button>}>Cleaner text extraction is available for this book. Re-reading it resets its summaries and saved passages.</Alert>}

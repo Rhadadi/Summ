@@ -90,3 +90,9 @@
 @media(max-width:560px){.curated-intro-art,.curated-intro-inner{min-height:285px}.curated-detail[lang=fa] .curated-intro h1,.curated-detail[lang=fa] .curated-intro h1.curated-long{font-size:clamp(21px,5.5vw,27px)}.curated-intro-inner{padding:22px 18px 26px;grid-template-columns:minmax(0,1fr) 64px;gap:8px}.curated-cover{max-width:64px}.curated-cover img{max-height:110px}.curated-intro .curated-actions{margin-top:14px;gap:7px}.curated-intro .curated-read,.curated-intro .curated-listen{min-height:34px;padding:5px 10px;font-size:12px}.curated-intro .curated-listen span{display:none}.curated-intro .curated-listen svg{font-size:17px}.curated-intro-art .curated-credit{font-size:8px;max-width:65%}.curated-detail .about{padding-top:26px}}
 .curated-detail[lang=fa] .about .about-lead{font-size:19px;line-height:1.85}
 @media(max-width:560px){.curated-detail[lang=fa] .about .about-lead{font-size:17px;line-height:1.85}}
+
+/* Owner switch in the reader's site bar: labels give way to icons on phones. */
+.curated-site-owner{display:flex;align-items:center;gap:6px}.curated-site-owner button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rline);background:none;color:var(--rink);border-radius:980px;padding:6px 14px;font:500 14px var(--sans);cursor:pointer}.curated-site-owner button:hover{color:var(--brand);border-color:var(--brand)}.curated-site-owner svg{font-size:18px}
+@media(max-width:699px){.curated-reader-sitebar{gap:12px;padding-inline:14px}.curated-site-owner span{display:none}.curated-site-owner button{padding:7px}}
+/* The owner strip on the book page: same quiet pills as the home page's. */
+.curated-detail>.home-edit{width:100%;box-sizing:border-box;justify-content:flex-start;gap:8px;flex-wrap:wrap;margin:12px auto 0;padding:0 max(24px,calc((100% - 1160px)/2))}.curated-detail>.home-edit button{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.curated-detail>.home-edit svg{font-size:17px}

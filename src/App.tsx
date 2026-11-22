@@ -10,6 +10,7 @@ import{summarizeChapter}from'./book-summary';
 import{effectivePrice,estimateChapter,money,usageCost}from'./cost';
 import MailPage from'./MailPage';import MailingAdmin from'./MailingAdmin';import BookSummaryDialog from'./BookSummaryDialog';import AccountDialog from'./AccountDialog';import CostDialog from'./CostDialog';import PeoplePanel from'./PeoplePanel';import PublishedBook from'./PublishedBook';import PublicLibrary from'./PublicLibrary';import PublishDialog from'./PublishDialog';import Shell from'./Shell';import HomePage from'./HomePage';import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';import LibraryPage from'./LibraryPage';import Cover from'./Cover';import{PlayerBar,usePlayer}from'./Player';import{loadBookData,narrationItems,useBookData}from'./bookData';import type{CostRequest}from'./CostDialog';
 import PublishedEditor from'./PublishedEditor';
+import{editorTarget,leaveVisitor,visitorRoute}from'./view-switch.ts';
 import{tr}from'./i18n';
 const HomeEditor=lazy(()=>import('./HomeEditor'));
 const SummaryZipTab=lazy(()=>import('./SummaryZipTab'));
@@ -32,7 +33,10 @@ export default function App(){
  const[account,setAccount]=useState<Account|null>(null),[appConfig,setAppConfig]=useState<AppConfig|null>(),[accountOpen,setAccountOpen]=useState(false),[costRequest,setCostRequest]=useState<CostRequest|null>(null);
  const role=account?.role||'reader',isEditor=role==='owner'||role==='editor';
  // Editors can look at the site as a visitor would without signing out.
- const[asVisitor,setAsVisitor]=useState(false),canEdit=isEditor&&!asVisitor;
+ // The switch remembers where it came from (session only), so "Back to editing" returns to the same book and chapter.
+ const visitMark=useRef<{from:string;to:string}|null>((()=>{try{const v=JSON.parse(sessionStorage.getItem('inkling-as-visitor')||'null');return v&&typeof v.from==='string'&&typeof v.to==='string'?v:null;}catch{return null;}})());
+ const[asVisitor,setAsVisitor]=useState(!!visitMark.current),canEdit=isEditor&&!asVisitor;
+ const previousRoute=useRef('/'),currentRoute=useRef(routeValue());
  const[published,setPublished]=useState<PubBook[]|null>(null),[editableBooks,setEditableBooks]=useState<PubBook[]>([]),[publishOpen,setPublishOpen]=useState(false);
  const[home,setHome]=useState<HomeConfig|null>(null),[homeOpen,setHomeOpen]=useState(false);
  useEffect(()=>{homeConfig().then(setHome).catch(()=>{});},[]);
@@ -70,7 +74,7 @@ export default function App(){
  }});},[settings.theme]);
  useEffect(()=>{
   let live=true;Promise.all([store.books(),store.passages()]).then(async([list,quotes])=>{if(!list.length&&!localStorage.getItem('summ-seeded')){await store.saveBook(demoBook);list=[demoBook];localStorage.setItem('summ-seeded','true');}if(live){setBooks(list);setSaved(quotes);setLoading(false);for(const b of list)store.cover(b.id).then(c=>{if(c&&live)setCovers(old=>({...old,[b.id]:URL.createObjectURL(c.blob)}));}).catch(()=>{});}}).catch(()=>{if(live){setError('Please allow browser site storage to save your library.');setLoading(false);}});
-  const change=()=>{setRoute(routeValue());setEvidence(null);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
+  const change=()=>{previousRoute.current=currentRoute.current;currentRoute.current=routeValue();setRoute(currentRoute.current);setEvidence(null);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
   window.addEventListener('hashchange',change);window.addEventListener('keydown',shortcut);
   return()=>{live=false;window.removeEventListener('hashchange',change);window.removeEventListener('keydown',shortcut);};
  },[]);
@@ -79,6 +83,21 @@ export default function App(){
  useEffect(()=>{let live=true;setSummary(null);setGenerationError('');abort.current?.abort();setGenerating(false);if(key)store.summary(key).then(s=>{if(live)setSummary(s||null);}).catch(()=>{});return()=>{live=false;abort.current?.abort();};},[key]);
  useEffect(()=>{let live=true;let objectUrl='';setSourceUrl('');if(active)store.file(active.id).then(b=>{if(b&&live){objectUrl=URL.createObjectURL(b);setSourceUrl(objectUrl);}}).catch(()=>{});return()=>{live=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};},[active?.id]);
  const navigate=(path:string)=>{location.hash=path;};
+ // Switching views keeps the book (and chapter) in view. It only navigates when the page itself does not exist for the other view.
+ function toggleVisitor(){
+  const save=(v:typeof visitMark.current)=>{visitMark.current=v;try{if(v)sessionStorage.setItem('inkling-as-visitor',JSON.stringify(v));else sessionStorage.removeItem('inkling-as-visitor');}catch{/* private mode */}};
+  if(!asVisitor){
+   const to=visitorRoute(route,{published:[...editableBooks,...(published||[])],local:books});
+   save({from:route,to});setAsVisitor(true);
+   if(to!==route)navigate(to);
+  }else{
+   const back=leaveVisitor(route,visitMark.current);
+   save(null);setAsVisitor(false);
+   if(back)navigate(back);
+  }
+ }
+ // A reload in visitor view on an editor-only page lands on its visitor page, not on a silent home page.
+ useEffect(()=>{if(asVisitor&&isEditor&&parts[1]==='edit')navigate(visitorRoute(route,{published:[...editableBooks,...(published||[])],local:books}));},[asVisitor,isEditor,route,editableBooks,published]);
  function preferences(patch:Partial<Settings>){const next={...settings,...patch};setSettings(next);try{saveSettings(next);}catch{setToast('Could not save preferences on this device.');}}
  function openSettings(){setDraft(settings);setSettingsOpen(true);}
  // A 401 means the session ended; 412 means no key yet. Both are fixed in the account sheet.
@@ -170,19 +189,19 @@ export default function App(){
   :isReader&&!active?<div className="empty-state"><h2>This book is not on this device.</h2><Button onClick={()=>navigate('/')}>Return to library</Button></div>
   :isDetail&&active&&chapter?<BookDetail key={active.id} book={active} cover={covers[active.id]||''} data={data} saved={saved} onCover={(blob,source,url)=>setCover(active.id,blob,source,url)} onCreate={()=>setBookSummaryOpen(true)} onRead={(i,section)=>readBook(active,i,section)} onListen={id=>listen(active,id)} onExport={exportNotes} onEditContents={()=>{setEditing(structuredClone(active));setSplits({});}} onRebuild={()=>rebuild(active)} onAccount={()=>setAccountOpen(true)} onBack={()=>navigate('/workspace')} onPublish={canEdit?()=>setPublishOpen(true):undefined} review={review?.review||null} reviewApproved={!!review?.approved} onReview={canEdit?()=>setReviewOpen(true):undefined} onImport={canEdit?()=>setWizard(0):undefined} onVersion={id=>{const v=data.versions.find(x=>x.id===id);if(!v)return;setPick(v.type);if(v.language!==settings.language)preferences({language:v.language});}}/>
   :isSaved?<div className="saved-page"><div className="page-heading"><div className="eyebrow">WORTH KEEPING</div><h1>Ideas to come back to.</h1><p>Your saved passages, with their sources close by.</p></div><div className="saved-grid">{saved.filter(p=>(p.text+' '+p.title).toLowerCase().includes(query.toLowerCase())).map(p=><article className="saved-card" key={p.id}><BookmarkRounded/><blockquote dir="auto">{p.text}</blockquote><div className="saved-source"><strong>{p.title}</strong><span>{p.chapterTitle} · {p.location}</span></div><div className="saved-actions"><Button onClick={async()=>{const b=books.find(b=>b.id===p.bookId);if(b){const index=b.chapters.findIndex(c=>c.id===p.chapterId);await openBook({...b,chapterIndex:Math.max(0,index)});}}}>Open source <ArrowForwardRounded fontSize="small"/></Button><IconButton aria-label="Copy saved passage" onClick={()=>copy(p.text+'\n\n'+p.title+' — '+p.location)}><ContentCopyRounded fontSize="small"/></IconButton><IconButton aria-label="Remove saved passage" onClick={()=>store.deletePassage(p.id).then(()=>setSaved(items=>items.filter(x=>x.id!==p.id))).catch(()=>setToast('Could not remove passage.'))}><DeleteOutlineRounded fontSize="small"/></IconButton></div></article>)}</div>{!saved.length&&<div className="empty-state"><BookmarkBorderRounded/><h2>Keep the words that stay with you.</h2><p>Save a passage while reading. Its original wording and location will be waiting here.</p><Button onClick={()=>navigate('/')}>Explore your library</Button></div>}</div>
-  :isPub&&!pubRead?<PublishedBook listenOnOpen={parts[3]==='listen'} slug={pubSlug} mode="detail" section="" settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences} published={published} home={home}/>
+  :isPub&&!pubRead?<PublishedBook owner={isEditor?{asVisitor,onToggle:toggleVisitor,editable:editableBooks.map(b=>b.id)}:undefined} listenOnOpen={parts[3]==='listen'} slug={pubSlug} mode="detail" section="" settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences} published={published} home={home}/>
   :parts[1]==='mail'&&(parts[2]==='confirm'||parts[2]==='unsubscribe')&&parts[3]?<MailPage kind={parts[2]} token={parts[3]} lang={uiLang} navigate={navigate}/>
   :route==='/mailing'&&role==='owner'?<MailingAdmin books={editableBooks} onBack={()=>navigate('/')} toast={setToast}/>
   :isLibrary?<PublicLibrary lang={uiLang} query={query} onClear={()=>setQuery('')} listening={parts[2]==='listen'} books={published} loading={false} canEdit={canEdit} onOpen={b=>navigate('/b/'+b.slug+(parts[2]==='listen'?'/listen':''))} onWorkspace={()=>navigate('/workspace')}/>
-  :isPublishedEditor&&canEdit?<PublishedEditor bookId={parts[2]||''} language={uiLang} onBack={()=>navigate('/workspace')} onSaved={()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onAccount={()=>setAccountOpen(true)}/>
+  :isPublishedEditor&&canEdit?<PublishedEditor key={parts[2]||''} bookId={parts[2]||''} language={uiLang} initialTab={editorTarget(parts).tab} focusChapter={editorTarget(parts).chapter} backToBook={previousRoute.current.startsWith('/b/')} onBack={()=>navigate(previousRoute.current.startsWith('/b/')?previousRoute.current:'/workspace')} onViewPage={chapterId=>{const to=visitorRoute('/edit/'+parts[2]+(chapterId?'/chapters/'+chapterId:''),{published:[...editableBooks,...(published||[])],local:books});if(to==='/library'){setToast(L('This book is not public, so it has no page to view.'));return;}navigate(to);}} onSaved={()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} onAccount={()=>setAccountOpen(true)}/>
   :isWorkspace&&canEdit?<LibraryPage books={books} published={editableBooks} language={uiLang} covers={covers} filter={filter} query={query} onFilter={setFilter} onOpen={openBook} onOpenPublished={b=>navigate('/b/'+b.slug)} onEditPublished={b=>navigate('/edit/'+b.id)} onAdd={beginImport} canSearchBooks={!!appConfig} onRemove={setDeleting} onClear={()=>{setQuery('');setFilter('all');}}/>
   :<HomePage account={account} mailEnabled={!!appConfig?.email} isOwner={role==='owner'} config={home} onEditHome={()=>setHomeOpen(true)} lang={uiLang} published={published} canEdit={canEdit} onOpenPublished={b=>navigate('/b/'+b.slug)} books={books} covers={covers} saved={saved} onRead={b=>readBook(b)} onOpen={openBook} onListen={b=>listen(b)} onAdd={beginImport} navigate={navigate}/>;
  return <ThemeProvider theme={theme}><CssBaseline/><a className="skip-link" href="#main-content" onClick={e=>{e.preventDefault();document.getElementById('main-content')?.focus();}}>{L('Skip to content')}</a>
  <div className={player.state?'has-player':''}>
  {error&&<Alert severity="error">{error}</Alert>}
  {isRead&&active&&chapter&&!loading?<ReaderPage key={active.id} book={active} chapter={chapter} section={readSection} settings={settings} account={account} price={price} saved={saved} data={data} summary={summary} generating={generating} generationError={generationError} onPreferences={preferences} onGenerate={generate} onCancel={()=>{abort.current?.abort();setGenerating(false);}} onBookmark={bookmark} onEvidence={(block,text,c)=>setEvidence({block,text,chapter:c})} onChoose={async i=>{await chooseChapter(i);navigate('/read/'+active.id);}} onSection={section=>navigate('/read/'+active.id+'/'+encodeURIComponent(section))} onBack={()=>navigate('/book/'+active.id)} onHome={()=>navigate('/')} cover={covers[active.id]} onListen={id=>listen(active,id)} onCreate={()=>setBookSummaryOpen(true)}/>
- :isPub&&pubRead&&!loading?<PublishedBook key={pubSlug} slug={pubSlug} mode="read" section={pubSection} settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences} published={published} home={home}/>
- :<Shell lang={uiLang} onLanguage={lang=>preferences({uiLanguage:lang})} ref={searchInput} route={route} isEditor={isEditor} asVisitor={asVisitor} onToggleVisitor={()=>{setAsVisitor(v=>!v);navigate('/');}} account={account} query={query} onQuery={value=>{setQuery(value);if(!isLibrary&&route!=='/workspace')navigate(canEdit?'/workspace':'/library');}} canEdit={canEdit} navigate={navigate} onAdd={beginImport} onSettings={openSettings} onAccount={()=>setAccountOpen(true)}>{view}</Shell>}
+ :isPub&&pubRead&&!loading?<PublishedBook owner={isEditor?{asVisitor,onToggle:toggleVisitor,editable:editableBooks.map(b=>b.id)}:undefined} key={pubSlug} slug={pubSlug} mode="read" section={pubSection} settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences} published={published} home={home}/>
+ :<Shell lang={uiLang} onLanguage={lang=>preferences({uiLanguage:lang})} ref={searchInput} route={route} isEditor={isEditor} asVisitor={asVisitor&&isEditor} onToggleVisitor={toggleVisitor} account={account} query={query} onQuery={value=>{setQuery(value);if(!isLibrary&&route!=='/workspace')navigate(canEdit?'/workspace':'/library');}} canEdit={canEdit} navigate={navigate} onAdd={beginImport} onSettings={openSettings} onAccount={()=>setAccountOpen(true)}>{view}</Shell>}
  </div>
  <PlayerBar player={player} cover={player.state?(player.state.book.id.startsWith('pub:')?'/api/library/'+player.state.book.id.slice(4)+'/cover':covers[player.state.book.id]):undefined} onOpen={chapterId=>{
   const src=player.state?.book;if(!src)return;

@@ -10,22 +10,31 @@ import type{ArtResult,LocalReview,PubBook,PubDoc,PubPara,PubVersion}from'./types
 import{bookInfo,coverImage,editorialAssist,libraryBook,publishBook,removeCover,setSlide,unpublishBook,uploadBackground,uploadCover,uploadFigure}from'./api';
 import{coverBlob,figureBlob}from'./publish';
 import{tr}from'./i18n';
+import{editorTabs,type EditorTab}from'./view-switch.ts';
 
 type Edition=PubBook&{doc:PubDoc};
 type Pick='cover'|'background'|null;
 const emptyPara=():PubPara=>({text:''});
 const copy=<T,>(v:T):T=>structuredClone(v);
 const titleFor=(names:Record<string,string>,lang:string)=>names[lang]||Object.values(names)[0]||'';
-interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;onAccount:()=>void}
-export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount}:Props){
+// initialTab and focusChapter come from the URL (#/edit/:id/chapters/:chapterId), so Edit mode opens on the page the owner was reading.
+interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;onAccount:()=>void;initialTab?:EditorTab;focusChapter?:string;backToBook?:boolean;onViewPage?:(chapterId?:string)=>void}
+export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount,initialTab='details',focusChapter='',backToBook=false,onViewPage}:Props){
  const L=(text:string)=>tr(language,text);
- const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(0),[versionIndex,setVersionIndex]=useState(0);
+ const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(()=>Math.max(0,Math.min(editorTabs.indexOf(initialTab),4))),[flash,setFlash]=useState(''),[versionIndex,setVersionIndex]=useState(0);
  const[figStamp,setFigStamp]=useState(Date.now());
  const[replaceOpen,setReplaceOpen]=useState(false),[pendingFigures,setPendingFigures]=useState<{name:string;image:SummaryImage}[]>([]);
  const[capText,setCapText]=useState(''),[capUrl,setCapUrl]=useState('');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[pick,setPick]=useState<Pick>(null),[reviewOpen,setReviewOpen]=useState(false),[reviewDraft,setReviewDraft]=useState<LocalReview|null>(null),[coverChoices,setCoverChoices]=useState<string[]>([]);
  useEffect(()=>{let live=true;setBook(null);setDoc(null);libraryBook(bookId).then(b=>{if(live){setBook(b);setDoc(copy(b.doc));setCapText(b.slide?.caption||'');setCapUrl(b.slide?.captionUrl||'');}}).catch(e=>{if(live)setError((e as Error).message);});return()=>{live=false;};},[bookId]);
- if(!book||!doc)return <div className="editor-workspace"><Button startIcon={<ArrowBackRounded/>} onClick={onBack}>Workspace</Button>{error?<Alert severity="error">{error}</Alert>:<CircularProgress/>}</div>;
+ // Scroll the chapter the owner came from into view, once the document is here, and mark it for a moment.
+ useEffect(()=>{
+  if(!focusChapter||!doc||tab!==2)return;
+  const el=document.getElementById('ed-ch-'+focusChapter);if(!el)return;
+  el.scrollIntoView({block:'start'});setFlash(focusChapter);
+  const t=setTimeout(()=>setFlash(''),2200);return()=>clearTimeout(t);
+ },[focusChapter,!!doc]);
+ if(!book||!doc)return <div className="editor-workspace"><Button startIcon={<ArrowBackRounded/>} onClick={onBack}>{L(backToBook?'Back to the book':'Workspace')}</Button>{error?<Alert severity="error">{error}</Alert>:<CircularProgress/>}</div>;
  const currentBook=book,currentDoc=doc;
  const version=doc.versions[Math.min(versionIndex,doc.versions.length-1)],lang=version.language;
  const title=titleFor(doc.title,lang),about=version.overview?.paragraphs[0]?.text||doc.info?.description||'';
@@ -81,7 +90,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   setBook({...currentBook,slide});setNotice('Background updated.');onSaved();
  }catch(e){setError((e as Error).message);}finally{setBusy('');}}
  return <div className="editor-workspace">
-  <Button startIcon={<ArrowBackRounded/>} onClick={onBack}>{L('Workspace')}</Button>
+  <Button startIcon={<ArrowBackRounded/>} onClick={onBack}>{L(backToBook?'Back to the book':'Workspace')}</Button>
   <div className="editor-heading"><div><span className="eyebrow">{L('BOOK EDITOR')}</span><h1 dir="auto">{title}</h1><p>{L('Change the published book directly. Text changes go live when you save.')}</p></div><span><Button sx={{mr:1}} variant="outlined" disabled={!!busy} onClick={()=>setReplaceOpen(true)}>{L('Replace from a ZIP')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></span></div>
   {error&&<Alert severity="error" onClose={()=>setError('')} sx={{mb:2}}>{error}</Alert>}{notice&&<Alert severity="success" onClose={()=>setNotice('')} sx={{mb:2}}>{notice}</Alert>}
   {doc.versions.length>1&&<TextField select size="small" label={L('Summary version')} value={versionIndex} onChange={e=>setVersionIndex(Number(e.target.value))} sx={{minWidth:260,mb:2}}>{doc.versions.map((v,i)=><MenuItem key={i} value={i}>{v.label} · {v.language}</MenuItem>)}</TextField>}
@@ -108,7 +117,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
    {paragraphs('Overview paragraphs',version.overview?.paragraphs||[],next=>updateVersion(v=>{v.overview??={paragraphs:[],takeaways:[]};v.overview.paragraphs=next;}))}
    {paragraphs('Key ideas',version.overview?.takeaways||[],next=>updateVersion(v=>{v.overview??={paragraphs:[],takeaways:[]};v.overview.takeaways=next;}))}</div>}
   {tab===2&&<div className="editor-panel"><div className="editor-section-head"><h2>{L('Chapters')}</h2><Button startIcon={<AddRounded/>} onClick={()=>update(d=>{const id=crypto.randomUUID();d.chapters.push({id,title:{[lang]:lang==='fa'?'فصل تازه':'New chapter'},group:'main'});})}>{L('Add chapter')}</Button></div><p>{L('Rename, reorder, add, or remove chapters and their summaries.')}</p>
-   {doc.chapters.map((c,i)=><section className="editor-chapter" key={c.id}><div className="editor-section-head"><strong>{i+1}. {titleFor(c.title,lang)}</strong><div className="editor-row-actions"><Button size="small" disabled={i===0} onClick={()=>update(d=>{[d.chapters[i-1],d.chapters[i]]=[d.chapters[i],d.chapters[i-1]];})}>{L('Up')}</Button><Button size="small" disabled={i===doc.chapters.length-1} onClick={()=>update(d=>{[d.chapters[i+1],d.chapters[i]]=[d.chapters[i],d.chapters[i+1]];})}>{L('Down')}</Button><IconButton aria-label={L('Delete chapter')+' '+(i+1)} disabled={doc.chapters.length===1} onClick={()=>{if(!confirm(L('Remove this chapter and its summaries from every language?')))return;update(d=>{d.chapters.splice(i,1);d.versions.forEach(v=>{delete v.chapters[c.id];});});}}><DeleteOutlineRounded/></IconButton></div></div>
+   {doc.chapters.map((c,i)=><section className={'editor-chapter'+(flash===c.id?' flash':'')} id={'ed-ch-'+c.id} key={c.id}><div className="editor-section-head"><strong>{i+1}. {titleFor(c.title,lang)}</strong><div className="editor-row-actions">{onViewPage&&<Button size="small" onClick={()=>onViewPage(c.id)}>{L('View on the page')}</Button>}<Button size="small" disabled={i===0} onClick={()=>update(d=>{[d.chapters[i-1],d.chapters[i]]=[d.chapters[i],d.chapters[i-1]];})}>{L('Up')}</Button><Button size="small" disabled={i===doc.chapters.length-1} onClick={()=>update(d=>{[d.chapters[i+1],d.chapters[i]]=[d.chapters[i],d.chapters[i+1]];})}>{L('Down')}</Button><IconButton aria-label={L('Delete chapter')+' '+(i+1)} disabled={doc.chapters.length===1} onClick={()=>{if(!confirm(L('Remove this chapter and its summaries from every language?')))return;update(d=>{d.chapters.splice(i,1);d.versions.forEach(v=>{delete v.chapters[c.id];});});}}><DeleteOutlineRounded/></IconButton></div></div>
     <div className="editor-fields"><TextField label={L('Chapter title')+' · '+lang} value={c.title[lang]||''} onChange={e=>update(d=>{d.chapters[i].title[lang]=e.target.value;})} fullWidth/><TextField select label={L('Section')} value={c.group} onChange={e=>update(d=>{d.chapters[i].group=e.target.value as typeof c.group;})}><MenuItem value="main">{L('Main chapter')}</MenuItem><MenuItem value="front">{L('Front matter')}</MenuItem><MenuItem value="back">{L('Back matter')}</MenuItem></TextField></div>
     {paragraphs('Chapter summary',version.chapters[c.id]?.paragraphs||[],next=>updateVersion(v=>{v.chapters[c.id]??={paragraphs:[]};v.chapters[c.id].paragraphs=next;}))}
     {paragraphs('Chapter review',version.chapters[c.id]?.review||[],next=>updateVersion(v=>{v.chapters[c.id]??={paragraphs:[]};v.chapters[c.id].review=next;}))}</section>)}</div>}

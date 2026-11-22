@@ -38,7 +38,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
   {canEdit&&<>{item('/workspace','Workspace',<LibraryBooksOutlined/>,route==='/workspace'||route.startsWith('/book/'))}
   {item('/saved','Saved passages',<BookmarkBorderRounded/>,route==='/saved')}
   <button className="side-item" onClick={()=>{setOpen(false);onAdd();}}><AddRounded/><span>Add a book</span></button></>}
-  {isEditor&&<button className="side-item" onClick={()=>{setOpen(false);onToggleVisitor();}}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{asVisitor?'Back to editing':'View as visitor'}</span></button>}
+  {isEditor&&<button className="side-item" onClick={()=>{setOpen(false);onToggleVisitor();}}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(asVisitor?'Back to editing':'View as visitor')}</span></button>}
   <hr/>
   <button className="side-item" onClick={()=>{setOpen(false);onSettings();}}><SettingsOutlined/><span>{L('Settings')}</span></button>
   <button className="side-item" onClick={()=>{setOpen(false);onAccount();}}>{account?<Avatar className="side-avatar">{account.user.name.slice(0,1).toUpperCase()}</Avatar>:<span className="side-avatar empty"/>}<span>{account?account.user.name:L('Log in')}</span></button>
@@ -67,7 +67,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
     <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
     <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
    <button className="language-switch" onClick={()=>onLanguage(lang==='fa'?'en':'fa')} aria-label={lang==='fa'?'Switch to English':'تغییر زبان به فارسی'}>{lang==='fa'?'English':'فارسی'}</button></header>
-   {asVisitor&&<div className="visitor-bar" role="status"><VisibilityOutlined/><span>You are seeing the site as a visitor does. Editing tools are hidden.</span><button onClick={onToggleVisitor}>Back to editing</button></div>}
+   {asVisitor&&<div className="visitor-bar" role="status"><VisibilityOutlined/><span>{L('You are seeing the site as a visitor does. Editing tools are hidden.')}</span><button onClick={onToggleVisitor}>{L('Back to editing')}</button></div>}
    <main id="main-content" tabIndex={-1}>{children}</main>
   </div>
  </div>;
