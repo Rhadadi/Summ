@@ -96,3 +96,6 @@
 @media(max-width:699px){.curated-reader-sitebar{gap:12px;padding-inline:14px}.curated-site-owner span{display:none}.curated-site-owner button{padding:7px}}
 /* The owner strip on the book page: same quiet pills as the home page's. */
 .curated-detail>.home-edit{width:100%;box-sizing:border-box;justify-content:flex-start;gap:8px;flex-wrap:wrap;margin:12px auto 0;padding:0 max(24px,calc((100% - 1160px)/2))}.curated-detail>.home-edit button{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.curated-detail>.home-edit svg{font-size:17px}
+
+/* Without audio the book page offers only Start reading. */
+@media(max-width:560px){.curated-actions.solo{grid-template-columns:minmax(0,1fr)}}

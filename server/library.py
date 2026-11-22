@@ -1,6 +1,6 @@
 """The public library: published summaries, covers, and narration. The original book text is never stored here."""
 from __future__ import annotations
-import json,os,re,sqlite3,threading,time,unicodedata,uuid
+import json,os,re,secrets,sqlite3,threading,time,unicodedata,uuid
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field,model_validator
@@ -61,6 +61,12 @@ class PublishRequest(Strict):
     doc:Doc
     visibility:Literal['public','unlisted']='public'
 accounts.EXTRA_SCHEMA.append(SCHEMA)
+def _migrate(db:sqlite3.Connection):
+    """Columns added after the first release. engine: which voice made the audio; type: which summary version it narrates ('' for older rows, which match any); settings: voice settings used."""
+    have={r[1] for r in db.execute('PRAGMA table_info(narration)')}
+    for column,sql in (('engine',"ALTER TABLE narration ADD COLUMN engine TEXT NOT NULL DEFAULT 'offline'"),('type',"ALTER TABLE narration ADD COLUMN type TEXT NOT NULL DEFAULT ''"),('settings',"ALTER TABLE narration ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'")):
+        if column not in have:db.execute(sql)
+accounts.EXTRA_MIGRATIONS.append(_migrate)
 def _db():return accounts._db()
 def q(sql:str,args:tuple=()):
     with accounts._lock:return _db().execute(sql,args).fetchall()
@@ -92,11 +98,16 @@ def _rating(d:dict):
 def _slide(book_id:str)->dict:
     from . import artwork
     return artwork.slide(book_id)
-def _public(row)->dict:
+def _audio_map()->dict[str,list[str]]:
+    """Languages that have audio for each book, in one query: the book list uses it to show Listen only where there is something to hear."""
+    out:dict[str,list[str]]={}
+    for book_id,language in q("SELECT book_id,language FROM narration WHERE tracks!='[]' ORDER BY language"):out.setdefault(book_id,[]).append(language)
+    return out
+def _public(row,audio_map:dict[str,list[str]]|None=None)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)
@@ -114,13 +125,13 @@ def publish(user:dict,request:PublishRequest)->dict:
 def get(key:str,include_private:bool=False)->dict:
     rows=q('SELECT '+COLUMNS+' FROM library WHERE id=? OR slug=?',(key,key))
     if not rows:raise accounts.AccountError(404,'This book is not in the library.')
-    out=_public(rows[0]);out['doc']=json.loads(rows[0][7]);return out
+    out=_public(rows[0],{rows[0][0]:[r[0] for r in q("SELECT language FROM narration WHERE book_id=? AND tracks!='[]' ORDER BY language",(rows[0][0],))]});out['doc']=json.loads(rows[0][7]);return out
 def listing(owner_id:str|None=None)->list[dict]:
     if owner_id:rows=q('SELECT '+COLUMNS+' FROM library WHERE owner_id=? ORDER BY updated DESC',(owner_id,))
     else:rows=q("SELECT "+COLUMNS+" FROM library WHERE visibility='public' ORDER BY updated DESC")
-    return [_public(r) for r in rows]
+    audio_map=_audio_map();return [_public(r,audio_map) for r in rows]
 def listing_all()->list[dict]:
-    return [_public(r) for r in q('SELECT '+COLUMNS+' FROM library ORDER BY updated DESC')]
+    audio_map=_audio_map();return [_public(r,audio_map) for r in q('SELECT '+COLUMNS+' FROM library ORDER BY updated DESC')]
 def owner_of(book_id:str)->str|None:
     rows=q('SELECT owner_id FROM library WHERE id=?',(book_id,));return rows[0][0] if rows else None
 def remove(book_id:str):
@@ -159,9 +170,12 @@ def cover(book_id:str)->tuple[bytes,str]|None:
     return (path.read_bytes(),rows[0][0]) if rows and rows[0][0] and path.exists() else None
 # ---- narration: generated once by the owner or an editor, then served as static files
 def _say(p:dict)->str:return (p['heading']+'. ' if p.get('heading') else '')+p['text']
-def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
+def _version(doc:dict,language:str,kind:str|None)->dict:
     version=next((v for v in doc['versions'] if v['language']==language and (kind is None or v['type']==kind)),None)
     if not version:raise accounts.AccountError(404,'No summary exists in this language.')
+    return version
+def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
+    version=_version(doc,language,kind)
     items=[]
     if version.get('overview'):items.append({'title':'Overview','chapterId':None,'text':'\n\n'.join(_say(p) for p in version['overview']['paragraphs'])})
     for c in doc['chapters']:
@@ -179,40 +193,42 @@ def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
     return tracks
 _running:set[tuple[str,str]]=set()
 def start_narration(book_id:str,language:str,kind:str|None,engine:str='offline',voice:tuple[str,str]|None=None):
-    """Narration is generated once on the server: with the free offline voice, or with the editor's own ElevenLabs key."""
-    doc=get(book_id)['doc'];tracks=narration_tracks(doc,language,kind)
+    """Narration is generated once on the server: with the free offline voice, or with the editor's own ElevenLabs key.
+    A second run keeps the old audio (and its Listen button) until the new set is complete."""
+    doc=get(book_id)['doc'];tracks=narration_tracks(doc,language,kind);vtype=_version(doc,language,kind)['type']
     if (book_id,language) in _running:raise accounts.AccountError(409,'Narration is already being prepared.')
     if engine=='elevenlabs' and not voice:raise accounts.AccountError(412,'Add your ElevenLabs key in Account first.')
     if engine=='offline' and language not in audio.PIPER_VOICES:raise accounts.AccountError(422,'There is no offline voice for this language yet.')
-    try:q('ALTER TABLE narration ADD COLUMN engine TEXT NOT NULL DEFAULT \'offline\'')
-    except Exception:pass  # noqa: BLE001 - the column already exists
-    q('INSERT OR REPLACE INTO narration(book_id,language,status,done,total,tracks,error,updated,engine) VALUES(?,?,?,?,?,?,?,?,?)',(book_id,language,'running',0,len(tracks),'[]','',time.time(),engine))
+    # An upsert, not INSERT OR REPLACE: the old tracks, engine and type stay until the new set replaces them.
+    q("INSERT INTO narration(book_id,language,status,done,total,tracks,error,updated,engine,type) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(book_id,language) DO UPDATE SET status='running',done=0,total=excluded.total,error='',updated=excluded.updated",(book_id,language,'running',0,len(tracks),'[]','',time.time(),engine,vtype))
     _running.add((book_id,language))
-    threading.Thread(target=_narrate,args=(book_id,language,tracks,engine,voice),daemon=True).start()
-def _narrate(book_id:str,language:str,tracks:list[dict],engine:str='offline',voice:tuple[str,str]|None=None):
+    threading.Thread(target=_narrate,args=(book_id,language,tracks,engine,voice,vtype),daemon=True).start()
+def _narrate(book_id:str,language:str,tracks:list[dict],engine:str='offline',voice:tuple[str,str]|None=None,vtype:str=''):
     folder=_dir('audio')/book_id/language;folder.mkdir(parents=True,exist_ok=True)
-    for old in folder.glob('*.mp3'):old.unlink()
-    manifest=[]
+    gen=secrets.token_hex(4);manifest=[]  # new files are named <gen>-<n>.mp3 so they never overwrite the audio people are hearing
     try:
         for i,t in enumerate(tracks):
             data=audio.eleven_long(t['text'],language,voice[0],voice[1]) if engine=='elevenlabs' and voice else audio.piper_mp3(t['text'],language)
-            (folder/(str(i)+'.mp3')).write_bytes(data)
-            manifest.append({'title':t['title'],'chapterId':t['chapterId'],'file':str(i)+'.mp3'})
-            q('UPDATE narration SET done=?,tracks=?,updated=? WHERE book_id=? AND language=?',(i+1,json.dumps(manifest),time.time(),book_id,language))
-        q('UPDATE narration SET status=?,updated=? WHERE book_id=? AND language=?',('ready',time.time(),book_id,language))
+            name=f'{gen}-{i}.mp3';(folder/name).write_bytes(data)
+            manifest.append({'title':t['title'],'chapterId':t['chapterId'],'file':name})
+            q('UPDATE narration SET done=?,updated=? WHERE book_id=? AND language=?',(i+1,time.time(),book_id,language))
+        # One update swaps the manifest; only then are the files it no longer lists removed.
+        q("UPDATE narration SET status='ready',tracks=?,engine=?,type=?,error='',updated=? WHERE book_id=? AND language=?",(json.dumps(manifest),engine,vtype,time.time(),book_id,language))
+        keep={m['file'] for m in manifest}
+        for old in folder.glob('*.mp3'):
+            if old.name not in keep:old.unlink(missing_ok=True)
     except Exception as error:  # noqa: BLE001 - reported to the owner, never crashes the server
+        for m in manifest:(folder/m['file']).unlink(missing_ok=True)  # the previous audio, if any, stays as it was
         q('UPDATE narration SET status=?,error=?,updated=? WHERE book_id=? AND language=?',('failed',str(error)[:300],time.time(),book_id,language))
     finally:_running.discard((book_id,language))
 def narration_status(book_id:str,language:str)->dict:
-    rows=q('SELECT status,done,total,tracks,error FROM narration WHERE book_id=? AND language=?',(book_id,language))
+    rows=q('SELECT status,done,total,tracks,error,engine,type FROM narration WHERE book_id=? AND language=?',(book_id,language))
     if not rows:return {'status':'none','done':0,'total':0,'tracks':[]}
-    status,done,total,tracks,error=rows[0]
-    try:engine=q('SELECT engine FROM narration WHERE book_id=? AND language=?',(book_id,language))[0][0]
-    except sqlite3.OperationalError:engine='offline'  # Older databases may not have the engine column yet.
+    status,done,total,tracks,error,engine,vtype=rows[0]
     bytes_per_second=16000 if engine=='elevenlabs' else 8000
-    return {'status':status,'done':done,'total':total,'error':error,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/bytes_per_second,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
+    return {'status':status,'done':done,'total':total,'error':error,'engine':engine,'type':vtype,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/bytes_per_second,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
 def audio_path(book_id:str,language:str,name:str)->Path|None:
-    if not re.fullmatch(r'\d{1,4}\.mp3',name) or not re.fullmatch(r'[a-z]{2}',language):return None
+    if not re.fullmatch(r'(?:\d{1,4}|[0-9a-f]{8}-\d{1,4})\.mp3',name) or not re.fullmatch(r'[a-z]{2}',language):return None
     if not re.fullmatch(r'[0-9a-f-]{36}',book_id):return None
     path=_dir('audio')/book_id/language/name;return path if path.is_file() else None
 def reset_jobs():

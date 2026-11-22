@@ -12,3 +12,15 @@ export function partTitle(tracks:{title:string;chapterId?:string|null}[],index:n
 }
 
 export function trackSignature(tracks:{title:string;chapterId?:string|null;url?:string;text:string}[]){const text=JSON.stringify(tracks.map(t=>[t.title,t.chapterId,t.url||t.text]));let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(36);}
+
+// What Listen may offer for the language and version being read. Until the narration status arrives, the book's own
+// `audio` list (languages that have audio) decides, so the button does not flicker.
+export interface AudioStatus{status:string;type?:string;tracks:{chapterId:string|null}[]}
+export function audioFor(status:AudioStatus|null|undefined,pubAudio:string[]|undefined,language:string,type:string){
+ if(!status)return{known:false,book:!!pubAudio?.includes(language),overview:false,chapters:new Set<string>()};
+ // Old rows have no type and match any version. A first run still in progress has no tracks yet; a regeneration keeps the old ones.
+ const mine=status.tracks.length>0&&(!status.type||status.type===type);
+ return{known:true,book:mine,overview:mine&&status.tracks.some(t=>!t.chapterId),chapters:new Set(mine?status.tracks.flatMap(t=>t.chapterId?[t.chapterId]:[]):[])};
+}
+// Chapter and overview buttons: the book must have audio, and (once known) this chapter must have a track.
+export const canListenTo=(a:ReturnType<typeof audioFor>,chapterId:string|null)=>a.book&&(!a.known||(chapterId?a.chapters.has(chapterId):a.overview));

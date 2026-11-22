@@ -20,6 +20,8 @@ interface Props{
  readOnly?:boolean;backdrop?:Backdrop;
  // Editors see these in the site bar: where they read is where they switch views.
  owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void};
+ // Listen shows only where there is audio: null asks about the overview.
+ canListen?:(chapterId:string|null)=>boolean;
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
@@ -112,7 +114,7 @@ export default function ReaderPage(p:Props){
    {curated&&isChapter&&<div className="curated-chapter-art">
     {p.backdrop!.whole&&<img className="curated-fill" src={p.backdrop!.url} alt="" aria-hidden="true"/>}
     <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position}}/>
-    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
+    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
    </div>}
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
@@ -124,7 +126,7 @@ export default function ReaderPage(p:Props){
    {isChapter&&<>
     {!curated&&<div className="r2-bar"><span className="r2-chip">{index>=0&&<button className="r2-step" disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{lang==='fa'||lang==='ar'?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button>}<span>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span>{index>=0&&<button className="r2-step" disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{lang==='fa'||lang==='ar'?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button>}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
-     {summary&&<button className="r2-pill" aria-label={L('Listen')} onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/><span>{L('Listen')}</span></button>}
+     {summary&&(p.canListen?.(chapter.id)??true)&&<button className="r2-pill" aria-label={L('Listen')} onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/><span>{L('Listen')}</span></button>}
      <IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>
     </div>}
     {!curated&&<h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>}

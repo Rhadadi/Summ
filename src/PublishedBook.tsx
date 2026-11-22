@@ -7,7 +7,7 @@ import{adaptPublished,pickVersion,readPosition,savePosition,versionKey}from'./pu
 import{languages}from'./core';
 import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';
 import{tr,num}from'./i18n';
-import{listeningPlace,trackSignature}from'./listening';
+import{audioFor,canListenTo,listeningPlace,trackSignature}from'./listening';
 import{chapterHint,editorRoute}from'./view-switch.ts';
 import{EditOutlined,VisibilityOutlined}from'@mui/icons-material';
 import type{PlayerApi}from'./Player';
@@ -44,7 +44,7 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
   if(!pub||!version||!adapted||!audioStatus||autoStarted.current===pub.id)return;
   autoStarted.current=pub.id;
   if(audioStatus.status==='ready'&&audioStatus.tracks.length)void player.load({id:'pub:'+pub.id,title:adapted.book.title},audioStatus.tracks.map(t=>({title:t.title,text:'',chapterId:t.chapterId,url:t.url+'?v='+pub.updated})),version.language,'offline');
-  else toast(tr(version.language,'There is no narration for this book yet.'));
+  // No audio: stay on the book page without a word; Listen is not offered there either.
  },[listenOnOpen,pub,version,adapted,audioStatus]);
  if(error)return <div className="empty-state"><h2>{L('This book isn’t available.')}</h2><p>{error}</p><Button onClick={()=>navigate('/library')}>{L('Back to the library')}</Button></div>;
  if(!pub||!version||!adapted)return <div className="center-state"><CircularProgress/><p>{L('Opening the book…')}</p></div>;
@@ -64,13 +64,14 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
   {[...new Set(pub.doc.versions.map(v=>v.language))].length>1&&<TextField select size="small" label={L('Language')} value={version.language} onChange={e=>setChosen(versionKey(pickVersion(pub.doc,undefined,e.target.value)))}>{languages.filter(l=>pub.doc.versions.some(v=>v.language===l.code)).map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>}
   {pub.doc.versions.filter(v=>v.language===version.language).length>1&&<TextField select size="small" label={L('Version')} value={versionKey(version)} onChange={e=>setChosen(e.target.value)}>{pub.doc.versions.filter(v=>v.language===version.language).map(v=><MenuItem key={versionKey(v)} value={versionKey(v)}>{v.label}</MenuItem>)}</TextField>}
  </div>;
+ const audio=audioFor(audioStatus,pub.audio,version.language,version.type);
  const mayEdit=!!owner&&!owner.asVisitor&&owner.editable.includes(pub.id);
- if(mode==='read')return <ReaderPage owner={owner&&{...owner,onEdit:mayEdit?()=>navigate(editorRoute(pub.id,'chapters',book.chapters[book.chapterIndex]?.id)):undefined}} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
+ if(mode==='read')return <ReaderPage canListen={id=>canListenTo(audio,id)} owner={owner&&{...owner,onEdit:mayEdit?()=>navigate(editorRoute(pub.id,'chapters',book.chapters[book.chapterIndex]?.id)):undefined}} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
   onPreferences={onPreferences} onGenerate={noop} onCancel={noop} onBookmark={noop} onEvidence={noop} onChoose={i=>{move({index:i});navigate(base+'/read');}} onSection={s=>navigate(base+'/read/'+encodeURIComponent(s))} onBack={()=>navigate(base)}
   onHome={()=>navigate('/')} cover={pub.cover||undefined} onListen={listen} onCreate={noop}/>;
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}<BookDetail ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
+ return <>{switcher}<BookDetail canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

@@ -65,6 +65,7 @@ const fa:Record<string,string>={
 'Open menu':'باز کردن منو',
 'Search your library':'جست\u200cوجوی کتاب یا نویسنده',
 'The library':'کتابخانه',
+'No book has audio yet.':'هنوز هیچ کتابی نسخهٔ صوتی ندارد.',
 'You are seeing the site as a visitor does. Editing tools are hidden.':'اکنون سایت را همان‌طور که بازدیدکننده می‌بیند می‌بینید. ابزارهای ویرایش پنهان‌اند.','This book is not public, so it has no page to view.':'این کتاب عمومی نیست و صفحه‌ای برای نمایش ندارد.','View on the page':'دیدن در صفحهٔ کتاب','Owner tools':'ابزارهای مالک',
 'All books':'همهٔ کتاب‌ها',
 'Loading…':'در حال بارگذاری…',

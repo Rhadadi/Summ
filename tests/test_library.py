@@ -1,4 +1,5 @@
-import os,time,unittest
+import json,os,re,sqlite3,tempfile,threading,time,unittest
+from pathlib import Path
 from unittest.mock import AsyncMock,patch
 from fastapi.testclient import TestClient
 from server import accounts,library
@@ -219,7 +220,7 @@ class NarrationTests(RolesTest):
                 if status['status']!='running':break
                 time.sleep(.1)
         self.assertEqual(status['status'],'ready',status);self.assertEqual(calls[0],('sk-test-0000000000000000000000','VoiceX'))
-        first=library.audio_path(book['id'],'en','0.mp3')
+        first=library.audio_path(book['id'],'en',status['tracks'][0]['url'].rsplit('/',1)[1])
         self.assertIsNotNone(first)
         first.write_bytes(b'ID3'+b'0'*15997)
         self.assertEqual(library.narration_status(book['id'],'en')['tracks'][0]['seconds'],1.0)
@@ -232,4 +233,77 @@ class NarrationTests(RolesTest):
                 if status['status']!='running':break
                 time.sleep(.1)
         self.assertEqual(status['status'],'failed');self.assertIn('voice missing',status['error'])
+    def wait_done(self,client,book_id):
+        for _ in range(100):
+            status=client.get('/api/library/'+book_id+'/narration/en').json()
+            if status['status']!='running':return status
+            time.sleep(.05)
+        self.fail('narration did not finish')
+    def test_listing_shows_audio_only_after_a_narration_exists(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
+        self.assertEqual(book['audio'],[]);self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],[])
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'MP3'+text[:6].encode()):
+            owner.post('/api/library/'+book['id']+'/narration',json={'language':'en'});status=self.wait_done(owner,book['id'])
+        self.assertEqual(status['status'],'ready');self.assertEqual(status['type'],'detailed')
+        self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],['en'])
+        self.assertEqual(TestClient(app).get('/api/library/'+book['id']).json()['audio'],['en'])
+    def test_a_failed_first_run_leaves_no_audio(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
+        with patch('server.audio.piper_mp3',side_effect=OSError('voice missing')):
+            owner.post('/api/library/'+book['id']+'/narration',json={'language':'en'});self.wait_done(owner,book['id'])
+        self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],[])
+    def test_regenerating_keeps_the_old_audio_until_the_new_set_is_complete(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'OLD'+text[:6].encode()):
+            owner.post('/api/library/'+bid+'/narration',json={'language':'en'});first=self.wait_done(owner,bid)
+        old_files=[t['url'].rsplit('/',1)[1] for t in first['tracks']];self.assertEqual(len(old_files),3)
+        gate=threading.Event();reached=threading.Event()
+        def slow(text,lang):
+            reached.set();gate.wait(5);return b'NEW'+text[:6].encode()
+        with patch('server.audio.piper_mp3',side_effect=slow):
+            self.assertEqual(owner.post('/api/library/'+bid+'/narration',json={'language':'en'}).status_code,200)
+            self.assertTrue(reached.wait(5))
+            during=TestClient(app).get('/api/library/'+bid+'/narration/en').json()
+            self.assertEqual(during['status'],'running')
+            self.assertEqual([t['url'] for t in during['tracks']],[t['url'] for t in first['tracks']])  # old audio still listed
+            self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],['en'])  # and Listen stays visible
+            self.assertTrue(TestClient(app).get(during['tracks'][0]['url']).content.startswith(b'OLD'))
+            gate.set();after=self.wait_done(owner,bid)
+        self.assertEqual(after['status'],'ready')
+        new_files=[t['url'].rsplit('/',1)[1] for t in after['tracks']]
+        self.assertTrue(set(new_files).isdisjoint(old_files))
+        self.assertTrue(all(re.fullmatch(r'[0-9a-f]{8}-\d+\.mp3',n) for n in new_files))
+        folder=Path(os.environ['SUMM_DATA_DIR'])/'audio'/bid/'en'
+        self.assertEqual(sorted(f.name for f in folder.glob('*.mp3')),sorted(new_files))  # the old files are gone
+        self.assertTrue(TestClient(app).get(after['tracks'][0]['url']).content.startswith(b'NEW'))
+    def test_a_failed_regeneration_keeps_the_old_audio(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'OLD'+text[:6].encode()):
+            owner.post('/api/library/'+bid+'/narration',json={'language':'en'});first=self.wait_done(owner,bid)
+        calls=[]
+        def flaky(text,lang):
+            calls.append(1)
+            if len(calls)>1:raise OSError('voice missing')
+            return b'NEW'
+        with patch('server.audio.piper_mp3',side_effect=flaky):
+            owner.post('/api/library/'+bid+'/narration',json={'language':'en'});failed=self.wait_done(owner,bid)
+        self.assertEqual(failed['status'],'failed');self.assertEqual(failed['tracks'],first['tracks'])
+        folder=Path(os.environ['SUMM_DATA_DIR'])/'audio'/bid/'en'
+        self.assertEqual(sorted(f.name for f in folder.glob('*.mp3')),sorted(t['url'].rsplit('/',1)[1] for t in first['tracks']))
+        self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],['en'])
+    def test_old_numbered_files_are_still_served(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
+        folder=Path(os.environ['SUMM_DATA_DIR'])/'audio'/bid/'en';folder.mkdir(parents=True)
+        (folder/'0.mp3').write_bytes(b'ID3old')
+        library.q("INSERT INTO narration(book_id,language,status,done,total,tracks,error,updated) VALUES(?,?,?,?,?,?,?,?)",(bid,'en','ready',1,1,json.dumps([{'title':'Overview','chapterId':None,'file':'0.mp3'}]),'',time.time()))
+        status=TestClient(app).get('/api/library/'+bid+'/narration/en').json()
+        self.assertEqual((status['type'],status['engine']),('',  'offline'))  # old rows match any version
+        self.assertEqual(TestClient(app).get(status['tracks'][0]['url']).content,b'ID3old')
+        self.assertEqual(TestClient(app).get('/api/library/'+bid+'/audio/en/zzzzzzzz-0.mp3').status_code,404)
+    def test_the_migration_adds_narration_columns_to_an_old_database(self):
+        data=tempfile.mkdtemp();old=sqlite3.connect(Path(data)/'summ.db')
+        old.executescript("CREATE TABLE library(id TEXT PRIMARY KEY);CREATE TABLE narration(book_id TEXT NOT NULL,language TEXT NOT NULL,status TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,total INTEGER NOT NULL DEFAULT 0,tracks TEXT NOT NULL DEFAULT '[]',error TEXT NOT NULL DEFAULT '',updated REAL NOT NULL,PRIMARY KEY(book_id,language));");old.commit();old.close()
+        with patch.dict(os.environ,{'SUMM_DATA_DIR':data}):
+            columns={r[1] for r in accounts._db().execute('PRAGMA table_info(narration)')}
+        self.assertTrue({'engine','type','settings'}<=columns)
 if __name__=='__main__':unittest.main()

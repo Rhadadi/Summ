@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS editor_requests(user_id TEXT PRIMARY KEY REFERENCES u
 CREATE TABLE IF NOT EXISTS keys(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,secret BLOB NOT NULL,hint TEXT NOT NULL,model TEXT NOT NULL,price_in REAL,price_out REAL,updated REAL NOT NULL);'''
 USERNAME=re.compile(r'[A-Za-z0-9._-]{3,32}')
 EXTRA_SCHEMA:list[str]=[]  # other modules (the library) register their tables here
+EXTRA_MIGRATIONS:list=[]  # and their column additions: callables taking the connection, run after EXTRA_SCHEMA on every new connection
 _lock=threading.RLock();_conn:sqlite3.Connection|None=None;_path=''
 class AccountError(Exception):
     def __init__(self,status:int,detail:str):super().__init__(detail);self.status=status;self.detail=detail
@@ -23,6 +24,7 @@ def _db()->sqlite3.Connection:
         _conn=sqlite3.connect(path,check_same_thread=False,isolation_level=None);_path=path
         _conn.execute('PRAGMA foreign_keys=ON');_conn.execute('PRAGMA journal_mode=WAL');_conn.executescript(SCHEMA)
         for extra in EXTRA_SCHEMA:_conn.executescript(extra)
+        for migrate in EXTRA_MIGRATIONS:migrate(_conn)
         have=[r[1] for r in _conn.execute('PRAGMA table_info(users)')]
         if 'role' not in have:_conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'reader'")
         # Email sign-ups start unconfirmed; every account that existed before stays confirmed.
