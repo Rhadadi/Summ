@@ -11,6 +11,7 @@ import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 import ReviewSection from'./ReviewSection';
 import RelatedShelf from'./RelatedShelf';
+import{receptionView}from'./reception-view';
 import{num,rtl,tr}from'./i18n';
 import type{Backdrop}from'./MuseumHero';
 import{displayAuthor,displayPainting}from'./persian-display';
@@ -20,7 +21,7 @@ interface Props{
  onCover:(blob:Blob,source:'file'|'online',url?:string)=>Promise<void>;onCreate:()=>void;onRead:(chapterIndex?:number,section?:string)=>void;onListen:(chapterId?:string)=>void;
  onExport:()=>void;onEditContents:()=>void;onRebuild:()=>Promise<void>;onAccount:()=>void;onBack:()=>void;
  onImport?:()=>void;onVersion?:(id:string)=>void;review?:Review|null;reviewApproved?:boolean;onReview?:()=>void;
- listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;backdrop?:Backdrop;
+ listenLabel?:string;audioNote?:string;searchTitle?:string;related?:RelatedBook[];receptionHref?:string;readOnly?:boolean;pubInfo?:Partial<BookInfo>|null;onPublish?:()=>void;backLabel?:string;backdrop?:Backdrop;
  // The owner strip above the book page. Each later feature (audio, background) adds an entry here.
  ownerActions?:{key:string;label:string;icon?:ReactNode;onClick:()=>void}[];
  // Listen is offered only when there is audio to play. Local books leave it on.
@@ -35,7 +36,7 @@ async function downscale(blob:Blob){
 // Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
 export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop,ownerActions,canListen=true}:Props){
+export default function BookDetail({receptionHref,listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop,ownerActions,canListen=true}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[more2,setMore2]=useState(false);
@@ -91,6 +92,8 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
+ // Scores from the book's public record count only when enough people rated; a visitor sees no reception heading when there is nothing to show.
+ const receptionScores=(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url})),emptyReception=receptionView(review||null,receptionScores,lang).isEmpty;
  return <div className={'detail'+(readOnly&&backdrop?' curated-detail':'')} lang={lang} dir={rtl(lang)?'rtl':lang?'ltr':undefined}>
   {!!ownerActions?.length&&<div className="home-edit" role="toolbar" aria-label={L('Owner tools')}>{ownerActions.map(a=><button key={a.key} onClick={a.onClick}>{a.icon}{a.label}</button>)}</div>}
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{L(backLabel||'My library')}</button>
@@ -179,11 +182,12 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
    {main.map(row)}
    {kinds.some(k=>k==='back')&&<><button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Hide':'Show'} front matter, notes and index</button>{more&&book.chapters.filter((_,i)=>kinds[i]==='back').map(row)}</>}
   </section>
-  {(!book.demo||readOnly)&&<section className="reception">
+  {(!book.demo||readOnly)&&(!readOnly||!emptyReception||!!receptionHref)&&<section className="reception">
    <h2>{L('What others say')}</h2>
+   {readOnly&&!!receptionHref&&emptyReception&&<p className="rx-owner-empty">{L('No reception yet')} · <a href={'#'+receptionHref}>{L('Research it')}</a></p>}
    {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
-    <ReviewSection lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} draft={!!review&&!reviewApproved&&!readOnly}/>
+    <ReviewSection lang={lang} review={review} scores={receptionScores} draft={!!review&&!reviewApproved&&!readOnly} cta={readOnly?{onRead:()=>onRead(startAt),onListen:canListen?()=>onListen():undefined}:undefined}/>
 
     {info&&<p className="facts-line">{[info.publisher||info.google_edition?.publisher,info.google_edition?.published_date||info.year,pages?num(lang,pages)+' '+L('pages'):'',info.google_edition?.isbns[0]?'ISBN '+info.google_edition.isbns[0]:''].filter(Boolean).join(' · ')}</p>}
    </>}
