@@ -1,4 +1,4 @@
-import{authorFor}from'./persian-display';
+import{authorFor}from'./persian-display.ts';
 import type{Book,BookReport,Chapter,PubBook,PubDoc,PubPara,PubVersion,Summary,SummaryParagraph}from'./types';
 import type{BookData}from'./bookData';
 
