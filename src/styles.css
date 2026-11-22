@@ -822,3 +822,18 @@ a.rx-score:hover{border-color:var(--brand);transform:translateY(-2px)}
 .book-row-arrow.left{left:-14px}.book-row-arrow.right{right:-14px}
 @media (max-width:899px){.book-row .m-card{flex-basis:42%;min-width:0}.book-row-track{gap:16px}.book-row-arrow{width:40px;height:40px;top:28%}.book-row-arrow svg{font-size:26px}.book-row-arrow.left{left:-2px}.book-row-arrow.right{right:-2px}.book-row .m-card strong{font-size:15px}}
 @media (prefers-reduced-motion:reduce){.book-row-track{scroll-behavior:auto}}
+/* A suggested book the library does not have: a small card with a request button. */
+button.rel-book{border:0;background:none;padding:0;text-align:start;color:inherit;font:inherit;cursor:pointer}
+.rel-sheet{border-radius:18px!important}
+.rel-sheet-close{position:absolute!important;top:8px;inset-inline-end:8px}
+.rel-sheet-top{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:start;padding-top:8px}
+.rel-sheet-top img{width:96px;border-radius:8px;box-shadow:0 8px 20px -10px rgba(0,0,0,.5)}
+.rel-sheet-top>div{display:grid;gap:4px}.rel-sheet-top strong{font:600 18px/1.4 var(--serif)}
+.rel-sheet-top .rel-author{color:var(--muted);font-size:14px}
+.rel-sheet-why{margin:16px 0 0;line-height:1.8}
+.rel-sheet-note{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:var(--brand-tint);color:var(--ink);font-size:14px;line-height:1.7}
+.rel-sheet-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.rel-sheet-error{color:#b3261e;font-size:13px;margin:10px 0 0}
+.rel-sheet[lang=fa],.rel-sheet[lang=fa] .MuiButton-root{font-family:"Vazirmatn Variable",-apple-system,sans-serif}
+.rel-sheet .MuiButton-startIcon{margin-inline:-4px 8px}.rel-sheet .MuiButton-endIcon{margin-inline:8px -4px}
+.rel-sheet[dir=rtl] .MuiButton-startIcon svg{transform:scaleX(-1)}
