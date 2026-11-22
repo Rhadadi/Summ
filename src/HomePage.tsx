@@ -9,6 +9,7 @@ import{mainChapters,strip}from'./bookData';
 import Cover from'./Cover';
 import MuseumHero,{galleryBackdrop,type Slide}from'./MuseumHero';
 import{bookBackdrop,homeBooks}from'./bookBackdrop';
+import{wallBooks}from'./home-order.ts';
 import{tr,num}from'./i18n';
 import{publicTitle}from'./discovery';
 import{art}from'./art';
@@ -29,6 +30,8 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  // The owner's order and choices; books not mentioned follow, newest first.
  const setting=(id:string)=>config?.slides.find(x=>x.id===id);
  const books_=homeBooks(all,config);
+ // The list below shows every published book: unticking a slide must not hide it, and nothing is cut off.
+ const wall=wallBooks(all,config);
  // The first slide always says what this place is; each published book then gets a painting of its own.
  const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
@@ -38,7 +41,8 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
-   {books_.length>0&&<div className="m-wall-grid">{books_.slice(0,8).map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
+   {wall.length>0&&<h2 className="m-wall-h">{L('All books')} · {num(lang,wall.length)}</h2>}
+   {wall.length>0&&<div className="m-wall-grid">{wall.map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>}
   <Community lang={lang} account={account} mailEnabled={mailEnabled}/>
  </>;

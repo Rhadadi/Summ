@@ -24,7 +24,7 @@ export default function HomeEditor({config,books,lang,onClose,onSaved}:Props){
  return <Dialog open onClose={()=>{if(!busy)onClose();}} fullWidth maxWidth="sm" aria-labelledby="home-title" scroll="paper">
   <DialogTitle id="home-title" className="dialog-heading"><span>Edit the home page</span><IconButton aria-label="Close" disabled={busy} onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard">
-   <p className="dialog-lead">Choose which books slide on the home page, their order, and how long each stays. A book's picture is chosen in its Publish dialog.</p>
+   <p className="dialog-lead">Choose which books slide on the home page, their order, and how long each stays. A book's picture is chosen in its Publish dialog. Unticked books leave the slideshow but stay in the list below.</p>
    <div className="settings-grid">
     <TextField size="small" type="number" label="Seconds per slide" value={seconds} onChange={e=>setSeconds(Math.max(2,Math.min(60,Number(e.target.value)||3)))} slotProps={{htmlInput:{min:2,max:60}}}/>
     <FormControlLabel control={<Switch checked={autoplay} onChange={e=>setAutoplay(e.target.checked)}/>} label="Slide automatically"/>

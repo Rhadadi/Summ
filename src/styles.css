@@ -325,6 +325,7 @@ body{background:var(--bg);color:var(--ink)}
 .m-way-go{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--brand)}.m-way-go svg{font-size:18px;transition:transform .2s}.m-way:hover .m-way-go svg{transform:translateX(4px)}
 .m-wall-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-top:1px solid var(--m-rule);padding-top:32px;margin-bottom:34px}
 .m-wall-head h2{margin:0;font:500 clamp(30px,3.4vw,46px)/1.1 var(--serif);letter-spacing:-.02em}
+.m-wall-h{margin:0 0 22px;font:500 20px/1.2 var(--serif);color:var(--m-mute,inherit);opacity:.8}
 .m-wall-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:40px 32px;padding-bottom:20px}
 .m-card{display:flex;flex-direction:column;gap:5px;align-items:flex-start;text-align:start;border:0;background:none;padding:0;color:inherit}
 .m-card-cover{display:block;width:100%;aspect-ratio:2/3;background:#e3d7c0;border-radius:3px;overflow:hidden;box-shadow:0 14px 30px -12px rgba(42,33,24,.5);transition:transform .35s ease,box-shadow .35s ease;margin-bottom:10px}

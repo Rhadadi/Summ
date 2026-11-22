@@ -65,6 +65,7 @@ const fa:Record<string,string>={
 'Open menu':'باز کردن منو',
 'Search your library':'جست\u200cوجوی کتاب یا نویسنده',
 'The library':'کتابخانه',
+'All books':'همهٔ کتاب‌ها',
 'Loading…':'در حال بارگذاری…',
 'Clear search':'پاک کردن جست\u200cوجو',
 'No books found':'کتابی پیدا نشد',

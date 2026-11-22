@@ -1,13 +1,11 @@
-import type{HomeConfig,PubBook}from'./types';
+import type{PubBook}from'./types';
 import type{Backdrop}from'./MuseumHero';
 import{galleryBackdrop}from'./MuseumHero';
 import{rotation}from'./art';
 import{sized}from'./img';
 
-export function homeBooks(books:PubBook[],config:HomeConfig|null){
- const order=(id:string)=>{const i=config?.slides.findIndex(s=>s.id===id)??-1;return i<0?1e6:i;};
- return [...books].sort((a,b)=>order(a.id)-order(b.id)).filter(b=>!config?.slides.find(s=>s.id===b.id)?.hidden);
-}
+// Moved to home-order.ts so node tests can import it; re-exported for existing callers.
+export{homeBooks}from'./home-order.ts';
 
 // Keep the book's artwork identical wherever the reader meets it.
 export function bookBackdrop(book:PubBook,index:number):Backdrop{
