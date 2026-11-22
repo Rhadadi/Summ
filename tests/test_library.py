@@ -206,7 +206,7 @@ class PublishTests(RolesTest):
 class NarrationTests(RolesTest):
     def test_narration_is_generated_once_then_served_to_everyone(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
-        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:('MP3:'+text[:12]).encode()):
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:('MP3:'+text[:12]).encode()):
             started=owner.post('/api/library/'+book['id']+'/narration',json={'language':'en'});self.assertEqual(started.status_code,200,started.text)
             for _ in range(50):
                 status=TestClient(app).get('/api/library/'+book['id']+'/narration/en').json()
@@ -221,7 +221,7 @@ class NarrationTests(RolesTest):
         self.assertEqual(owner.post('/api/library/'+book['id']+'/narration',json={'language':'en','engine':'elevenlabs'}).status_code,412)
         accounts.save_service_key(uid,'elevenlabs','sk-test-0000000000000000000000','VoiceX')
         calls=[]
-        async def fake(text,lang,key,voice):calls.append((key,voice));return b'ID3'+text[:5].encode()
+        async def fake(text,lang,key,voice,**kw):calls.append((key,voice));return b'ID3'+text[:5].encode()
         with patch('server.audio.eleven_mp3',fake),patch('server.audio.piper_mp3',side_effect=AssertionError('offline voice must not run')):
             started=owner.post('/api/library/'+book['id']+'/narration',json={'language':'fa','engine':'elevenlabs'})
             self.assertEqual(started.status_code,404,started.text)  # the test book has no Persian version
@@ -253,7 +253,7 @@ class NarrationTests(RolesTest):
     def test_listing_shows_audio_only_after_a_narration_exists(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json()
         self.assertEqual(book['audio'],[]);self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],[])
-        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'MP3'+text[:6].encode()):
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'MP3'+text[:6].encode()):
             owner.post('/api/library/'+book['id']+'/narration',json={'language':'en'});status=self.wait_done(owner,book['id'])
         self.assertEqual(status['status'],'ready');self.assertEqual(status['type'],'detailed')
         self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],['en'])
@@ -265,11 +265,11 @@ class NarrationTests(RolesTest):
         self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],[])
     def test_regenerating_keeps_the_old_audio_until_the_new_set_is_complete(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
-        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'OLD'+text[:6].encode()):
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'OLD'+text[:6].encode()):
             owner.post('/api/library/'+bid+'/narration',json={'language':'en'});first=self.wait_done(owner,bid)
         old_files=[t['url'].rsplit('/',1)[1] for t in first['tracks']];self.assertEqual(len(old_files),3)
         gate=threading.Event();reached=threading.Event()
-        def slow(text,lang):
+        def slow(text,lang,**kw):
             reached.set();gate.wait(5);return b'NEW'+text[:6].encode()
         with patch('server.audio.piper_mp3',side_effect=slow):
             self.assertEqual(owner.post('/api/library/'+bid+'/narration',json={'language':'en'}).status_code,200)
@@ -289,10 +289,10 @@ class NarrationTests(RolesTest):
         self.assertTrue(TestClient(app).get(after['tracks'][0]['url']).content.startswith(b'NEW'))
     def test_a_failed_regeneration_keeps_the_old_audio(self):
         owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc()}).json();bid=book['id']
-        with patch('server.audio.piper_mp3',side_effect=lambda text,lang:b'OLD'+text[:6].encode()):
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'OLD'+text[:6].encode()):
             owner.post('/api/library/'+bid+'/narration',json={'language':'en'});first=self.wait_done(owner,bid)
         calls=[]
-        def flaky(text,lang):
+        def flaky(text,lang,**kw):
             calls.append(1)
             if len(calls)>1:raise OSError('voice missing')
             return b'NEW'
@@ -311,6 +311,138 @@ class NarrationTests(RolesTest):
         self.assertEqual((status['type'],status['engine']),('',  'offline'))  # old rows match any version
         self.assertEqual(TestClient(app).get(status['tracks'][0]['url']).content,b'ID3old')
         self.assertEqual(TestClient(app).get('/api/library/'+bid+'/audio/en/zzzzzzzz-0.mp3').status_code,404)
+    def make(self,owner,bid,**body):
+        r=owner.post('/api/library/'+bid+'/narration',json={'language':'en',**body});self.assertEqual(r.status_code,200,r.text);return self.wait_done(owner,bid)
+    def files(self,bid):return sorted(f.name for f in (Path(os.environ['SUMM_DATA_DIR'])/'audio'/bid/'en').glob('*.mp3'))
+    def test_a_partial_run_keeps_the_other_chapters_files(self):
+        owner,_=self.owner();bid=owner.post('/api/library',json={'doc':doc()}).json()['id']
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'OLD'+text[:6].encode()):first=self.make(owner,bid)
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'NEW'+text[:6].encode()):second=self.make(owner,bid,chapters=['c2'])
+        self.assertEqual([t['title'] for t in second['tracks']],['Overview','First','Second'])  # still in document order
+        urls=[t['url'] for t in second['tracks']];old=[t['url'] for t in first['tracks']]
+        self.assertEqual(urls[:2],old[:2]);self.assertNotEqual(urls[2],old[2])
+        client=TestClient(app);self.assertTrue(client.get(urls[0]).content.startswith(b'OLD'));self.assertTrue(client.get(urls[2]).content.startswith(b'NEW'))
+        self.assertEqual(self.files(bid),sorted(u.rsplit('/',1)[1] for u in urls))
+        self.assertEqual(second['total'],1)
+        self.assertEqual(owner.post('/api/library/'+bid+'/narration',json={'language':'en','chapters':['nope']}).status_code,422)
+    def test_a_formatting_only_edit_is_not_out_of_date_but_a_text_edit_is(self):
+        owner,_=self.owner();d=doc();book=owner.post('/api/library',json={'doc':d}).json();bid=book['id']
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'MP3'):self.make(owner,bid)
+        self.assertEqual(owner.get('/api/library/'+bid+'/narration/en?detail=1').json()['staleChapters'],[])
+        d['versions'][0]['chapters']['c1']['paragraphs'][0]['text']='First **chapter** summary.'
+        saved=owner.post('/api/library',json={'id':bid,'doc':d,'base':book['rev']}).json()
+        self.assertEqual(owner.get('/api/library/'+bid+'/narration/en?detail=1').json()['staleChapters'],[])
+        d['versions'][0]['chapters']['c1']['paragraphs'][0]['text']='First chapter, rewritten.'
+        owner.post('/api/library',json={'id':bid,'doc':d,'base':saved['rev']})
+        detail=owner.get('/api/library/'+bid+'/narration/en?detail=1').json();self.assertEqual(detail['staleChapters'],['c1'])
+        self.assertNotIn('staleChapters',TestClient(app).get('/api/library/'+bid+'/narration/en?detail=1').json())  # the public answer stays cheap
+        reader=self.reader();self.assertNotIn('staleChapters',reader.get('/api/library/'+bid+'/narration/en?detail=1').json())
+        est=owner.post('/api/library/'+bid+'/narration/estimate',json={'language':'en'}).json()
+        self.assertEqual([(i['key'],i['stale'],i['narrated']) for i in est['items']],[('overview',False,True),('c1',True,True),('c2',False,True)])
+        self.assertEqual(est['chars'],sum(i['chars'] for i in est['items']));self.assertGreater(est['seconds'],0)
+        self.assertEqual(owner.post('/api/library/'+bid+'/narration/estimate',json={'language':'en','chapters':['c1']}).json()['chars'],est['items'][1]['chars'])
+        self.assertEqual(reader.post('/api/library/'+bid+'/narration/estimate',json={'language':'en'}).status_code,403)
+    def test_settings_reach_the_provider_and_the_key_never_leaves_the_server(self):
+        owner,uid=self.owner();bid=owner.post('/api/library',json={'doc':doc()}).json()['id']
+        secret='sk_test_0000000000000000000000'
+        accounts.save_service_key(uid,'elevenlabs',secret,'DefaultVoice')
+        seen=[]
+        async def fake(text,lang,key,voice,settings=None,**kw):seen.append((key,voice,settings));return b'ID3x'
+        settings={'voice':'MyVoice9','model':'eleven_v3','speed':1.1,'stability':0.4,'similarity':0.7,'style':0.2,'speakerBoost':False}
+        with patch('server.audio.eleven_mp3',fake):
+            r=owner.post('/api/library/'+bid+'/narration',json={'language':'en','engine':'elevenlabs','settings':settings});self.assertEqual(r.status_code,200)
+            done=self.wait_done(owner,bid)
+        self.assertEqual(done['status'],'ready');self.assertEqual(done['engine'],'elevenlabs')
+        self.assertEqual(seen[0],(secret,'MyVoice9',settings))
+        detail=owner.get('/api/library/'+bid+'/narration/en?detail=1').json();self.assertEqual(detail['settings'],settings)
+        self.assertNotIn(secret,json.dumps([r.json(),done,detail]))
+        for bad in ({'speed':1.4},{'speed':0.5},{'stability':2},{'voice':'../x'},{'model':'Bad Model'},{'nope':1}):
+            self.assertEqual(owner.post('/api/library/'+bid+'/narration',json={'language':'en','engine':'elevenlabs','settings':bad}).status_code,422,bad)
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'MP3') as piper:
+            self.make(owner,bid,settings={'speed':1.4,'stability':0.1})  # offline allows 1.5 and ignores the ElevenLabs-only fields
+        self.assertEqual(piper.call_args.kwargs['speed'],1.4)
+        self.assertEqual(owner.get('/api/library/'+bid+'/narration/en?detail=1').json()['settings'],{'speed':1.4})
+    def test_eleven_request_body_carries_the_chosen_settings_and_retries_without_language(self):
+        from server import audio
+        body=audio.eleven_body('Hi','fa',{'model':'eleven_v3','speed':1.1,'stability':0.3,'similarity':0.6,'style':0.1,'speakerBoost':False})
+        self.assertEqual(body['model_id'],'eleven_v3');self.assertEqual(body['language_code'],'fa')
+        self.assertEqual(body['voice_settings'],{'stability':0.3,'similarity_boost':0.6,'style':0.1,'use_speaker_boost':False,'speed':1.1})
+        self.assertNotIn('speed',audio.eleven_body('Hi','en',None)['voice_settings']);self.assertNotIn('language_code',audio.eleven_body('Hi','en',None,False))
+        import asyncio,httpx
+        sent=[]
+        def handler(request):
+            sent.append(json.loads(request.content))
+            if 'language_code' in sent[-1]:return httpx.Response(400,json={'detail':{'message':'language_code is not supported for this model'}})
+            return httpx.Response(200,content=b'ID3ok',headers={'content-type':'audio/mpeg'})
+        real=httpx.AsyncClient
+        with patch('server.audio.httpx.AsyncClient',lambda **kw:real(transport=httpx.MockTransport(handler),**kw)):
+            self.assertEqual(asyncio.run(audio.eleven_mp3('Hi','en','k','V',settings={'model':'eleven_multilingual_v2'})),b'ID3ok')
+        self.assertEqual(len(sent),2);self.assertNotIn('language_code',sent[1])
+        def refuse(request):return httpx.Response(422,json={'detail':[{'msg':'speed must be at most 1.2'}]})
+        with patch('server.audio.httpx.AsyncClient',lambda **kw:real(transport=httpx.MockTransport(refuse),**kw)):
+            with self.assertRaises(ConnectionError) as ctx:asyncio.run(audio.eleven_mp3('Hi','en','k','V'))
+        self.assertIn('speed must be at most 1.2',str(ctx.exception))  # the provider's own message reaches the owner
+    def test_cancel_restores_the_old_audio_and_delete_is_refused_while_running(self):
+        owner,_=self.owner();bid=owner.post('/api/library',json={'doc':doc()}).json()['id']
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'OLD'+text[:6].encode()):first=self.make(owner,bid)
+        gate=threading.Event();reached=threading.Event()
+        def slow(text,lang,**kw):
+            reached.set();gate.wait(5);return b'NEW'
+        with patch('server.audio.piper_mp3',side_effect=slow):
+            owner.post('/api/library/'+bid+'/narration',json={'language':'en'});self.assertTrue(reached.wait(5))
+            self.assertEqual(owner.delete('/api/library/'+bid+'/narration/en').status_code,409)
+            self.assertEqual(self.reader().post('/api/library/'+bid+'/narration/en/cancel').status_code,403)
+            self.assertEqual(owner.post('/api/library/'+bid+'/narration/en/cancel').status_code,200)
+            gate.set();after=self.wait_done(owner,bid)
+        self.assertEqual(after['status'],'ready');self.assertEqual(after['tracks'],first['tracks']);self.assertEqual(after['error'],'')
+        self.assertEqual(self.files(bid),sorted(t['url'].rsplit('/',1)[1] for t in first['tracks']))
+        self.assertEqual(owner.post('/api/library/'+bid+'/narration/en/cancel').status_code,409)  # nothing is running now
+    def test_cancelling_a_first_run_leaves_no_audio_and_delete_removes_everything(self):
+        owner,_=self.owner();bid=owner.post('/api/library',json={'doc':doc()}).json()['id']
+        gate=threading.Event();reached=threading.Event()
+        def slow(text,lang,**kw):
+            reached.set();gate.wait(5);return b'NEW'
+        with patch('server.audio.piper_mp3',side_effect=slow):
+            owner.post('/api/library/'+bid+'/narration',json={'language':'en'});self.assertTrue(reached.wait(5))
+            owner.post('/api/library/'+bid+'/narration/en/cancel');gate.set()
+            for _ in range(100):
+                if library.narration_status(bid,'en')['status']!='running':break
+                time.sleep(.05)
+        self.assertEqual(library.narration_status(bid,'en')['status'],'none');self.assertEqual(self.files(bid),[])
+        with patch('server.audio.piper_mp3',side_effect=lambda text,lang,**kw:b'MP3'):self.make(owner,bid)
+        self.assertEqual(self.reader().delete('/api/library/'+bid+'/narration/en').status_code,403)
+        self.assertEqual(owner.delete('/api/library/'+bid+'/narration/en').json()['status'],'none')
+        self.assertEqual(self.files(bid),[]);self.assertEqual(TestClient(app).get('/api/library').json()['books'][0]['audio'],[])
+    def test_voices_and_models_come_from_the_server_side_key(self):
+        import httpx
+        owner,uid=self.owner();secret='sk_test_0000000000000000000000'
+        self.assertEqual(owner.get('/api/me/voices').json(),{'voices':[],'hasKey':False})
+        accounts.save_service_key(uid,'elevenlabs',secret,'DefaultVoice')
+        calls=[]
+        def handler(request):
+            calls.append((str(request.url),request.headers.get('xi-api-key')))
+            if request.url.path.endswith('/voices'):return httpx.Response(200,json={'voices':[{'voice_id':'premade1','name':'Aria','category':'premade','preview_url':'https://x/a.mp3'},{'voice_id':'mine1','name':'Mine','category':'cloned','preview_url':'http://insecure'},{'voice_id':'bad id!','name':'x'}]})
+            return httpx.Response(200,json=[{'model_id':'eleven_v3','name':'v3','can_do_text_to_speech':True,'languages':[{'language_id':'fa'}]},{'model_id':'eleven_en_only','name':'En','can_do_text_to_speech':True,'languages':[{'language_id':'en'}]},{'model_id':'eleven_sts','name':'STS','can_do_text_to_speech':False}])
+        real=httpx.AsyncClient
+        with patch('server.app.httpx.AsyncClient',lambda **kw:real(transport=httpx.MockTransport(handler),**kw)):
+            v=owner.get('/api/me/voices');m=owner.get('/api/me/voice-models?language=fa')
+        self.assertEqual([x['id'] for x in v.json()['voices']],['mine1','premade1']);self.assertEqual(v.json()['voices'][0]['preview'],'')
+        self.assertEqual([x['id'] for x in m.json()['models']],['eleven_v3'])
+        self.assertTrue(all(k==secret for _,k in calls));self.assertNotIn(secret,v.text+m.text)
+        def down(request):return httpx.Response(503)
+        with patch('server.app.httpx.AsyncClient',lambda **kw:real(transport=httpx.MockTransport(down),**kw)):
+            self.assertEqual(owner.get('/api/me/voices').json()['voices'],[]);self.assertEqual(owner.get('/api/me/voice-models').json()['models'][0]['id'],'eleven_v4_turbo')
+        self.assertEqual(self.reader().get('/api/me/voices').status_code,403)
+        for _ in range(10):owner.get('/api/me/voices')
+        self.assertEqual(owner.get('/api/me/voices').status_code,429)
+    def test_preview_accepts_a_voice_and_settings(self):
+        owner,uid=self.owner();accounts.save_service_key(uid,'elevenlabs','sk_test_0000000000000000000000','Default1')
+        with patch('server.audio.eleven_mp3',new=AsyncMock(return_value=b'ID3p')) as eleven:
+            r=owner.post('/api/audio',json={'text':'Hi','language':'en','engine':'elevenlabs','voice':'Other2','settings':{'speed':1.1,'stability':0.3}})
+        self.assertEqual(r.content,b'ID3p');self.assertEqual(eleven.await_args.args[3],'Other2');self.assertEqual(eleven.await_args.kwargs['settings'],{'speed':1.1,'stability':0.3})
+        self.assertEqual(owner.post('/api/audio',json={'text':'Hi','language':'en','engine':'elevenlabs','settings':{'speed':1.4}}).status_code,422)
+        with patch('server.audio.piper_mp3',return_value=b'ID3q') as piper:owner.post('/api/audio',json={'text':'Hi','language':'en','settings':{'speed':1.3}})
+        self.assertEqual(piper.call_args.kwargs['speed'],1.3)
     def test_the_migration_adds_narration_columns_to_an_old_database(self):
         data=tempfile.mkdtemp();old=sqlite3.connect(Path(data)/'summ.db')
         old.executescript("CREATE TABLE library(id TEXT PRIMARY KEY);CREATE TABLE narration(book_id TEXT NOT NULL,language TEXT NOT NULL,status TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,total INTEGER NOT NULL DEFAULT 0,tracks TEXT NOT NULL DEFAULT '[]',error TEXT NOT NULL DEFAULT '',updated REAL NOT NULL,PRIMARY KEY(book_id,language));");old.commit();old.close()

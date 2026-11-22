@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urljoin,urlsplit
 import httpx
-from fastapi import BackgroundTasks,Depends,FastAPI,HTTPException,Request
+from fastapi import BackgroundTasks,Depends,FastAPI,HTTPException,Query,Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -431,24 +431,58 @@ class AudioRequest(StrictModel):
     text:str=Field(min_length=1,max_length=4500)
     language:Literal['en','fa','de','ar','es','fr','tr','zh']
     engine:Literal['offline','elevenlabs']='offline'
+    voice:str|None=Field(default=None,pattern=r'^[A-Za-z0-9]{1,64}$')
+    settings:library.VoiceSettingsBody|None=None
 @app.post('/api/audio')
 async def narrate(payload:AudioRequest,user:dict=Depends(editor_user)):
     throttle('audio:'+user['id'],40)
+    settings=library.clean_settings(payload.settings,payload.engine)
     if payload.engine=='elevenlabs':
         creds=accounts.service_credentials(user['id'],'elevenlabs')
         if not creds:raise HTTPException(412,'Add your ElevenLabs key in Account, or choose the free offline voice.')
-        try:data=await audio.eleven_mp3(payload.text,payload.language,creds[0],creds[1])
+        try:data=await audio.eleven_mp3(payload.text,payload.language,creds[0],payload.voice or settings.get('voice') or creds[1],settings=settings)
         except PermissionError as e:raise HTTPException(422,str(e)) from None
         except OverflowError as e:raise HTTPException(429,str(e)) from None
         except (ConnectionError,httpx.HTTPError) as e:raise HTTPException(502,str(e) or 'ElevenLabs could not be reached.') from None
     else:
-        try:data=await asyncio.to_thread(audio.piper_mp3,payload.text,payload.language)
+        try:data=await asyncio.to_thread(audio.piper_mp3,payload.text,payload.language,speed=settings.get('speed',1.0))
         except ValueError as e:raise HTTPException(422,str(e)) from None
         except OSError:raise HTTPException(503,'The offline voice could not be loaded. Try again shortly.') from None
     return Response(data,media_type='audio/mpeg')
 class VoiceKeyRequest(StrictModel):
     api_key:str|None=Field(default=None,min_length=20,max_length=200)
     voice:str=Field(default='',max_length=64,pattern=r'^[A-Za-z0-9]*$')
+def eleven_creds(user:dict,bucket:str)->tuple[str,str]|None:
+    throttle(bucket+':'+user['id'],10);return accounts.service_credentials(user['id'],'elevenlabs')
+@app.get('/api/me/voices')
+async def my_voices(user:dict=Depends(editor_user)):
+    """The voices of the editor's own ElevenLabs account, fetched here with the stored key (which never leaves the server)."""
+    creds=eleven_creds(user,'voices')
+    if not creds:return {'voices':[],'hasKey':False}
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:r=await client.get('https://api.elevenlabs.io/v1/voices',headers={'xi-api-key':creds[0]})
+        if r.status_code!=200:raise httpx.HTTPError('status')
+        raw=r.json().get('voices',[])
+    except (httpx.HTTPError,ValueError):return {'voices':[],'hasKey':True,'error':'Your voices could not be loaded from ElevenLabs. You can still enter a voice ID.'}
+    voices=[{'id':v['voice_id'],'name':str(v.get('name') or v['voice_id'])[:80],'category':str(v.get('category') or ''),'preview':v['preview_url'] if str(v.get('preview_url') or '').startswith('https://') else ''} for v in raw if isinstance(v,dict) and re.fullmatch(r'[A-Za-z0-9]{1,64}',str(v.get('voice_id','')))]
+    # Cloned, generated and professional voices (the owner's own) first, ready-made ones after.
+    voices.sort(key=lambda v:(v['category'] not in ('cloned','generated','professional'),v['name'].lower()))
+    return {'voices':voices,'hasKey':True,'default':creds[1]}
+@app.get('/api/me/voice-models')
+async def my_voice_models(language:str=Query(default='',pattern=r'^[a-z]{0,3}$'),user:dict=Depends(editor_user)):
+    """Text-to-speech models that read this language; falls back to the configured default when ElevenLabs cannot be asked."""
+    fallback={'models':[{'id':audio.ELEVEN_MODEL,'name':audio.ELEVEN_MODEL}],'default':audio.ELEVEN_MODEL}
+    creds=eleven_creds(user,'models')
+    if not creds:return fallback
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:r=await client.get('https://api.elevenlabs.io/v1/models',headers={'xi-api-key':creds[0]})
+        if r.status_code!=200:return fallback
+        raw=[m for m in r.json() if isinstance(m,dict) and m.get('can_do_text_to_speech') and not m.get('requires_alpha_access') and re.fullmatch(r'[a-z0-9_]{3,60}',str(m.get('model_id','')))]
+    except (httpx.HTTPError,ValueError):return fallback
+    reads=[m for m in raw if not language or not m.get('languages') or any(l.get('language_id')==language for l in m['languages'] if isinstance(l,dict))]
+    models=[{'id':m['model_id'],'name':str(m.get('name') or m['model_id'])[:60]} for m in (reads or raw)]
+    if not models:return fallback
+    return {'models':models,'default':audio.ELEVEN_MODEL if any(m['id']==audio.ELEVEN_MODEL for m in models) else models[0]['id']}
 @app.put('/api/me/voice-key')
 async def save_voice_key(body:VoiceKeyRequest,user:dict=Depends(editor_user)):
     throttle('key:'+user['id'],10)
@@ -638,15 +672,35 @@ async def library_background_upload(book_id:str,request:Request,user:dict=Depend
     artwork.save_upload(book_id,await request.body())
     library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
     return artwork.slide(book_id)
+Lang=Literal['en','fa','de','ar','es','fr','tr','zh']
 class NarrationBody(StrictModel):
-    language:Literal['en','fa','de','ar','es','fr','tr','zh'];type:str|None=Field(default=None,max_length=40);engine:Literal['offline','elevenlabs']='offline'
+    language:Lang;type:str|None=Field(default=None,max_length=40);engine:Literal['offline','elevenlabs']='offline'
+    chapters:list[str]|None=Field(default=None,max_length=500)  # item keys: chapter ids and 'overview'; None is the whole book
+    settings:library.VoiceSettingsBody|None=None
 @app.post('/api/library/{book_id}/narration')
 async def library_narration_start(book_id:str,body:NarrationBody,user:dict=Depends(editor_user)):
     own_or_owner(user,book_id)
     voice=accounts.service_credentials(user['id'],'elevenlabs') if body.engine=='elevenlabs' else None
-    library.start_narration(book_id,body.language,body.type,body.engine,voice);return library.narration_status(book_id,body.language)
+    library.start_narration(book_id,body.language,body.type,body.engine,voice,body.chapters,library.clean_settings(body.settings,body.engine));return library.narration_status(book_id,body.language,True)
+class EstimateBody(StrictModel):
+    language:Lang;type:str|None=Field(default=None,max_length=40);chapters:list[str]|None=Field(default=None,max_length=500)
+@app.post('/api/library/{book_id}/narration/estimate')
+async def library_narration_estimate(book_id:str,body:EstimateBody,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);throttle('est:'+user['id'],60);return await asyncio.to_thread(library.estimate,book_id,body.language,body.type,body.chapters)
 @app.get('/api/library/{book_id}/narration/{language}')
-async def library_narration(book_id:str,language:str):return library.narration_status(book_id,language)
+async def library_narration(book_id:str,language:str,request:Request,detail:int=0):
+    # The public answer is cheap; editors who may change this book can ask for the details (stale chapters, settings).
+    user=accounts.session_user(request.cookies.get(COOKIE,''))
+    if detail and user and (user['role']=='owner' or user['role']=='editor' and library.owner_of(book_id)==user['id']):return library.narration_status(book_id,language,True)
+    return library.narration_status(book_id,language)
+@app.post('/api/library/{book_id}/narration/{language}/cancel')
+async def library_narration_cancel(book_id:str,language:str,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);library.cancel_narration(book_id,language);return library.narration_status(book_id,language,True)
+@app.delete('/api/library/{book_id}/narration/{language}')
+async def library_narration_delete(book_id:str,language:str,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id)
+    if not re.fullmatch(r'[a-z]{2}',language):raise HTTPException(404,'No audio.')
+    library.delete_narration(book_id,language);return library.narration_status(book_id,language)
 @app.get('/api/library/{book_id}/audio/{language}/{name}')
 async def library_audio(book_id:str,language:str,name:str):
     path=library.audio_path(book_id,language,name)

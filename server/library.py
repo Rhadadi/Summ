@@ -189,59 +189,129 @@ def _version(doc:dict,language:str,kind:str|None)->dict:
     version=next((v for v in doc['versions'] if v['language']==language and (kind is None or v['type']==kind)),None)
     if not version:raise accounts.AccountError(404,'No summary exists in this language.')
     return version
-def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
+class VoiceSettingsBody(Strict):
+    voice:str|None=Field(default=None,pattern=r'^[A-Za-z0-9]{1,64}$');model:str|None=Field(default=None,pattern=r'^[a-z0-9_]{3,60}$')
+    speed:float|None=Field(default=None,ge=0.7,le=1.5);stability:float|None=Field(default=None,ge=0,le=1);similarity:float|None=Field(default=None,ge=0,le=1);style:float|None=Field(default=None,ge=0,le=1);speakerBoost:bool|None=None
+def clean_settings(body:VoiceSettingsBody|None,engine:str)->dict:
+    """Only the fields the owner set, checked for the chosen engine (ElevenLabs speed is 0.7 to 1.2, offline 0.7 to 1.5; the rest is ElevenLabs only)."""
+    got=body.model_dump(exclude_none=True) if body else {}
+    if engine=='offline':return {'speed':got['speed']} if 'speed' in got else {}
+    if got.get('speed',1)>1.2:raise accounts.AccountError(422,'ElevenLabs reads at most 1.2 times faster. Pick a speed between 0.7 and 1.2.')
+    return got
+def _hash(text:str)->str:return hashlib.sha256(text.encode()).hexdigest()[:16]
+def narration_items(doc:dict,language:str,kind:str|None)->list[dict]:
+    """What can be narrated: the overview, then each chapter. hash is of the spoken (marker-free) text, so a bold-only edit leaves the audio up to date."""
     version=_version(doc,language,kind)
     items=[]
-    if version.get('overview'):items.append({'title':'Overview','chapterId':None,'text':'\n\n'.join(_say(p) for p in version['overview']['paragraphs'])})
+    if version.get('overview'):items.append({'key':'overview','title':'Overview','chapterId':None,'text':'\n\n'.join(_say(p) for p in version['overview']['paragraphs'])})
     for c in doc['chapters']:
         body=version['chapters'].get(c['id'])
         if body:
             title=c['title'].get(language) or next(iter(c['title'].values()))
-            items.append({'title':title,'chapterId':c['id'],'text':title+'.\n\n'+'\n\n'.join(_say(p) for p in body['paragraphs'])})
-    tracks=[]
-    for item in items:
-        current=''
-        for para in item['text'].split('\n\n'):
-            if current and len(current)+len(para)>4000:tracks.append({**item,'text':current});current=''
-            current+=('\n\n' if current else '')+para[:4400]
-        if current:tracks.append({**item,'text':current})
+            items.append({'key':c['id'],'title':title,'chapterId':c['id'],'text':title+'.\n\n'+'\n\n'.join(_say(p) for p in body['paragraphs'])})
+    for item in items:item['hash']=_hash(item['text']);item['chars']=len(item['text'])
+    return items
+def split_item(item:dict)->list[dict]:
+    """One narration track per item, or several when a chapter is long (each under about 4000 characters)."""
+    tracks=[];current=''
+    for para in item['text'].split('\n\n'):
+        if current and len(current)+len(para)>4000:tracks.append({**item,'text':current});current=''
+        current+=('\n\n' if current else '')+para[:4400]
+    if current:tracks.append({**item,'text':current})
     return tracks
+def narration_tracks(doc:dict,language:str,kind:str|None)->list[dict]:
+    return [t for item in narration_items(doc,language,kind) for t in split_item(item)]
+def _row(book_id:str,language:str):
+    rows=q('SELECT status,done,total,tracks,error,engine,type,settings,updated FROM narration WHERE book_id=? AND language=?',(book_id,language));return rows[0] if rows else None
+def _stale(doc:dict,language:str,vtype:str,manifest:list[dict])->tuple[list[dict],list[str]]:
+    """(items, keys whose audio was made from different text). Entries without a hash (older audio) count as up to date."""
+    try:items=narration_items(doc,language,vtype or None)
+    except accounts.AccountError:return [],[]
+    made={}
+    for m in manifest:made.setdefault(m.get('chapterId') or 'overview',m.get('hash'))
+    stale=[i['key'] for i in items if i['key'] in made and made[i['key']] and made[i['key']]!=i['hash']]
+    for i in items:i['narrated']=i['key'] in made;i['stale']=i['key'] in stale
+    return items,stale
+def estimate(book_id:str,language:str,kind:str|None,chapters:list[str]|None)->dict:
+    doc=get(book_id)['doc'];row=_row(book_id,language)
+    items,_=_stale(doc,language,(row[6] if row else '') if kind is None else _version(doc,language,kind)['type'],json.loads(row[3]) if row else [])
+    if not items:_version(doc,language,kind)  # raises 404 when there is no such version
+    if chapters is not None and {c for c in chapters}-{i['key'] for i in items}:raise accounts.AccountError(422,'One of the chosen chapters is not in this summary.')
+    chosen=[i for i in items if chapters is None or i['key'] in chapters]
+    return {'chars':sum(i['chars'] for i in chosen),'seconds':round(sum(i['chars'] for i in chosen)/14),'items':[{'key':i['key'],'title':i['title'],'chars':i['chars'],'narrated':i['narrated'],'stale':i['stale']} for i in items]}
 _running:set[tuple[str,str]]=set()
-def start_narration(book_id:str,language:str,kind:str|None,engine:str='offline',voice:tuple[str,str]|None=None):
+_cancel:set[tuple[str,str]]=set()
+_active:dict[tuple[str,str],dict]={}
+def start_narration(book_id:str,language:str,kind:str|None,engine:str='offline',voice:tuple[str,str]|None=None,chapters:list[str]|None=None,settings:dict|None=None):
     """Narration is generated once on the server: with the free offline voice, or with the editor's own ElevenLabs key.
-    A second run keeps the old audio (and its Listen button) until the new set is complete."""
-    doc=get(book_id)['doc'];tracks=narration_tracks(doc,language,kind);vtype=_version(doc,language,kind)['type']
+    chapters picks which items to (re)make; the others keep their current files. A run keeps the old audio (and its Listen button) until its new files are complete."""
+    doc=get(book_id)['doc'];items=narration_items(doc,language,kind);vtype=_version(doc,language,kind)['type'];settings=settings or {}
     if (book_id,language) in _running:raise accounts.AccountError(409,'Narration is already being prepared.')
     if engine=='elevenlabs' and not voice:raise accounts.AccountError(412,'Add your ElevenLabs key in Account first.')
     if engine=='offline' and language not in audio.PIPER_VOICES:raise accounts.AccountError(422,'There is no offline voice for this language yet.')
+    if chapters is not None:
+        unknown=set(chapters)-{i['key'] for i in items}
+        if unknown or not chapters:raise accounts.AccountError(422,'Choose at least one chapter of this summary.')
+        row=_row(book_id,language)
+        # Kept tracks belong to one version; mixing in another version's chapters would play the wrong text.
+        if row and json.loads(row[3]) and row[6] and row[6]!=vtype:raise accounts.AccountError(422,'The current audio was made from a different version. Make the whole book instead.')
+        items=[i for i in items if i['key'] in chapters]
+    tracks=[t for i in items for t in split_item(i)]
     # An upsert, not INSERT OR REPLACE: the old tracks, engine and type stay until the new set replaces them.
-    q("INSERT INTO narration(book_id,language,status,done,total,tracks,error,updated,engine,type) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(book_id,language) DO UPDATE SET status='running',done=0,total=excluded.total,error='',updated=excluded.updated",(book_id,language,'running',0,len(tracks),'[]','',time.time(),engine,vtype))
-    _running.add((book_id,language))
-    threading.Thread(target=_narrate,args=(book_id,language,tracks,engine,voice,vtype),daemon=True).start()
-def _narrate(book_id:str,language:str,tracks:list[dict],engine:str='offline',voice:tuple[str,str]|None=None,vtype:str=''):
+    q("INSERT INTO narration(book_id,language,status,done,total,tracks,error,updated,engine,type,settings) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(book_id,language) DO UPDATE SET status='running',done=0,total=excluded.total,error='',updated=excluded.updated",(book_id,language,'running',0,len(tracks),'[]','',time.time(),engine,vtype,'{}'))
+    _running.add((book_id,language));_cancel.discard((book_id,language));_active[(book_id,language)]={'engine':engine,'partial':chapters is not None}
+    threading.Thread(target=_narrate,args=(book_id,language,tracks,engine,voice,vtype,chapters is not None,settings),daemon=True).start()
+class _Cancelled(Exception):pass
+def _narrate(book_id:str,language:str,tracks:list[dict],engine:str='offline',voice:tuple[str,str]|None=None,vtype:str='',partial:bool=False,settings:dict|None=None):
     folder=_dir('audio')/book_id/language;folder.mkdir(parents=True,exist_ok=True)
-    gen=secrets.token_hex(4);manifest=[]  # new files are named <gen>-<n>.mp3 so they never overwrite the audio people are hearing
+    gen=secrets.token_hex(4);made=[];settings=settings or {}  # new files are named <gen>-<n>.mp3 so they never overwrite the audio people are hearing
     try:
         for i,t in enumerate(tracks):
-            data=audio.eleven_long(t['text'],language,voice[0],voice[1]) if engine=='elevenlabs' and voice else audio.piper_mp3(t['text'],language)
+            if (book_id,language) in _cancel:raise _Cancelled()
+            data=audio.eleven_long(t['text'],language,voice[0],settings.get('voice') or voice[1],settings=settings) if engine=='elevenlabs' and voice else audio.piper_mp3(t['text'],language,speed=settings.get('speed',1.0))
             name=f'{gen}-{i}.mp3';(folder/name).write_bytes(data)
-            manifest.append({'title':t['title'],'chapterId':t['chapterId'],'file':name})
+            made.append({'title':t['title'],'chapterId':t['chapterId'],'file':name,'hash':t['hash'],'engine':engine})
             q('UPDATE narration SET done=?,updated=? WHERE book_id=? AND language=?',(i+1,time.time(),book_id,language))
+        if (book_id,language) in _cancel:raise _Cancelled()
+        # The new manifest follows the document's order: new tracks for what was made, the old tracks for the other chapters, nothing for chapters that no longer exist.
+        doc=get(book_id)['doc'];order=[i['chapterId'] for i in narration_items(doc,language,vtype or None)]
+        old=json.loads(_row(book_id,language)[3]) if partial else []
+        fresh={m['chapterId'] for m in made}
+        pool=made+[m for m in old if m['chapterId'] not in fresh]
+        manifest=[m for cid in order for m in pool if m['chapterId']==cid]
+        engines={m.get('engine','offline') for m in manifest}
         # One update swaps the manifest; only then are the files it no longer lists removed.
-        q("UPDATE narration SET status='ready',tracks=?,engine=?,type=?,error='',updated=? WHERE book_id=? AND language=?",(json.dumps(manifest),engine,vtype,time.time(),book_id,language))
+        q("UPDATE narration SET status='ready',tracks=?,engine=?,type=?,settings=?,error='',updated=?,done=total WHERE book_id=? AND language=?",(json.dumps(manifest),engines.pop() if len(engines)==1 else 'mixed',vtype,json.dumps(settings),time.time(),book_id,language))
         keep={m['file'] for m in manifest}
-        for old in folder.glob('*.mp3'):
-            if old.name not in keep:old.unlink(missing_ok=True)
+        for old_file in folder.glob('*.mp3'):
+            if old_file.name not in keep:old_file.unlink(missing_ok=True)
     except Exception as error:  # noqa: BLE001 - reported to the owner, never crashes the server
-        for m in manifest:(folder/m['file']).unlink(missing_ok=True)  # the previous audio, if any, stays as it was
-        q('UPDATE narration SET status=?,error=?,updated=? WHERE book_id=? AND language=?',('failed',str(error)[:300],time.time(),book_id,language))
-    finally:_running.discard((book_id,language))
-def narration_status(book_id:str,language:str)->dict:
-    rows=q('SELECT status,done,total,tracks,error,engine,type FROM narration WHERE book_id=? AND language=?',(book_id,language))
-    if not rows:return {'status':'none','done':0,'total':0,'tracks':[]}
-    status,done,total,tracks,error,engine,vtype=rows[0]
-    bytes_per_second=16000 if engine=='elevenlabs' else 8000
-    return {'status':status,'done':done,'total':total,'error':error,'engine':engine,'type':vtype,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':round((_dir('audio')/book_id/language/t['file']).stat().st_size/bytes_per_second,1) if (_dir('audio')/book_id/language/t['file']).is_file() else None} for t in json.loads(tracks)]}
+        for m in made:(folder/m['file']).unlink(missing_ok=True)  # the previous audio, if any, stays as it was
+        row=_row(book_id,language)
+        if isinstance(error,_Cancelled):
+            # Stopped by the owner: back to what was there before (nothing at all after a first run).
+            if row and json.loads(row[3]):q("UPDATE narration SET status='ready',error='',updated=? WHERE book_id=? AND language=?",(time.time(),book_id,language))
+            else:q('DELETE FROM narration WHERE book_id=? AND language=?',(book_id,language))
+        else:q('UPDATE narration SET status=?,error=?,updated=? WHERE book_id=? AND language=?',('failed',str(error)[:300],time.time(),book_id,language))
+    finally:_running.discard((book_id,language));_cancel.discard((book_id,language));_active.pop((book_id,language),None)
+def cancel_narration(book_id:str,language:str):
+    if (book_id,language) not in _running:raise accounts.AccountError(409,'Nothing is being prepared right now.')
+    _cancel.add((book_id,language))
+def delete_narration(book_id:str,language:str):
+    if (book_id,language) in _running:raise accounts.AccountError(409,'Stop the running job before deleting the audio.')
+    q('DELETE FROM narration WHERE book_id=? AND language=?',(book_id,language))
+    import shutil;shutil.rmtree(_dir('audio')/book_id/language,ignore_errors=True)
+def narration_status(book_id:str,language:str,detail:bool=False)->dict:
+    row=_row(book_id,language)
+    if not row:return {'status':'none','done':0,'total':0,'tracks':[]}
+    status,done,total,tracks,error,engine,vtype,settings,updated=row;manifest=json.loads(tracks)
+    def seconds(t):
+        path=_dir('audio')/book_id/language/t['file'];rate=16000 if t.get('engine',engine)=='elevenlabs' else 8000  # 128 kbps vs 64 kbps
+        return round(path.stat().st_size/rate,1) if path.is_file() else None
+    out={'status':status,'done':done,'total':total,'error':error,'engine':engine,'type':vtype,'updated':updated,'tracks':[{'title':t['title'],'chapterId':t['chapterId'],'engine':t.get('engine',engine),'url':f"/api/library/{book_id}/audio/{language}/{t['file']}",'seconds':seconds(t)} for t in manifest]}
+    if status=='running':out['runEngine']=_active.get((book_id,language),{}).get('engine',engine)
+    if detail:out['settings']=json.loads(settings or '{}');out['staleChapters']=_stale(get(book_id)['doc'],language,vtype,manifest)[1]
+    return out
 def audio_path(book_id:str,language:str,name:str)->Path|None:
     if not re.fullmatch(r'(?:\d{1,4}|[0-9a-f]{8}-\d{1,4})\.mp3',name) or not re.fullmatch(r'[a-z]{2}',language):return None
     if not re.fullmatch(r'[0-9a-f-]{36}',book_id):return None
