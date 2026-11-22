@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio,html as _html,json,os,secrets,sqlite3,time
 from . import accounts,library,mailer
+from .inline import strip_inline
 SCHEMA='''CREATE TABLE IF NOT EXISTS subscribers(email TEXT PRIMARY KEY COLLATE NOCASE,token TEXT UNIQUE NOT NULL,status TEXT NOT NULL,lang TEXT NOT NULL DEFAULT 'fa',source TEXT NOT NULL DEFAULT 'form',created REAL NOT NULL,confirmed REAL,asked REAL);
 CREATE TABLE IF NOT EXISTS book_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,author TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',email TEXT NOT NULL DEFAULT '',user_id TEXT,lang TEXT NOT NULL DEFAULT 'fa',status TEXT NOT NULL DEFAULT 'new',book_id TEXT,told REAL,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS announced(book_id TEXT PRIMARY KEY,sent REAL NOT NULL,count INTEGER NOT NULL DEFAULT 0);
@@ -115,7 +116,7 @@ def _takeaways(doc:dict,lang:str)->list[str]:
     order=sorted(doc['versions'],key=lambda v:v['language']!=lang);out=[]
     for v in order:
         for p in (v.get('overview') or {}).get('takeaways',[]):
-            t=' '.join(p['text'].split())
+            t=' '.join(strip_inline(p['text']).split())
             if t:out.append(t if len(t)<=150 else t[:t.rfind(' ',0,140)]+'…')
         if out:break
     return out[:3]
@@ -123,7 +124,7 @@ def _blurb_for(doc:dict,lang:str,fallback:str)->str:
     for v in sorted(doc['versions'],key=lambda v:v['language']!=lang):
         paras=(v.get('overview') or {}).get('paragraphs') or []
         if paras:
-            text=' '.join(paras[0]['text'].split())
+            text=' '.join(strip_inline(paras[0]['text']).split())
             if len(text)<=300:return text
             cut=text[:300];end=max(cut.rfind('. '),cut.rfind('؟ '),cut.rfind('。'))
             return cut[:end+1] if end>140 else cut[:cut.rfind(' ')]+'…'

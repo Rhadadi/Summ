@@ -3,6 +3,7 @@ import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
+import Inline from'./InlineText';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
@@ -69,10 +70,10 @@ export default function ReaderPage(p:Props){
   return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
  }
  function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{x.text}</figcaption></figure>
-   :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}{x.text}{refs(x,c)}</blockquote>
+  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto"><Inline text={x.text}/></figcaption></figure>
+   :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}<Inline text={x.text}/>{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
-   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto">{x.text}{refs(x,c)}</p></div>);
+   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto"><Inline text={x.text}/>{refs(x,c)}</p></div>);
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){
@@ -119,7 +120,7 @@ export default function ReaderPage(p:Props){
    <div className="r2-col">
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     {!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1>{L('Overview')}</h1>
-    <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto">{t.text}</li>)}</ul></div>
+    <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto"><Inline text={t.text}/></li>)}</ul></div>
     {paragraphs(report.overview.paragraphs)}
    </div>}
    {guideSection&&<div dir={rtl(report?.language)}>{!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}

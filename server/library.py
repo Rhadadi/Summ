@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field,model_validator
 from . import accounts,audio
 from .reviews import Review
+from .inline import strip_inline
 Language=Literal['en','fa','de','ar','es','fr','tr','zh']
 MAX_DOC=4_000_000
 SCHEMA='''CREATE TABLE IF NOT EXISTS library(id TEXT PRIMARY KEY,slug TEXT UNIQUE NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL DEFAULT '',doc TEXT NOT NULL,visibility TEXT NOT NULL,cover_type TEXT,created REAL NOT NULL,updated REAL NOT NULL);
@@ -80,7 +81,7 @@ def _blurb(d:dict)->str:
     text=''
     for v in d['versions']:
         paras=(v.get('overview') or {}).get('paragraphs') or []
-        if paras:text=paras[0]['text'];break
+        if paras:text=strip_inline(paras[0]['text']);break
     info=d.get('info') or {}
     text=text or info.get('description') or (info.get('wikipedia') or {}).get('extract') or ''
     text=' '.join(text.split())
@@ -178,7 +179,7 @@ def cover(book_id:str)->tuple[bytes,str]|None:
     rows=q('SELECT cover_type FROM library WHERE id=?',(book_id,));path=_dir('covers')/book_id
     return (path.read_bytes(),rows[0][0]) if rows and rows[0][0] and path.exists() else None
 # ---- narration: generated once by the owner or an editor, then served as static files
-def _say(p:dict)->str:return (p['heading']+'. ' if p.get('heading') else '')+p['text']
+def _say(p:dict)->str:return (p['heading']+'. ' if p.get('heading') else '')+strip_inline(p['text'])  # the voice must not read the markers
 def _version(doc:dict,language:str,kind:str|None)->dict:
     version=next((v for v in doc['versions'] if v['language']==language and (kind is None or v['type']==kind)),None)
     if not version:raise accounts.AccountError(404,'No summary exists in this language.')

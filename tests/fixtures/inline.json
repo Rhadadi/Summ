@@ -1,0 +1,263 @@
+{
+ "cases": [
+  {
+   "in": "plain text",
+   "spans": [
+    {
+     "text": "plain text"
+    }
+   ],
+   "plain": "plain text",
+   "out": "plain text"
+  },
+  {
+   "in": "a **bold** word",
+   "spans": [
+    {
+     "text": "a "
+    },
+    {
+     "text": "bold",
+     "b": true
+    },
+    {
+     "text": " word"
+    }
+   ],
+   "plain": "a bold word",
+   "out": "a **bold** word"
+  },
+  {
+   "in": "an *italic* word",
+   "spans": [
+    {
+     "text": "an "
+    },
+    {
+     "text": "italic",
+     "i": true
+    },
+    {
+     "text": " word"
+    }
+   ],
+   "plain": "an italic word",
+   "out": "an *italic* word"
+  },
+  {
+   "in": "***both*** here",
+   "spans": [
+    {
+     "text": "both",
+     "b": true,
+     "i": true
+    },
+    {
+     "text": " here"
+    }
+   ],
+   "plain": "both here",
+   "out": "***both*** here"
+  },
+  {
+   "in": "**bold with *italic* inside** end",
+   "spans": [
+    {
+     "text": "bold with ",
+     "b": true
+    },
+    {
+     "text": "italic",
+     "b": true,
+     "i": true
+    },
+    {
+     "text": " inside",
+     "b": true
+    },
+    {
+     "text": " end"
+    }
+   ],
+   "plain": "bold with italic inside end",
+   "out": "**bold with *italic* inside** end"
+  },
+  {
+   "in": "2 * 3 * 4",
+   "spans": [
+    {
+     "text": "2 * 3 * 4"
+    }
+   ],
+   "plain": "2 * 3 * 4",
+   "out": "2 \\* 3 \\* 4"
+  },
+  {
+   "in": "a*b*c",
+   "spans": [
+    {
+     "text": "a*b*c"
+    }
+   ],
+   "plain": "a*b*c",
+   "out": "a\\*b\\*c"
+  },
+  {
+   "in": "unclosed **bold here",
+   "spans": [
+    {
+     "text": "unclosed **bold here"
+    }
+   ],
+   "plain": "unclosed **bold here",
+   "out": "unclosed \\*\\*bold here"
+  },
+  {
+   "in": "trailing *",
+   "spans": [
+    {
+     "text": "trailing *"
+    }
+   ],
+   "plain": "trailing *",
+   "out": "trailing \\*"
+  },
+  {
+   "in": "literal \\* star and \\\\ slash",
+   "spans": [
+    {
+     "text": "literal * star and \\ slash"
+    }
+   ],
+   "plain": "literal * star and \\ slash",
+   "out": "literal \\* star and \\\\ slash"
+  },
+  {
+   "in": "(*in parens*) and «**quoted**»",
+   "spans": [
+    {
+     "text": "("
+    },
+    {
+     "text": "in parens",
+     "i": true
+    },
+    {
+     "text": ") and «"
+    },
+    {
+     "text": "quoted",
+     "b": true
+    },
+    {
+     "text": "»"
+    }
+   ],
+   "plain": "(in parens) and «quoted»",
+   "out": "(*in parens*) and «**quoted**»"
+  },
+  {
+   "in": "**bold**, then *it*.",
+   "spans": [
+    {
+     "text": "bold",
+     "b": true
+    },
+    {
+     "text": ", then "
+    },
+    {
+     "text": "it",
+     "i": true
+    },
+    {
+     "text": "."
+    }
+   ],
+   "plain": "bold, then it.",
+   "out": "**bold**, then *it*."
+  },
+  {
+   "in": "**پررنگ** و *مورب* فارسی",
+   "spans": [
+    {
+     "text": "پررنگ",
+     "b": true
+    },
+    {
+     "text": " و "
+    },
+    {
+     "text": "مورب",
+     "i": true
+    },
+    {
+     "text": " فارسی"
+    }
+   ],
+   "plain": "پررنگ و مورب فارسی",
+   "out": "**پررنگ** و *مورب* فارسی"
+  },
+  {
+   "in": "می‌خواهم **این‌جا** را",
+   "spans": [
+    {
+     "text": "می‌خواهم "
+    },
+    {
+     "text": "این‌جا",
+     "b": true
+    },
+    {
+     "text": " را"
+    }
+   ],
+   "plain": "می‌خواهم این‌جا را",
+   "out": "می‌خواهم **این‌جا** را"
+  },
+  {
+   "in": "**a** **b**",
+   "spans": [
+    {
+     "text": "a",
+     "b": true
+    },
+    {
+     "text": " "
+    },
+    {
+     "text": "b",
+     "b": true
+    }
+   ],
+   "plain": "a b",
+   "out": "**a** **b**"
+  },
+  {
+   "in": "****four****",
+   "spans": [
+    {
+     "text": "****four****"
+    }
+   ],
+   "plain": "****four****",
+   "out": "\\*\\*\\*\\*four\\*\\*\\*\\*"
+  },
+  {
+   "in": "* spaced *",
+   "spans": [
+    {
+     "text": "* spaced *"
+    }
+   ],
+   "plain": "* spaced *",
+   "out": "\\* spaced \\*"
+  },
+  {
+   "in": "",
+   "spans": [],
+   "plain": "",
+   "out": ""
+  }
+ ]
+}

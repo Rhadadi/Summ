@@ -744,3 +744,6 @@ a.rx-score:hover{border-color:var(--brand);transform:translateY(-2px)}
  .rx-critics{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x mandatory;padding:2px 2px 12px;margin-inline:-2px}.rx-critic{flex:0 0 86%;scroll-snap-align:start}
  .rx-cta{padding:24px 22px}.rx-cta-actions{width:100%}.rx-btn{flex:1}
 }
+/* Bold and italic typed by the owner. Persian fonts have no italic: it stays upright, in the brand ink, with a touch more weight. */
+:is(p,li,figcaption,blockquote) strong{font-weight:700}
+:is(p,li,figcaption,blockquote) em:lang(fa),:is(p,li,figcaption,blockquote) em:lang(ar){font-style:normal;font-weight:600;color:var(--primary)}

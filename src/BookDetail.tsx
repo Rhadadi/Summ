@@ -14,6 +14,7 @@ import RelatedShelf from'./RelatedShelf';
 import{receptionView}from'./reception-view';
 import{num,rtl,tr}from'./i18n';
 import type{Backdrop}from'./MuseumHero';
+import Inline from'./InlineText';
 import{displayAuthor,displayPainting}from'./persian-display';
 
 interface Props{
@@ -153,9 +154,9 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
    <div className="about-grid">
     <div className="about-main">
      {report?.overview?<>
-      {report.overview.paragraphs.slice(0,more2?undefined:2).map((p,i)=><div className="about-section" key={i} dir="auto">{p.heading&&<h3>{p.heading}</h3>}<p className={i===0?'about-lead':undefined}>{p.text}</p></div>)}
+      {report.overview.paragraphs.slice(0,more2?undefined:2).map((p,i)=><div className="about-section" key={i} dir="auto">{p.heading&&<h3>{p.heading}</h3>}<p className={i===0?'about-lead':undefined}><Inline text={p.text}/></p></div>)}
       {report.overview.paragraphs.length>2&&<button className="text-link2" onClick={()=>setMore2(!more2)}>{L(more2?'Show less':'Read more')}</button>}
-      {report.overview.takeaways.length>0&&<div className="key-ideas"><h3>{L('Key ideas')}</h3><ol>{report.overview.takeaways.slice(0,6).map((t,i)=><li key={i} dir="auto"><span className="ki-n">{num(lang,i+1)}</span><span>{t.heading?<strong>{t.heading}. </strong>:null}{t.text}</span></li>)}</ol></div>}
+      {report.overview.takeaways.length>0&&<div className="key-ideas"><h3>{L('Key ideas')}</h3><ol>{report.overview.takeaways.slice(0,6).map((t,i)=><li key={i} dir="auto"><span className="ki-n">{num(lang,i+1)}</span><span>{t.heading?<strong>{t.heading}. </strong>:null}<Inline text={t.text}/></span></li>)}</ol></div>}
       <button className="text-link2" onClick={()=>onRead(undefined,'overview')}>{L('Read the overview and key takeaways')} <ChevronRightRounded/></button>
      </>
       :info?.description?<><p className="about-lead" dir="auto">{info.description}</p><small>Publisher description via Google Books</small></>
