@@ -392,7 +392,7 @@ body{background:var(--bg);color:var(--ink)}
 .r2-kicker{color:var(--rmuted)}
 .r2-main h1{font:700 clamp(28px,3.4vw,40px)/1.25 var(--read-font,var(--serif));letter-spacing:-.01em;margin-bottom:28px}
 .r2-p p,.r2-main .text-p p{font:400 var(--read-size,20px)/var(--read-lh,1.85) var(--read-text-font,var(--read-font,var(--serif)));text-align:var(--read-align,start);color:var(--rink)}
-.r2-p h2{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-text-font,var(--read-font,var(--serif)));margin-top:34px}
+.r2-p h2{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-font,var(--serif));margin-top:34px}
 .r2-quote{font:italic 400 calc(var(--read-size,20px)*1.08)/1.7 var(--read-text-font,var(--read-font,var(--serif)))}
 [dir=rtl] .r2-quote{font-style:normal}
 .r2-box li{font:400 calc(var(--read-size,20px)*.95)/1.7 var(--read-text-font,var(--read-font,var(--serif)))}
@@ -805,3 +805,20 @@ a.rx-score:hover{border-color:var(--brand);transform:translateY(-2px)}
 .MuiPopover-root[lang=fa] .acct-menu{font-family:"Vazirmatn Variable",-apple-system,sans-serif}
 .MuiPopover-root[lang=fa] .acct-menu .MuiTypography-root{font-family:inherit;text-align:right}
 .MuiPopover-root[dir=rtl] .acct-menu .MuiListItemIcon-root{min-width:34px}
+/* Home: every book in one sideways row (cover, title, author), arrows over the ends, like a store shelf. */
+.book-row{position:relative;margin:0 -8px}
+.book-row-track{display:flex;gap:28px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:8px;padding:10px 8px 24px;scrollbar-width:none;overscroll-behavior-x:contain}
+.book-row-track::-webkit-scrollbar{display:none}
+.book-row .m-card{flex:0 0 calc((100% - 5*28px)/6);min-width:150px;scroll-snap-align:start}
+.book-row .m-card-cover{border-radius:12px;box-shadow:0 10px 24px -12px rgba(20,20,20,.55);border:1px solid rgba(0,0,0,.06)}
+.book-row .m-card:hover .m-card-cover{transform:translateY(-4px)}
+.book-row .m-card strong{margin-top:8px;font:600 17px/1.35 var(--serif);color:var(--brand);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.book-row .m-card>span:last-child{font:400 13.5px/1.4 -apple-system,BlinkMacSystemFont,"Vazirmatn Variable",sans-serif;color:var(--m-muted);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.book-row .m-card>span:last-child b{font-weight:600;color:var(--m-ink)}
+.book-row-arrow{position:absolute;z-index:3;display:grid;place-items:center;width:54px;height:54px;border-radius:50%;border:0;background:rgba(18,28,30,.82);color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.3);transition:background .15s,transform .15s}
+.book-row-arrow{top:min(34%,140px)}
+.book-row-arrow:hover{background:var(--brand);transform:scale(1.06)}
+.book-row-arrow svg{font-size:32px}
+.book-row-arrow.left{left:-14px}.book-row-arrow.right{right:-14px}
+@media (max-width:899px){.book-row .m-card{flex-basis:42%;min-width:0}.book-row-track{gap:16px}.book-row-arrow{width:40px;height:40px;top:28%}.book-row-arrow svg{font-size:26px}.book-row-arrow.left{left:-2px}.book-row-arrow.right{right:-2px}.book-row .m-card strong{font-size:15px}}
+@media (prefers-reduced-motion:reduce){.book-row-track{scroll-behavior:auto}}

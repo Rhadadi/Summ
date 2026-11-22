@@ -24,6 +24,8 @@ const artists:Record<string,string>={
  'Thomas Cole':'توماس کول',
 };
 export const displayAuthor=(name:string,lang?:string)=>lang==='fa'?(authors[name]||name):name;
+/** A published book's author for this language: the editor's (or the server's) name in that script, else the original. */
+export const authorFor=(b:{author:string;authorNames?:Record<string,string>},lang?:string)=>(lang&&b.authorNames?.[lang])||displayAuthor(b.author,lang);
 export const displayPainting=(credit:{title?:string;artist?:string;year?:string},lang?:string)=>lang==='fa'
  ?[paintings[credit.title||'']||credit.title,artists[credit.artist||'']||credit.artist,credit.year?.replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[+d]).replace('from ','از ').replace(' until ',' تا ')].filter(Boolean).join(' · ')
  :[credit.title,credit.artist,credit.year].filter(Boolean).join(' · ');

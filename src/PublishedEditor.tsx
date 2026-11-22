@@ -108,6 +108,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
    <TextField label={L('Title')+' · '+lang} value={doc.title[lang]||''} onChange={e=>update(d=>{d.title[lang]=e.target.value;})} fullWidth/>
    {lang!=='en'&&<TextField label={lang==='fa'?'عنوان انگلیسی برای یافتن نقدها':'English title for review research'} value={doc.title.en||''} onChange={e=>update(d=>{d.title.en=e.target.value;})} fullWidth/>}
    <TextField label={L('Author')} value={doc.author} onChange={e=>update(d=>{d.author=e.target.value;})} fullWidth/>
+   <TextField label={L('Author in Persian')} value={doc.authorNames?.fa??book.authorNames?.fa??''} onChange={e=>update(d=>{d.authorNames={...d.authorNames,fa:e.target.value};})} fullWidth slotProps={{htmlInput:{dir:'rtl'}}}/>
    <TextField label={L('Original language')} value={doc.originalLanguage} onChange={e=>update(d=>{d.originalLanguage=e.target.value;})} fullWidth/>
    <TextField label={L('Year')} value={doc.info?.year||''} onChange={e=>update(d=>{d.info={...d.info,year:e.target.value};})} fullWidth/>
    <TextField label={L('Publisher')} value={doc.info?.publisher||''} onChange={e=>update(d=>{d.info={...d.info,publisher:e.target.value};})} fullWidth/>

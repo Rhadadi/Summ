@@ -5,6 +5,7 @@ import{Button}from'@mui/material';
 import type{Book,HomeConfig,PubBook,SavedPassage}from'./types';
 import{store}from'./storage';
 import{displayName}from'./core';
+import{authorFor}from'./persian-display';
 import{mainChapters,strip}from'./bookData';
 import Cover from'./Cover';
 import MuseumHero,{galleryBackdrop,type Slide}from'./MuseumHero';
@@ -14,6 +15,7 @@ import{tr,num}from'./i18n';
 import{publicTitle}from'./discovery';
 import{art}from'./art';
 import CategoryChips from'./CategoryChips';
+import BookRow from'./BookRow';
 import type{Account}from'./types';
 
 interface Props{account:Account|null;mailEnabled:boolean;isOwner:boolean;config:HomeConfig|null;onEditHome:()=>void;lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
@@ -36,14 +38,14 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
- const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:bookBackdrop(b,i),eyebrow:'',title:first(b),by:displayName(b.author)+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
+ const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:bookBackdrop(b,i),eyebrow:'',title:first(b),by:(lang==='fa'?authorFor(b,lang):displayName(b.author))+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
    {wall.length>0&&<h2 className="m-wall-h">{L('All books')} · {num(lang,wall.length)}</h2>}
    <CategoryChips books={wall} lang={lang} active={null} all={false} onPick={id=>navigate(id?'/library/c/'+id:'/library')}/>
-   {wall.length>0&&<div className="m-wall-grid">{wall.map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
+   {wall.length>0&&<BookRow label={L('All books')} dir={lang==='fa'?'rtl':'ltr'}>{wall.map(b=><button key={b.id} role="listitem" className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong>{b.author&&<span dir="auto">{lang==='fa'?'نوشتهٔ ':'By '}<b>{lang==='fa'?authorFor(b,lang):displayName(b.author)}</b></span>}</button>)}</BookRow>}
   </section>}
  </>;
  if(!canEdit)return <div className="museum-home">{intro}</div>;

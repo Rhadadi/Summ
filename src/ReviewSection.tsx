@@ -14,7 +14,8 @@ const Ext=()=><OpenInNewRounded fontSize="inherit"/>;
 // "From 6 critics and 4 readers · ★ 4.1 on Goodreads": built from small translated words so it reads well in both languages.
 function Kicker({v,L,lang}:{v:View}&Tr){
  const who=([[v.counts.critics,'critic'],[v.counts.readers,'reader']] as [number,string][]).filter(x=>x[0]>0).map(x=>num(lang,x[0])+' '+L(x[1]+(x[0]===1?'':'s')));
- const s=v.scores[0],parts=[who.length?L('From')+' '+who.join(' '+L('and')+' '):'',s?'★ '+num(lang,+s.value.toFixed(1))+' '+L('on')+' '+s.source:''].filter(Boolean);
+ // the score itself is on the card just below, so the line names only who was heard
+ const parts=[who.length?L('From')+' '+who.join(' '+L('and')+' '):''].filter(Boolean);
  return parts.length?<p className="rx-kicker">{parts.join(' · ')}</p>:null;
 }
 function ScoreChips({scores,L,lang}:{scores:Score[]}&Tr){

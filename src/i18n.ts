@@ -221,6 +221,7 @@ const fa:Record<string,string>={
  'Only these chapters get audio.':'فقط همین فصل‌ها صدا می‌گیرند.',
  'All':'همه',
  'Categories':'دسته‌ها',
+ 'Author in Persian':'نام نویسنده به فارسی',
  'Share':'اشتراک‌گذاری',
  'Link copied. It shows the cover and summary when shared.':'پیوند کپی شد. هنگام اشتراک، جلد و خلاصهٔ کتاب را نشان می‌دهد.',
  'Account and settings':'حساب و تنظیمات',

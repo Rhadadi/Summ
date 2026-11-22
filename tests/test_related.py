@@ -9,19 +9,27 @@ class WeightedTests(RolesTest):
     def test_few_ratings_do_not_beat_many(self):
         self.assertGreater(related.weighted(4.2,5000),related.weighted(4.9,3))
         self.assertIsNone(related.weighted(None,0))
-    def test_external_books_rank_by_weighted_rating_picks_boosted_unrated_and_coverless_last(self):
+    def test_picks_rank_by_weighted_rating_with_no_subject_shelf_and_unrated_and_coverless_last(self):
         async def search(client,**p):
-            if 'subject:' in p.get('q',''):return [hit('Many Ratings',4.2,5000),hit('Three Ratings',4.9,3),hit('Low Rated',3.1,900),hit('Few But Good',4.6,12)]
+            assert 'subject:' not in p.get('q',''),'loose subject shelves are no longer searched'
+            if p.get('title')=='Many Ratings':return [hit('Many Ratings',4.2,5000)]
+            if p.get('title')=='Few But Good':return [hit('Few But Good',4.6,12)]
             if p.get('title')=='Unrated Pick':return [hit('Unrated Pick')]
             if p.get('title')=='No Cover Pick':return [hit('No Cover Pick',4.5,900,cover=None)]
             return []
+        picks=[{'title':t,'author':'','why':''} for t in ('Unrated Pick','No Cover Pick','Few But Good','Many Ratings')]
         with patch('server.related._search',search),patch('server.google_books.search',AsyncMock(return_value=[])):
-            out=asyncio.run(related.related('Mine','',['Psychology'],[{'title':'Unrated Pick','author':'','why':'w'},{'title':'No Cover Pick','author':'','why':''}]))
-        names=[c['title'] for c in out]
-        # the three-rating book is under the 10-rating floor; the low-rated one under 4.0
-        self.assertNotIn('Three Ratings',names);self.assertNotIn('Low Rated',names)
-        self.assertEqual(names,['Many Ratings','Few But Good','Unrated Pick','No Cover Pick'])
-        self.assertEqual(out[0]['reason'],'subject');self.assertEqual(out[0]['subject'],'Psychology');self.assertEqual(out[2]['reason'],'pick')
+            out=asyncio.run(related.related('Mine','',['Psychology'],picks))
+        self.assertEqual([c['title'] for c in out],['Many Ratings','Few But Good','Unrated Pick','No Cover Pick'])
+        self.assertEqual({c['reason'] for c in out},{'pick'})
+    def test_few_picks_are_topped_up_and_a_book_missing_from_open_library_comes_from_google_books(self):
+        async def search(client,**p):return [hit('Known Book',4.3,800)] if p.get('title')=='Known Book' else []
+        suggest=AsyncMock(return_value=[{'title':'Scholarly Book','author':'A Scholar','why':'close'}])
+        google=AsyncMock(return_value=[{'title':'Scholarly Book','authors':['A Scholar'],'cover':'https://books.google.com/c.jpg','rating':4.0,'ratings':40,'year':'2010','url':'https://books.google.com/x'}])
+        with patch('server.related._search',search),patch('server.google_books.search',google):
+            out=asyncio.run(related.related('Mine','',[],[{'title':'Known Book','author':'','why':''}],suggest))
+        suggest.assert_awaited_once()
+        self.assertEqual([(c['title'],c['cover'] is not None) for c in out],[('Known Book',True),('Scholarly Book',True)])
 class CacheTests(RolesTest):
     def test_persian_keeps_unlocalised_cards_and_adds_local_titles_when_available(self):
         books=[{'title':'Book A','author':'A B','why':'','cover':'c','url':None,'rating':4.4,'count':100,'source':'similar','year':'','reason':'subject','subject':''}]

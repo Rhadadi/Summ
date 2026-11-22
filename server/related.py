@@ -1,4 +1,7 @@
-"""Books to read next, with covers: other books of this library, the picks of the research step, other works by the same author, and well-rated books on the same subjects (Open Library), best rated first."""
+"""Books to read next, with covers: other books of this library, the picks of the research step topped up by a model call
+to about eight well-known, well-rated companions, and other works by the same author; each checked on Open Library (or
+Google Books) for a real edition, cover and rating, best rated first. Loose subject searches were dropped: Open Library's
+broad shelves put memoirs like "Born a Crime" next to a study of the Quran."""
 from __future__ import annotations
 import asyncio,json,os,re,time
 from pathlib import Path
@@ -32,8 +35,8 @@ def _rank(c:dict)->tuple:
     w=weighted(c.get('rating'),c.get('count'))
     return (c['cover'] is None,w is None,-((w or 0)+(0.15 if c['source']=='recommended' else 0)))
 async def related(title:str,author:str,categories:list[str],picks:list[dict],suggest=None)->list[dict]:
-    # With no researched picks, a short model call proposes them once.
-    if len(picks)<4 and suggest:
+    # The research step's picks are few or none for many books, so a short model call tops them up to about eight.
+    if len(picks)<8 and suggest:
         try:picks=picks+await suggest()
         except Exception:pass  # noqa: BLE001 - suggestions are optional
     me=_short(title);out:list[dict]=[];seen={me}
@@ -59,6 +62,15 @@ async def related(title:str,author:str,categories:list[str],picks:list[dict],sug
                 more=await safe(_search(client,title=q,**({'author':p['author']} if p.get('author') else {}),limit=20,sort='rating'))
                 doc=max([d for d in more+exact if _short(d.get('title',''))==want],key=lambda d:(bool(d.get('cover_i')),d.get('ratings_count') or 0),default=None)
             card=_card({**doc,'title':p['title']},p.get('why',''),'recommended') if doc else None
+            if not card:  # not on Open Library (common for scholarly books): a Google Books edition of that title is as good
+                try:
+                    from . import google_books
+                    eds=await google_books.search(client,'intitle:'+q+(' inauthor:'+p['author'] if p.get('author') else ''),5)
+                    ed=next((e for e in eds if _short(e.get('title',''))==_short(q) and e.get('cover')),None)
+                    if ed:card={'title':p['title'],'author':p.get('author') or ', '.join(ed.get('authors') or [])[:80],'year':ed.get('year') or '','cover':ed['cover'],'url':ed.get('url'),
+                        'rating':round(ed['rating'],1) if ed.get('rating') else None,'count':ed.get('ratings') or 0,'why':p.get('why','')[:300],'source':'recommended','reason':'pick','subject':''}
+                except Exception:pass  # noqa: BLE001
+                return card
             if card and not card['cover']:  # Google Books often has the cover Open Library lacks
                 try:
                     from . import google_books
@@ -66,27 +78,16 @@ async def related(title:str,author:str,categories:list[str],picks:list[dict],sug
                     card['cover']=next((e['cover'] for e in eds if e.get('cover') and _short(e.get('title',''))==want),None)
                 except Exception:pass  # noqa: BLE001
             return card
-        picked=await asyncio.gather(*(pick(p) for p in picks[:6]))
+        picked=await asyncio.gather(*(pick(p) for p in picks[:10]))
         for c in picked:add(c)
         surname=(author.split(',')[0].split() or [''])[-1] if ',' not in author else author.split(',')[0]
         same=await safe(_search(client,author=author.replace(',',' ').strip(),sort='rating',limit=12)) if author else []
         mine=[d for d in same if surname.lower() in ' '.join(d.get('author_name') or []).lower() and (d.get('ratings_count') or 0)>=5 and d.get('cover_i')]
         for d in mine[:2]:add(_card(d,'',"same author"))
-        # Books on the same subjects, best rated first. One subject alone is too broad (a rated "Death" shelf is young-adult fiction),
-        # so the first two are combined and fiction is left out; if that finds nothing the first alone is tried. Open Library's counts are small
-        # (a few hundred at most), so 10 ratings is the floor. At most 3, so the picks keep their place.
-        subjects=[x.replace('"','') for x in _subjects(categories)[:2]]
-        def good(docs):return [d for d in docs if (d.get('ratings_count') or 0)>=10 and (d.get('ratings_average') or 0)>=4.0 and d.get('cover_i')]
-        for query in ([' '.join('subject:"'+x+'"' for x in subjects)+' -subject:fiction'] if subjects else [])+(['subject:"'+subjects[0]+'" -subject:fiction'] if len(subjects)>1 else []):
-            docs=good(await safe(_search(client,q=query,sort='rating',limit=20)));added=0
-            for d in docs:
-                card=_card(d,'','similar')
-                if card and added<3 and add(card):card['subject']=subjects[0];added+=1
-            if added:break
     # Weighted rating, so a 4.9 from three readers does not beat a 4.2 from thousands; unrated and cover-less books go last.
     out.sort(key=_rank)
     return out[:8]
-CACHE_VERSION=2
+CACHE_VERSION=3  # 3: no subject shelf, picks topped up to eight
 def _cache(book_id:str,lang:str='en')->Path:
     folder=Path(os.getenv('SUMM_DATA_DIR','data'))/'related';folder.mkdir(parents=True,exist_ok=True);return folder/(re.sub(r'[^\w-]','',book_id)+'-'+re.sub(r'[^a-z]','',lang.lower())[:8]+'.json')
 def invalidate(book_id:str)->None:
@@ -135,7 +136,7 @@ def in_library(me:dict,picks:list[dict],books:list[dict])->list[dict]:
         if score<2:continue
         r=b.get('rating') or {}
         out.append({'score':score,'rating_value':r.get('rating') or 0,'card':{'title':b['title'],'author':b.get('author',''),'year':str(b.get('year') or ''),'cover':b.get('cover'),'url':None,'slug':b['slug'],
-            'rating':round(r['rating'],1) if r.get('rating') else None,'count':r.get('count') or 0,'why':'','source':'library','reason':reason,'subject':shared[0] if shared else '','titles':b.get('titles') or {}}})
+            'rating':round(r['rating'],1) if r.get('rating') else None,'count':r.get('count') or 0,'why':'','source':'library','reason':reason,'subject':shared[0] if shared else '','titles':b.get('titles') or {},'localAuthor':(b.get('authorNames') or {}).get('fa','')}})
     out.sort(key=lambda x:(-x['score'],-x['rating_value']))
     return [x['card'] for x in out[:4]]
 def combine(local:list[dict],external:list[dict],limit:int=8)->list[dict]:

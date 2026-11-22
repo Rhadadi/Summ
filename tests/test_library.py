@@ -1,4 +1,5 @@
 import json,os,re,sqlite3,tempfile,threading,time,unittest
+from urllib.parse import quote
 from pathlib import Path
 from unittest.mock import AsyncMock,patch
 from fastapi.testclient import TestClient
@@ -489,8 +490,9 @@ class CategoryTests(RolesTest):
 class SlugTests(RolesTest):
     def test_links_are_the_main_title_and_old_links_still_open_the_book(self):
         self.assertEqual(library._slug('Midlife: A Philosophical Guide'),'midlife')
-        self.assertEqual(library._slug('قرآن و زیرمتنِ کتاب‌مقدسیِ آن'),'قرآن-و-زیرمتن-کتابمقدسی-آن')
-        self.assertEqual(library._slug('جهان‌های بسیار؟ اِوِرِت'),'جهانهای-بسیار')
+        # links are Latin only: Persian turns into %D9%82... when shared; it is spelled out only when there is no English title
+        self.assertEqual(library._slug('قرآن و زیرمتنِ کتاب‌مقدسیِ آن'),'qran-va-zirmtn-ktabmqdsi-an')
+        self.assertEqual(library._slug_title({'title':{'fa':'جهان‌های بسیار','en':'Many Worlds?'},'originalLanguage':'fa'}),'Many Worlds?')
         c,_=self.owner()
         a=c.post('/api/library',json={'doc':doc(title={'en':'Same Title: One'}),'visibility':'public'}).json()
         b=c.post('/api/library',json={'doc':doc(title={'en':'Same Title: Two'}),'visibility':'public'}).json()
@@ -510,8 +512,24 @@ class SharePageTests(RolesTest):
         self.assertIn('<html lang="fa"',html);self.assertIn('og:title" content="میانسالی: راهنما — نوشتهٔ An Author"',html)
         self.assertIn('og:description" content="Overview text."',html);self.assertIn('src="/assets/a.js"',html);self.assertNotIn('generic',html)
         self.assertIn('og:url" content="https://x.test/b/midlife"',html)
-        persian=c.post('/api/library',json={'doc':doc(title={'fa':'قرآن و زیرمتن'},originalLanguage='fa'),'visibility':'public'}).json()
-        self.assertIn('/b/%D9%82%D8%B1%D8%A2%D9%86-',share.page(index,library.get(persian['slug']),'https://x.test'))
+        persian=c.post('/api/library',json={'doc':doc(title={'fa':'قرآن و زیرمتن','en':'The Qur’an and Its Biblical Subtext'},originalLanguage='fa'),'visibility':'public'}).json()
+        self.assertEqual(persian['slug'],'the-quran-and-its-biblical-subtext')
+        # a Persian link shared before still opens the book
+        library.q('UPDATE library SET slug=? WHERE id=?',('قرآن-و-زیرمتن',persian['id']));library._readable_slugs(library._db())
+        self.assertEqual(c.get('/b/'+quote('قرآن-و-زیرمتن'),follow_redirects=False).headers['location'],'/b/the-quran-and-its-biblical-subtext')
         r=c.get('/b/'+book['id'],follow_redirects=False);self.assertEqual((r.status_code,r.headers['location']),(301,'/b/'+book['slug']))
         self.assertEqual(c.get('/b/no-such-book').status_code,404)
         r=c.get('/b/'+book['slug']);self.assertEqual(r.status_code,200);self.assertIn('og:title',r.text)
+class ShareImageTests(RolesTest):
+    def test_the_preview_picture_is_wide_and_holds_the_whole_cover(self):
+        import io
+        from PIL import Image
+        c,_=self.owner()
+        book=c.post('/api/library',json={'doc':doc(),'visibility':'public'}).json()
+        self.assertEqual(c.get(f"/api/library/{book['id']}/share.jpg").status_code,404)
+        tall=io.BytesIO();Image.new('RGB',(400,600),(200,30,30)).save(tall,'PNG')
+        self.assertEqual(c.put(f"/api/library/{book['id']}/cover",content=tall.getvalue()).status_code,200)
+        r=c.get(f"/api/library/{book['id']}/share.jpg");self.assertEqual(r.status_code,200)
+        img=Image.open(io.BytesIO(r.content));self.assertEqual(img.size,(1200,630))
+        self.assertGreater(img.getpixel((600,315))[0],150)  # the cover itself, red, in the middle
+        self.assertIn('/share.jpg',c.get('/b/'+book['slug']).text)

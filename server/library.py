@@ -7,6 +7,7 @@ from pydantic import BaseModel,ConfigDict,Field,StringConstraints,model_validato
 from . import accounts,audio
 from .reviews import Review
 from .inline import strip_inline
+from .names import names_for
 Language=Literal['en','fa','de','ar','es','fr','tr','zh']
 MAX_DOC=4_000_000
 SCHEMA='''CREATE TABLE IF NOT EXISTS library(id TEXT PRIMARY KEY,slug TEXT UNIQUE NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL DEFAULT '',doc TEXT NOT NULL,visibility TEXT NOT NULL,cover_type TEXT,created REAL NOT NULL,updated REAL NOT NULL);
@@ -52,6 +53,8 @@ class Doc(Strict):
     review:Review|None=None
     # the editor's choice from the fixed category list (src/categories.ts); none means guessed from the tags
     categories:list[Annotated[str,StringConstraints(pattern=r'^[a-z]{2,20}$')]]|None=Field(default=None,max_length=4)
+    # the author's name as readers of each language write it (Persian script for fa); none means the stored list or the original
+    authorNames:dict[Language,Annotated[str,StringConstraints(max_length=200)]]|None=None
     @model_validator(mode='after')
     def consistent(self):
         ids={c.id for c in self.chapters}
@@ -76,29 +79,37 @@ accounts.EXTRA_MIGRATIONS.append(_migrate)
 def _db():return accounts._db()
 def q(sql:str,args:tuple=()):
     with accounts._lock:return _db().execute(sql,args).fetchall()
+_LATIN={'آ':'a','ا':'a','أ':'a','إ':'e','ب':'b','پ':'p','ت':'t','ث':'s','ج':'j','چ':'ch','ح':'h','خ':'kh','د':'d','ذ':'z','ر':'r','ز':'z','ژ':'zh','س':'s',
+ 'ش':'sh','ص':'s','ض':'z','ط':'t','ظ':'z','ع':'','غ':'gh','ف':'f','ق':'q','ک':'k','ك':'k','گ':'g','ل':'l','م':'m','ن':'n','و':'v','ه':'h','ة':'h','ی':'i','ي':'i',
+ 'ى':'a','ئ':'y','ؤ':'o','ء':'','\u200c':''}
 def _slug(title:str,taken=lambda slug:False)->str:
-    """A link readers can read: the main title (before a colon or question mark) in its own script, words joined by
-    hyphens. Persian keeps its letters; half-spaces and short vowels go, since they turn into %E2%80%8C noise when a link
-    is copied. A second book with the same title gets -2, -3."""
-    text=unicodedata.normalize('NFKC',title).replace('\u200c','').replace('\u200f','').replace('\u200e','')
-    text=re.sub(r'[\u064b-\u0652\u0670\u0640]','',text)
-    main=re.split(r'\s*[:：؟?]',text.strip())[0]
-    def clean(t):return re.sub(r'[\W_]+','-',t.lower()).strip('-')
-    base=clean(main) if len(clean(main))>=3 else clean(text)
+    """A link that survives every app: Latin letters only, from the main title (before a colon or question mark).
+    Persian or Arabic text, used only when a book has no English title, is spelled out in Latin letters. A second book
+    with the same title gets -2, -3."""
+    def latin(t):
+        t=re.sub(r'(?<!\S)و(?!\S)','va',unicodedata.normalize('NFKC',t))  # the word "and"
+        t=''.join(_LATIN.get(ch,ch) for ch in t)
+        return re.sub(r'[^a-z0-9]+','-',unicodedata.normalize('NFKD',t).encode('ascii','ignore').decode().lower()).strip('-')
+    main=re.split(r'\s*[:：؟?]',title.strip())[0]
+    base=latin(main) if len(latin(main))>=3 else latin(title)
     if len(base)>60:base=base[:60].rsplit('-',1)[0]
     base=base or 'book';slug,n=base,1
     while taken(slug):n+=1;slug=f'{base}-{n}'
     return slug
+def _slug_title(doc:dict)->str:
+    """The English title when there is one (it gives a link people can read anywhere), else the original."""
+    return doc['title'].get('en') or _title(doc)
 def _slug_taken(slug:str,db=None)->bool:
     run=(db.execute if db else lambda sql,args:q(sql,args))
     rows=run('SELECT 1 FROM library WHERE slug=? OR id=? UNION SELECT 1 FROM slug_alias WHERE slug=?',(slug,slug,slug))
     return bool(list(rows))
 def _readable_slugs(db:sqlite3.Connection):
-    """Books published before readable links had book-dab5e9 style slugs. Give them their title; the old link stays an alias."""
-    if not {'slug','title'}<={r[1] for r in db.execute('PRAGMA table_info(library)')}:return
-    for book_id,slug,title in db.execute('SELECT id,slug,title FROM library').fetchall():
-        if not slug.endswith('-'+book_id[:6]):continue
-        new=_slug(title,lambda s:_slug_taken(s,db))
+    """Links were book-dab5e9 and then, briefly, Persian words (which turn into %D9%82... when shared). Each book gets its
+    Latin link once; every earlier one stays an alias, so links already shared keep working."""
+    if not {'slug','title','doc'}<={r[1] for r in db.execute('PRAGMA table_info(library)')}:return
+    for book_id,slug,doc in db.execute('SELECT id,slug,doc FROM library').fetchall():
+        if slug.isascii() and not slug.endswith('-'+book_id[:6]):continue
+        new=_slug(_slug_title(json.loads(doc)),lambda s:_slug_taken(s,db))
         db.execute('INSERT OR IGNORE INTO slug_alias(slug,book_id) VALUES(?,?)',(slug,book_id));db.execute('UPDATE library SET slug=? WHERE id=?',(new,book_id))
 accounts.EXTRA_MIGRATIONS.append(_readable_slugs)
 def _title(doc:dict)->str:return doc['title'].get(doc.get('originalLanguage','en')) or next(iter(doc['title'].values()))
@@ -143,7 +154,7 @@ def _public(row,audio_map:dict[str,list[str]]|None=None)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'tags':_tags(d),'categories':d.get('categories') or [],'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'tags':_tags(d),'categories':d.get('categories') or [],'authorNames':names_for(author,d.get('authorNames')),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def rev_of(raw:str)->str:return hashlib.sha256(raw.encode()).hexdigest()[:16]
 def publish(user:dict,request:PublishRequest)->dict:
@@ -159,7 +170,7 @@ def publish(user:dict,request:PublishRequest)->dict:
             if request.base and request.base!=rev_of(rows[0][1]):raise accounts.AccountError(409,'This book was changed somewhere else after you opened it. Load the latest version, then save again.')
             q('UPDATE library SET title=?,author=?,doc=?,visibility=?,updated=? WHERE id=?',(title,doc.get('author',''),raw,request.visibility,now,request.id));book_id=request.id
     else:
-        book_id=str(uuid.uuid4());q('INSERT INTO library(id,slug,owner_id,title,author,doc,visibility,created,updated) VALUES(?,?,?,?,?,?,?,?,?)',(book_id,_slug(title,_slug_taken),user['id'],title,doc.get('author',''),raw,request.visibility,now,now))
+        book_id=str(uuid.uuid4());q('INSERT INTO library(id,slug,owner_id,title,author,doc,visibility,created,updated) VALUES(?,?,?,?,?,?,?,?,?)',(book_id,_slug(_slug_title(doc),_slug_taken),user['id'],title,doc.get('author',''),raw,request.visibility,now,now))
     return get(book_id,include_private=True)
 def get(key:str,include_private:bool=False)->dict:
     rows=q('SELECT '+COLUMNS+' FROM library WHERE id=? OR slug=? OR id=(SELECT book_id FROM slug_alias WHERE slug=?)',(key,key,key))

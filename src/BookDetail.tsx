@@ -73,7 +73,8 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
  useEffect(()=>{if(!data.loaded||!outdated||rebuilding)return;if(!report&&!Object.keys(summaries).length&&!saved.some(x=>x.bookId===book.id)){setRebuilding(true);onRebuild().catch(e=>setError((e as Error).message)).finally(()=>setRebuilding(false));}},[data.loaded,outdated]);
  const main=mainChapters(book),done=main.filter(c=>summaries[c.id]).length,imported=!!data.version,complete=imported?done>0:reportComplete(book,report);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
- const author=displayName(info?.authors[0]||(book.author==='Author not supplied'?'':book.author));
+ // a published book's author is already in the page's language; the catalogue's name is the original
+ const author=readOnly&&book.author!=='Author not supplied'?book.author:displayName(info?.authors[0]||(book.author==='Author not supplied'?'':book.author));
  const[title,...rest]=book.title.split(/:\s+/);const subtitle=rest.join(': ');
  const pages=info?.pages||Math.max(0,...book.chapters.flatMap(c=>c.blocks.map(b=>b.page||0)))||null;
  const intro=main.flatMap(c=>bodyChapter(c).blocks).find(b=>b.text.length>200);

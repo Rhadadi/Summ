@@ -867,6 +867,14 @@ async def mailing_announce(book_id:str,body:Announce,user:dict=Depends(owner_use
     if not user['email']:raise HTTPException(422,'Your account has no email address to send the test to.')
     try:return await mailing.announce(book_id,user['email'].lower() if body.test else None)
     except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.get('/api/library/{book_id}/share.jpg')
+async def library_share_image(book_id:str,v:str=''):
+    """The wide picture link previews show, made once per cover."""
+    from . import share
+    book=library.get(book_id);found=library.cover(book['id'])
+    if not found:raise HTTPException(404,'This book has no cover.')
+    data=await asyncio.to_thread(share.card_image,found[0],Path(os.getenv('SUMM_DATA_DIR','data'))/'share',book['id']+'-'+str(int(book['updated'])))
+    return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=604800'})
 @app.get('/b/{slug}')
 async def share_page(slug:str):
     """A book's shareable link. Previews need the book in the HTML; the app then opens the same book."""
