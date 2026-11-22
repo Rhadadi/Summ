@@ -1,5 +1,5 @@
 import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react';
-import{Alert,Button,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,MenuItem,TextField}from'@mui/material';
+import{Alert,Button,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,MenuItem,Snackbar,TextField}from'@mui/material';
 import type{HomeConfig,PubBook,PubDoc,RelatedBook,Review,Settings}from'./types';
 import{bookBackdrop,homeBooks}from'./bookBackdrop';
 import{ApiError,libraryBook,libraryReception,libraryRelated,narrationStatus,publishBook}from'./api';
@@ -9,7 +9,8 @@ import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';
 import{tr,num}from'./i18n';
 import{audioFor,canListenTo,listeningPlace,trackSignature}from'./listening';
 import{chapterHint,editorRoute}from'./view-switch.ts';
-import{EditOutlined,VisibilityOutlined}from'@mui/icons-material';
+import{EditOutlined,GraphicEqRounded,VisibilityOutlined}from'@mui/icons-material';
+import{staleTitles,type AudioEnv}from'./audio-form.ts';
 import type{PlayerApi}from'./Player';
 import{persianReception}from'./persian-reception';
 import{applyDraft,diffCount,dropEmpty,loadDraft,overlaps,readScope,scopeName,storeDraft,type Draft}from'./inline-draft.ts';
@@ -18,12 +19,14 @@ import{useDraft}from'./use-draft';
 import{EditContext,type EditCtl}from'./edit-context';
 // The inline editor is loaded only when an owner switches editing on; visitors never download it.
 const loadEditor=()=>import('./InlineEditor');
+// Audio is for owners and editors; it loads on demand too.
+const AudioDialog=lazy(()=>import('./AudioPanel').then(m=>({default:m.AudioDialog})));
 const EditList=lazy(()=>loadEditor().then(m=>({default:m.EditList}))),EditText=lazy(()=>loadEditor().then(m=>({default:m.EditText}))),EditBar=lazy(()=>loadEditor().then(m=>({default:m.EditBar}))),RestoreBanner=lazy(()=>loadEditor().then(m=>({default:m.RestoreBanner}))),EditChrome=lazy(()=>loadEditor().then(m=>({default:m.EditChrome})));
 const editingKey=(id:string)=>'inkling-editing:'+id;
 
 interface Props{listenOnOpen?:boolean;slug:string;mode:'detail'|'read';section:string;settings:Settings;player:PlayerApi;navigate:(path:string)=>void;toast:(message:string)=>void;onPreferences:(patch:Partial<Settings>)=>void;published:PubBook[]|null;home:HomeConfig|null;
  // Editors only: the view switch, and the books they may edit.
- owner?:{asVisitor:boolean;onToggle:()=>void;editable:string[]};
+ owner?:{asVisitor:boolean;onToggle:()=>void;editable:string[];audio?:AudioEnv};
  // After an inline save: the app refreshes its book lists.
  onSaved?:()=>void}
 const noop=()=>{};
@@ -68,7 +71,10 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
   setSaving(true);
   try{
    const updated=await publishBook({id:pub.id,doc,visibility:pub.visibility,base:pub.rev});
-   setPub(updated);d.reset({});storeDraft(pub.id,null);setSaveState('saved');setConflict(null);onSaved?.();return true;
+   setPub(updated);d.reset({});storeDraft(pub.id,null);setSaveState('saved');setConflict(null);onSaved?.();
+   // Listeners keep the old audio until it is updated; tell the owner which chapters it no longer matches.
+   if(owner?.audio)narrationStatus(updated.id,version!.language,true).then(s=>{setAudioStatus(s);setStaleNote(staleTitles(updated.doc,version!.language,s.staleChapters||[],L('Overview')));}).catch(()=>{});
+   return true;
   }catch(e){
    if(e instanceof ApiError&&e.status===409){
     try{const latest=await libraryBook(pub.id);setConflict({latest,clash:overlaps(pub.doc,latest.doc,draft).map(sc=>scopeName(latest.doc,vk,sc)||(sc.startsWith('ov')?L('The overview'):L('A study guide section')))});setSaveState('conflict');}
@@ -90,6 +96,9 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  useEffect(()=>{setFound(null);if(!pub||pub.doc.review)return;let live=true;libraryReception(pub.id,version?.language||'en').then(r=>{if(live&&r.critics.length)setFound({verdict:'',pros:[],cons:[],quotes:[],sources:[],rating:null,model:'',createdAt:0,critics:r.critics});}).catch(()=>{});return()=>{live=false;};},[pub,version?.language]);
  const[audioStatus,setAudioStatus]=useState<Awaited<ReturnType<typeof narrationStatus>>|null>(null);
  useEffect(()=>{setAudioStatus(null);if(!pub||!version)return;let live=true;narrationStatus(pub.id,version.language).then(s=>{if(live)setAudioStatus(s);}).catch(()=>{});return()=>{live=false;};},[pub?.id,version?.language]);
+ // The Audio panel (owners), and the notice after a save when the audio was made from the earlier text.
+ const[audioOpen,setAudioOpen]=useState<{scope?:'changed'}|null>(null),[staleNote,setStaleNote]=useState<string[]>([]);
+ const audioChanged=()=>{if(!pub||!version)return;narrationStatus(pub.id,version.language).then(setAudioStatus).catch(()=>{});onSaved?.();};
  // While editing, the page shows the draft; every other view shows what is saved.
  const shown=useMemo(()=>pub&&active&&Object.keys(d.changes).length?applyDraft(pub.doc,{book:pub.id,base:pub.rev||'',vk,changes:d.changes,at:0}):pub?.doc,[pub,active,d.changes,vk]);
  const adapted=useMemo(()=>{if(!pub||!version||!shown)return null;return adaptPublished(pub,shown,shown.versions.find(x=>versionKey(x)===versionKey(version))||version,position);},[pub,version,position,shown]);
@@ -129,6 +138,9 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
   {pub.doc.versions.filter(v=>v.language===version.language).length>1&&<TextField select size="small" label={L('Version')} value={versionKey(version)} onChange={e=>setChosen(e.target.value)}>{pub.doc.versions.filter(v=>v.language===version.language).map(v=><MenuItem key={versionKey(v)} value={versionKey(v)}>{v.label}</MenuItem>)}</TextField>}
  </div>;
  const audio=audioFor(audioStatus,pub.audio,version.language,version.type);
+ const quote=(t:string)=>'«'+t+'»';
+ const audioUi=mayEdit&&owner?.audio?<>{audioOpen&&<Suspense fallback={null}><AudioDialog bookId={pub.id} doc={pub.doc} lang={settings.uiLanguage||'fa'} startLanguage={version.language} startScope={audioOpen.scope} unsaved={unsaved>0} onChanged={audioChanged} onClose={()=>setAudioOpen(null)} {...owner.audio}/></Suspense>}
+  <Snackbar open={staleNote.length>0&&!audioOpen} autoHideDuration={14000} onClose={(_,why)=>{if(why!=='clickaway')setStaleNote([])}} anchorOrigin={{vertical:'bottom',horizontal:'center'}} sx={{bottom:{xs:96,sm:24}}}><Alert severity="info" variant="filled" onClose={()=>setStaleNote([])} action={<Button color="inherit" size="small" onClick={()=>{setAudioOpen({scope:'changed'});setStaleNote([])}}>{L('Update audio')}</Button>}>{L('Audio of')+' '+(staleNote.length<=2?staleNote.map(quote).join(' / '):quote(staleNote[0])+' '+L('and')+' '+num(settings.uiLanguage||'fa',staleNote.length-1)+' '+L('more'))+' '+L('was made from the earlier text')}</Alert></Snackbar></>:null;
  if(mode==='read'){
   const uiLang=settings.uiLanguage||'fa',langName=(code:string)=>{const n=languages.find(l=>l.code===code)?.label||code,parts=n.split(' · ');return uiLang==='fa'?parts[0]:parts[parts.length-1];};
   const ctl:EditCtl={d,lang:version.language,rtl:['fa','ar'].includes(version.language),L,save:()=>void save(),done:finish,toast,openBookEditor:()=>navigate(editorRoute(pub.id,'chapters',book.chapters[book.chapterIndex]?.id)),saved:scope=>readScope(pub.doc,vk,scope)};
@@ -142,10 +154,11 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
    :mayEdit&&stored?<Suspense fallback={null}><RestoreBanner L={L} text={L('You have unsaved edits from')+' '+new Date(stored.at).toLocaleString(uiLang==='fa'?'fa-IR':undefined,{dateStyle:'medium',timeStyle:'short'})+' '+L('on this device.')+(stored.base&&stored.base!==pub.rev?' '+L('The book changed since; your edits will replace those parts.'):'')} onRestore={()=>restore(stored)} onDiscard={discard}/></Suspense>:null;
   const dir=ctl.rtl||uiLang==='fa'?'rtl':'ltr',dlg={paper:{dir}};
   return <EditContext.Provider value={active?ctl:null}>
-   <ReaderPage canListen={id=>canListenTo(audio,id)} owner={owner&&{...owner,onEdit:mayEdit?ctl.openBookEditor:undefined,editing:active,onEditing:mayEdit?(active?finish:enter):undefined}} editSlot={editSlot} editBar={editBar} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
+   <ReaderPage canListen={id=>canListenTo(audio,id)} owner={owner&&{...owner,onAudio:mayEdit&&owner.audio?()=>setAudioOpen({}):undefined,onEdit:mayEdit?ctl.openBookEditor:undefined,editing:active,onEditing:mayEdit?(active?finish:enter):undefined}} editSlot={editSlot} editBar={editBar} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
     onPreferences={onPreferences} onGenerate={noop} onCancel={noop} onBookmark={noop} onEvidence={noop} onChoose={i=>{move({index:i});navigate(base+'/read');}} onSection={s=>navigate(base+'/read/'+encodeURIComponent(s))} onBack={()=>navigate(base)}
     onHome={()=>navigate('/')} cover={pub.cover||undefined} onListen={listen} onCreate={noop}/>
    {active&&<Suspense fallback={null}><EditChrome ctl={ctl}/></Suspense>}
+   {audioUi}
    <Dialog open={ask==='leave'} onClose={()=>setAsk(null)} slotProps={dlg} aria-labelledby="ed-leave"><DialogTitle id="ed-leave">{L('Leave editing?')}</DialogTitle><DialogContent>{num(uiLang,unsaved)+' '+L(unsaved===1?'unsaved change':'unsaved changes')+'. '+L('Saving makes them live for readers. Otherwise they stay on this device as a draft.')}</DialogContent>
     <DialogActions><Button onClick={()=>setAsk(null)}>{L('Keep editing')}</Button><Button onClick={()=>{setAsk(null);setEditing(false);}}>{L('Leave, keep draft')}</Button><Button color="error" onClick={()=>{discard();setEditing(false);}}>{L('Discard changes')}</Button><Button variant="contained" disableElevation disabled={saving} onClick={async()=>{if(await save()){setAsk(null);setEditing(false);}else setAsk(null);}}>{L('Save')}</Button></DialogActions></Dialog>
    <Dialog open={ask==='discard'} onClose={()=>setAsk(null)} slotProps={dlg} aria-labelledby="ed-discard"><DialogTitle id="ed-discard">{L('Discard changes?')}</DialogTitle><DialogContent>{L('Your unsaved edits will be removed from this device.')}</DialogContent>
@@ -158,6 +171,6 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}<BookDetail canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
+ return <>{switcher}{audioUi}<BookDetail canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},...(owner!.audio?[{key:'audio',label:L(audio.book?'Audio':'Add audio'),icon:<GraphicEqRounded/>,onClick:()=>setAudioOpen({})}]:[]),{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

@@ -1,0 +1,67 @@
+/* The Audio panel: calm cards, one column, roomy touch targets. Uses the app's tokens so it follows light and dark. */
+.au-panel{display:flex;flex-direction:column;gap:14px;color:var(--ink)}
+.au-tabs{border-bottom:1px solid var(--line);min-height:40px}
+.au-body{display:flex;flex-direction:column;gap:14px}
+.au-card{display:flex;flex-direction:column;gap:12px;padding:16px 18px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.au-card.running{border-color:color-mix(in srgb,var(--primary) 45%,var(--line))}
+.au-card.failed{border-color:color-mix(in srgb,#b3402b 50%,var(--line))}
+.au-head{display:flex;align-items:flex-start;gap:12px}.au-head>div:not(.au-badge){flex:1;min-width:0}
+.au-head strong{display:block;font-size:16px;font-weight:600;line-height:1.5}
+.au-head p{margin:2px 0 0;color:var(--muted);font-size:13.5px;line-height:1.7}
+.au-badge{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--surface-tint);color:var(--muted)}
+.au-badge.on{background:var(--primary-container);color:var(--primary)}.au-badge.ok{background:var(--mint);color:var(--mint-ink)}.au-badge.bad{background:#f7e3de;color:#b3402b}
+:root[data-mode=dark] .au-badge.bad{background:#3a2420;color:#f08b76}
+.au-err{color:#b3402b!important;overflow-wrap:anywhere}:root[data-mode=dark] .au-err{color:#f08b76!important}
+.au-line{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px}
+.au-actions{display:flex;flex-wrap:wrap;gap:8px}.au-actions .MuiButton-root,.au-submit .MuiButton-root,.au-open.MuiButton-root,.au-stop.MuiButton-root{text-transform:none;font-weight:600}
+.au-note{margin:0;color:var(--muted);font-size:12.5px;line-height:1.7}
+.au-audio{width:100%;height:44px}
+.au-stale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:12px;background:#fbf1d9;color:#6b4d00}
+.au-stale p{flex:1 1 220px;margin:0;font-size:13.5px;line-height:1.7}.au-stale .MuiChip-root{background:#f1d88f;color:#5a4000;font-weight:600}.au-stale .MuiChip-icon{color:#5a4000}
+:root[data-mode=dark] .au-stale{background:#3a3115;color:#f0d98c}:root[data-mode=dark] .au-stale .MuiChip-root{background:#5a4a1a;color:#f6e4a6}
+.au-open.MuiButton-root{align-self:flex-start}
+.au-form{display:flex;flex-direction:column;gap:16px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--surface-low)}
+.au-form h3{margin:0;font-size:17px;font-weight:600}.au-form h4{margin:0;font-size:14px;font-weight:600}
+.au-group{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;border:0;min-width:0}.au-group legend{padding:0;margin-bottom:6px;font-size:12.5px;font-weight:600;letter-spacing:.2px;color:var(--muted)}
+.au-opt{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;min-height:48px;transition:border-color .12s,background .12s}
+.au-opt.on{border-color:var(--primary);background:var(--primary-container)}.au-opt.off{opacity:.6;cursor:default}
+.au-opt input{margin-top:4px;accent-color:var(--primary);flex:none;width:18px;height:18px}.au-opt:focus-within{outline:3px solid var(--primary);outline-offset:2px}
+.au-opt span{display:flex;flex-direction:column;gap:2px;min-width:0}.au-opt strong{font-size:14.5px;font-weight:600}.au-opt small{color:var(--muted);font-size:12.5px;line-height:1.6;overflow-wrap:anywhere}
+.au-engines{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.au-list{display:flex;flex-direction:column;max-height:300px;overflow:auto;padding:6px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.au-list-tools{display:flex;gap:14px;padding:4px 0}.au-list-tools button{border:0;background:none;color:var(--primary);font-size:13px;font-weight:600;min-height:32px;padding:0}
+.au-check.MuiFormControlLabel-root{align-items:flex-start;margin:0;padding:2px 0}.au-check .MuiCheckbox-root{padding:8px}
+.au-check-label{display:flex;flex-direction:column;padding-top:7px;font-size:14px;line-height:1.5}.au-check-label small{color:var(--muted);font-size:12px}
+.au-slider{display:grid;grid-template-columns:78px 1fr 52px;align-items:center;gap:12px;font-size:13.5px}.au-slider output{text-align:end;font-variant-numeric:tabular-nums;color:var(--muted)}
+.au-slider .MuiSlider-root{margin:0 6px}
+.au-hint{margin:0;color:var(--muted);font-size:12.5px;line-height:1.7}
+.au-eleven{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.au-voices{display:flex;flex-direction:column;max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.au-voice{display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--line);min-height:46px}.au-voice:last-child{border-bottom:0}
+.au-voice.on{background:var(--primary-container)}
+.au-voice label{display:flex;align-items:center;gap:10px;flex:1;min-width:0;min-height:44px;cursor:pointer}.au-voice input{accent-color:var(--primary);width:18px;height:18px;flex:none}
+.au-voice-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.au-voice small{color:var(--muted)}
+.au-voice .MuiChip-root{height:22px;font-size:11.5px}
+.au-default.MuiButton-root{align-self:flex-start;text-transform:none;font-weight:600}
+.au-more{align-self:flex-start;border:0;background:none;padding:0;color:var(--primary);font-size:13.5px;font-weight:600;min-height:36px}
+.au-more::after{content:' ▾'}.au-more[aria-expanded=true]::after{content:' ▴'}
+.au-adv{display:flex;flex-direction:column;gap:12px;padding-top:4px}
+.au-tune{display:flex;flex-direction:column;gap:2px}
+.au-switch{display:flex;align-items:center;justify-content:space-between;gap:12px}.au-switch div{display:flex;flex-direction:column;gap:2px;min-width:0}.au-switch small{color:var(--muted);font-size:12.5px;line-height:1.6}
+.au-preview{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-top:2px}.au-preview .MuiButton-root{text-transform:none;font-weight:600}.au-preview small{color:var(--muted);font-size:12.5px;line-height:1.6;flex:1 1 200px}
+.au-estimate{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px dashed var(--line)}.au-estimate strong{font-size:14.5px;font-weight:600}.au-estimate small{color:var(--muted);font-size:12.5px}
+.au-submit{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:-18px;margin:0 -18px -18px;padding:10px 18px 14px;background:var(--surface-low);border-top:1px solid var(--line);border-radius:0 0 16px 16px}
+/* MUI puts button icons on physical sides; these follow the reading direction. */
+.au-panel .MuiButton-startIcon{margin-left:0;margin-right:0;margin-inline-start:-3px;margin-inline-end:8px}
+/* Inside the book editor the panel is a tab, not a dialog. */
+.editor-panel .au-panel{max-width:640px}
+@media(max-width:699px){
+ .au-card,.au-form{padding:14px;border-radius:14px}
+ .au-submit{bottom:-14px;margin:0 -14px -14px;padding:10px 14px 14px;border-radius:0 0 14px 14px}
+ .au-engines{grid-template-columns:1fr}
+ .au-slider{grid-template-columns:64px 1fr 46px;gap:8px}
+ .au-submit .MuiButton-root{flex:1}
+ .au-stale .MuiButton-root{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.au-opt{transition:none}}
+.au-custom .MuiTextField-root{width:100%}

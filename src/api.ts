@@ -1,4 +1,4 @@
-import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection}from './types';
+import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection,VoiceSettings,NarrationEstimate,ElevenVoice}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The reason the server gave: a sentence, or a list of schema problems turned into one. Never just the bare status code.
 export const detailText=(detail:unknown,status:number)=>typeof detail==='string'?detail:Array.isArray(detail)&&detail.length?detail.slice(0,3).map((d:{loc?:unknown[];msg?:string})=>[...(d.loc||[]).filter(x=>x!=='body'),d.msg||'invalid'].join(' › ')).join('; '):'The server refused this ('+status+').';
@@ -38,7 +38,9 @@ async function binary(path:string,init:RequestInit):Promise<Blob>{
 const post=(body:unknown,signal?:AbortSignal):RequestInit=>({method:'POST',headers:{'Content-Type':'application/json','X-Summ-Request':'1'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(300000)});
 export const coverImage=(src:string)=>binary('cover?'+new URLSearchParams({src}),{signal:AbortSignal.timeout(30000)});
 export const pdfReport=(doc:unknown)=>binary('pdf',post(doc));
-export const narrate=(text:string,language:string,engine:'offline'|'elevenlabs',signal?:AbortSignal)=>binary('audio',post({text,language,engine},signal));
+export const narrate=(text:string,language:string,engine:'offline'|'elevenlabs',signal?:AbortSignal,voice?:string,settings?:VoiceSettings)=>binary('audio',post({text,language,engine,...(voice?{voice}:{}),...(settings&&Object.keys(settings).length?{settings}:{})},signal));
+export const myVoices=()=>call<{voices:ElevenVoice[];hasKey:boolean;default?:string;error?:string}>('me/voices');
+export const myVoiceModels=(language:string)=>call<{models:{id:string;name:string}[];default:string}>('me/voice-models?language='+encodeURIComponent(language));
 // ---- editors and the public library
 export const askEditor=(message:string)=>call<Account>('editor-request',{body:{message}});
 export const people=()=>call<People>('people');
@@ -56,8 +58,12 @@ export const setVisibility=(id:string,visibility:'public'|'unlisted')=>call<PubB
 export const uploadCover=(id:string,blob:Blob)=>binary('library/'+id+'/cover',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const removeCover=(id:string)=>call<{ok:boolean}>('library/'+id+'/cover',{method:'DELETE'});
 export const uploadBackground=(id:string,blob:Blob)=>binary('library/'+id+'/background',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
-export const startNarration=(id:string,language:string,type?:string,engine:'offline'|'elevenlabs'='offline')=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type,engine}});
-export const narrationStatus=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language);
+export const startNarration=(id:string,language:string,type?:string,engine:'offline'|'elevenlabs'='offline',chapters?:string[],settings?:VoiceSettings)=>call<NarrationStatus>('library/'+id+'/narration',{body:{language,type,engine,...(chapters?{chapters}:{}),...(settings&&Object.keys(settings).length?{settings}:{})}});
+// detail=1 (editors) adds staleChapters and the settings the audio was made with.
+export const narrationStatus=(id:string,language:string,detail=false)=>call<NarrationStatus>('library/'+id+'/narration/'+language+(detail?'?detail=1':''));
+export const estimateNarration=(id:string,language:string,type?:string,chapters?:string[])=>call<NarrationEstimate>('library/'+id+'/narration/estimate',{body:{language,type,...(chapters?{chapters}:{})}});
+export const cancelNarration=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language+'/cancel',{body:{}});
+export const deleteNarration=(id:string,language:string)=>call<NarrationStatus>('library/'+id+'/narration/'+language,{method:'DELETE'});
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
 export const setSlide=(id:string,mode:'none'|'cover'|'art'|'keep',file?:string,fit?:'fill'|'whole',caption?:{text:string;url:string})=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file,fit,...(caption?{caption:caption.text,caption_url:caption.url}:{})}});

@@ -1,4 +1,4 @@
-import{useEffect,useState}from'react';
+import{lazy,Suspense,useEffect,useState}from'react';
 import{Alert,Button,CircularProgress,IconButton,MenuItem,Tab,Tabs,TextField}from'@mui/material';
 import{AddRounded,AutoAwesomeRounded,DeleteOutlineRounded,ArrowBackRounded}from'@mui/icons-material';
 import ArtPicker from'./ArtPicker';
@@ -10,18 +10,21 @@ import type{ArtResult,LocalReview,PubBook,PubDoc,PubPara,PubVersion}from'./types
 import{bookInfo,coverImage,editorialAssist,libraryBook,publishBook,removeCover,setSlide,unpublishBook,uploadBackground,uploadCover,uploadFigure}from'./api';
 import{coverBlob,figureBlob}from'./publish';
 import{tr}from'./i18n';
+import type{AudioEnv}from'./audio-form.ts';
 import{editorTabs,type EditorTab}from'./view-switch.ts';
 
+// Audio is for editors only and loads on demand.
+const AudioPanel=lazy(()=>import('./AudioPanel'));
 type Edition=PubBook&{doc:PubDoc};
 type Pick='cover'|'background'|null;
 const emptyPara=():PubPara=>({text:''});
 const copy=<T,>(v:T):T=>structuredClone(v);
 const titleFor=(names:Record<string,string>,lang:string)=>names[lang]||Object.values(names)[0]||'';
 // initialTab and focusChapter come from the URL (#/edit/:id/chapters/:chapterId), so Edit mode opens on the page the owner was reading.
-interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;onAccount:()=>void;initialTab?:EditorTab;focusChapter?:string;backToBook?:boolean;onViewPage?:(chapterId?:string)=>void}
-export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount,initialTab='details',focusChapter='',backToBook=false,onViewPage}:Props){
+interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;onAccount:()=>void;initialTab?:EditorTab;focusChapter?:string;backToBook?:boolean;onViewPage?:(chapterId?:string)=>void;audioEnv?:AudioEnv}
+export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount,initialTab='details',focusChapter='',backToBook=false,onViewPage,audioEnv}:Props){
  const L=(text:string)=>tr(language,text);
- const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(()=>Math.max(0,Math.min(editorTabs.indexOf(initialTab),4))),[flash,setFlash]=useState(''),[versionIndex,setVersionIndex]=useState(0);
+ const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(()=>Math.max(0,Math.min(editorTabs.indexOf(initialTab),5))),[flash,setFlash]=useState(''),[versionIndex,setVersionIndex]=useState(0);
  const[figStamp,setFigStamp]=useState(Date.now()),[conflict,setConflict]=useState(false);
  const[replaceOpen,setReplaceOpen]=useState(false),[pendingFigures,setPendingFigures]=useState<{name:string;image:SummaryImage}[]>([]);
  const[capText,setCapText]=useState(''),[capUrl,setCapUrl]=useState('');
@@ -97,7 +100,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   <div className="editor-heading"><div><span className="eyebrow">{L('BOOK EDITOR')}</span><h1 dir="auto">{title}</h1><p>{L('Change the published book directly. Text changes go live when you save.')}</p></div><span><Button sx={{mr:1}} variant="outlined" disabled={!!busy} onClick={()=>setReplaceOpen(true)}>{L('Replace from a ZIP')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></span></div>
   {error&&<Alert severity={conflict?'warning':'error'} onClose={()=>{setError('');setConflict(false);}} sx={{mb:2}} action={conflict?<><Button color="inherit" size="small" onClick={()=>void latest(true)}>{L('Load the latest')}</Button><Button color="inherit" size="small" onClick={()=>void latest(false)}>{L('Keep mine')}</Button></>:undefined}>{error}</Alert>}{notice&&<Alert severity="success" onClose={()=>setNotice('')} sx={{mb:2}}>{notice}</Alert>}
   {doc.versions.length>1&&<TextField select size="small" label={L('Summary version')} value={versionIndex} onChange={e=>setVersionIndex(Number(e.target.value))} sx={{minWidth:260,mb:2}}>{doc.versions.map((v,i)=><MenuItem key={i} value={i}>{v.label} · {v.language}</MenuItem>)}</TextField>}
-  <Tabs value={tab} onChange={(_,n)=>setTab(n)} variant="scrollable" scrollButtons="auto" aria-label={L('Book editor sections')}><Tab label={L('Details & images')}/><Tab label={L('Overview')}/><Tab label={L('Chapters')}/><Tab label={L('Study guide')}/><Tab label={L('Reception')}/></Tabs>
+  <Tabs value={tab} onChange={(_,n)=>setTab(n)} variant="scrollable" scrollButtons="auto" aria-label={L('Book editor sections')}><Tab label={L('Details & images')}/><Tab label={L('Overview')}/><Tab label={L('Chapters')}/><Tab label={L('Study guide')}/><Tab label={L('Reception')}/><Tab label={L('Audio')}/></Tabs>
   {tab===0&&<div className="editor-panel"><h2>{L('Book details')}</h2><div className="editor-fields">
    <TextField label={L('Title')+' · '+lang} value={doc.title[lang]||''} onChange={e=>update(d=>{d.title[lang]=e.target.value;})} fullWidth/>
    {lang!=='en'&&<TextField label={lang==='fa'?'عنوان انگلیسی برای یافتن نقدها':'English title for review research'} value={doc.title.en||''} onChange={e=>update(d=>{d.title.en=e.target.value;})} fullWidth/>}
@@ -132,6 +135,8 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
     {(['pros','cons','awards'] as const).map(field=><TextField key={field} label={field==='pros'?'Praise (one per line)':field==='cons'?'Criticism (one per line)':'Awards (one per line)'} multiline minRows={3} value={(doc.review?.[field]||[]).join('\n')} onChange={e=>update(d=>{if(d.review)d.review[field]=e.target.value.split('\n').map(x=>x.trim()).filter(Boolean);})} fullWidth sx={{mt:2}}/>)}</>}
    {!doc.review&&<Alert severity="info">No reception has been approved yet. Research and approve it from the book’s local editor, then republish.</Alert>}
   </div>}
+  {tab===5&&<div className="editor-panel"><h2>{L('Audio')}</h2><p>{L('Add or update the narration at any time. Readers get a Listen button as soon as audio is ready.')}</p>
+   {audioEnv?<Suspense fallback={<CircularProgress size={22}/>}><AudioPanel bookId={book.id} doc={book.doc} lang={language} startLanguage={lang} unsaved={JSON.stringify(doc)!==JSON.stringify(book.doc)||pendingFigures.length>0} onChanged={onSaved} {...audioEnv}/></Suspense>:<Alert severity="info">{L('Sign in as an editor to make audio.')}</Alert>}</div>}
   <div className="editor-footer"><Button color="error" disabled={!!busy} onClick={unpublish}>{L('Unpublish book')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></div>
   {replaceOpen&&<ReplaceDialog doc={doc} onClose={()=>setReplaceOpen(false)} onApply={(r:Replaced)=>{setDoc(r.doc);setVersionIndex(r.versionIndex);setPendingFigures(old=>[...old,...r.figures]);setReplaceOpen(false);setNotice('Replaced in the draft: '+r.lines.slice(0,4).join('; ')+(r.lines.length>4?' and '+(r.lines.length-4)+' more':'')+'. Look it over, then press Save changes.');}}/>}
   {pick&&<ArtPicker title={title} author={doc.author} about={about} themes={doc.review?.themes||[]} tags={doc.info?.categories||[]} language={lang==='fa'?'Persian':'English'} initial={null} onAccount={onAccount} onClose={()=>setPick(null)} onPick={useArt}/>}

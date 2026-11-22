@@ -34,7 +34,11 @@ export interface Review{verdict:string;audience?:string;aboutAuthor?:string;auth
 export interface LocalReview{review:Review;approved:boolean}
 export interface PubDoc{review?:Review|null;title:Record<string,string>;author:string;originalLanguage:string;chapters:PubChapter[];versions:PubVersion[];info?:Partial<BookInfo>|null}
 export interface PubBook{id:string;slug:string;title:string;titles:Record<string,string>;author:string;visibility:'public'|'unlisted';cover:string|null;updated:number;languages:string[];types:string[];chapters:number;rev?:string;audio?:string[];tags?:string[];blurb?:string;slide?:{mode:'none'|'cover'|'art'|'upload';fit?:'fill'|'whole';caption?:string;captionUrl?:string;art?:string;credit?:{title:string;artist:string;year:string;page:string}};rating?:{source:string;rating:number;count:number|null}|null;year?:string;doc?:PubDoc}
-export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;engine?:'offline'|'elevenlabs';type?:string;tracks:{title:string;chapterId:string|null;url:string;seconds?:number|null}[]}
+export interface VoiceSettings{voice?:string;model?:string;speed?:number;stability?:number;similarity?:number;style?:number;speakerBoost?:boolean}
+export interface NarrationStatus{status:'none'|'running'|'ready'|'failed';done:number;total:number;error?:string;engine?:'offline'|'elevenlabs'|'mixed';runEngine?:'offline'|'elevenlabs';type?:string;settings?:VoiceSettings;updated?:number;staleChapters?:string[];tracks:{title:string;chapterId:string|null;url:string;seconds?:number|null;engine?:string}[]}
+export interface NarrationItem{key:string;title:string;chars:number;narrated:boolean;stale:boolean}
+export interface NarrationEstimate{chars:number;seconds:number;items:NarrationItem[]}
+export interface ElevenVoice{id:string;name:string;category:string;preview:string}
 export interface AppConfig{google_client_id:string;signup:boolean;email?:boolean}
 export interface ArtResult{file:string;title:string;artist:string;year:string;page:string;thumb:string;width:number;height:number}
 export interface RelatedBook{title:string;author:string;year:string;cover:string|null;url:string|null;rating:number|null;why:string;source:string;count?:number|null;slug?:string|null;reason?:'author'|'pick'|'subject';subject?:string;localTitle?:string;localAuthor?:string;titles?:Record<string,string>}

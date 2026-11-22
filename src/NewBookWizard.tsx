@@ -128,7 +128,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
     const caption=slide==='art'&&artPick?{text:[artPick.title,artPick.artist,artPick.year].filter(Boolean).join(', ').slice(0,200),url:artPick.page}:undefined;
     await setSlide(result.id,slide,slide==='art'?artPick!.file:undefined,fit,caption).then(()=>fix(i,'Home page background set',true)).catch(e=>fix(i,'The background could not be set: '+reason(e),false));}
    for(const l of langs.filter(x=>VOICES.includes(x)&&voiceFor(x)!=='none')){const v=composed.doc.versions.find(x=>x.language===l)!;const i=lines.length;say('Starting the '+languageName(l)+' narration…',null);
-    await startNarration(result.id,l,v.type,voiceFor(l) as 'offline'|'elevenlabs').then(()=>fix(i,languageName(l)+' narration started; it is ready in a few minutes',true)).catch(e=>fix(i,'The '+languageName(l)+' narration could not start: '+reason(e)+' Start it later from the book page.',false));}
+    await startNarration(result.id,l,v.type,voiceFor(l) as 'offline'|'elevenlabs').then(()=>fix(i,languageName(l)+' narration started; it is ready in a few minutes',true)).catch(e=>fix(i,'The '+languageName(l)+' narration could not start: '+reason(e)+' Start it later from the book’s Audio tab.',false));}
    setDone(result);onPublished(result);
   }catch(e){if(!lines.length||lines[0].ok===null){setProgress([]);setError('Nothing was published. '+reason(e));}else setError(reason(e));}
   finally{setPublishing(false);}
