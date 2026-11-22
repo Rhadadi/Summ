@@ -4,9 +4,14 @@ import{displayName}from'./core';
 import{Logo}from'./Shell';
 import{matchesBook,publicTitle}from'./discovery';
 import{tr,num}from'./i18n';
-export default function PublicLibrary({books,loading,canEdit,onOpen,onWorkspace,query,onClear,lang,listening}:{books:PubBook[]|null;loading:boolean;canEdit:boolean;onOpen:(book:PubBook)=>void;onWorkspace:()=>void;query:string;onClear:()=>void;lang:string;listening:boolean}){
- const L=(t:string)=>tr(lang,t),shown=(books||[]).filter(b=>matchesBook(b,query)&&(!listening||!!b.audio?.length));  // the listening library lists only books that have audio
- return <div className="library"><h1 className="library-title">{L(listening?'Listening library':'The library')}</h1>
+import{bookCategories,categoryById,categoryName}from'./categories.ts';
+import CategoryChips from'./CategoryChips';
+export default function PublicLibrary({books,loading,canEdit,onOpen,onWorkspace,query,onClear,lang,listening,category,onCategory}:{books:PubBook[]|null;loading:boolean;canEdit:boolean;onOpen:(book:PubBook)=>void;onWorkspace:()=>void;query:string;onClear:()=>void;lang:string;listening:boolean;category?:string;onCategory:(id:string|null)=>void}){
+ const cat=category?categoryById(category):undefined;
+ // the listening library lists only books that have audio; a category page only its own books
+ const L=(t:string)=>tr(lang,t),shown=(books||[]).filter(b=>matchesBook(b,query)&&(!listening||!!b.audio?.length)&&(!cat||bookCategories(b).includes(cat.id)));
+ return <div className="library"><h1 className="library-title">{cat?categoryName(cat,lang):L(listening?'Listening library':'The library')}</h1>
+ {!listening&&books&&<CategoryChips books={books} lang={lang} active={cat?.id||null} onPick={onCategory}/>}
  <p className="library-sub" role="status">{!books?L('Loading…'):lang==='fa'?num(lang,shown.length)+' کتاب'+(query?' پیدا شد':' برای مطالعه'):shown.length+(query?' results':' books ready to read')}</p>
  {query&&<button className="text-link2" onClick={onClear}>{L('Clear search')}</button>}
  {books&&!shown.length&&<div className="empty-state"><h2>{L(query?'No books found':listening?'No book has audio yet.':'Nothing has been published yet.')}</h2>{query&&<p>{L('Try another title or author.')}</p>}{canEdit&&!query&&<button className="text-link2" onClick={onWorkspace}>Open your workspace to publish a summary</button>}</div>}

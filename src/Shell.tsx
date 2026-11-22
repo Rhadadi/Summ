@@ -1,8 +1,9 @@
 import{forwardRef,useState,type ReactNode}from'react';
-import{Avatar,Drawer,IconButton}from'@mui/material';
-import{AddRounded,BookmarkBorderRounded,EditNoteRounded,HomeOutlined,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined}from'@mui/icons-material';
-import{tr,rtl}from'./i18n';
-import type{Account}from'./types';
+import{Avatar,Divider,Drawer,IconButton,ListItemIcon,ListItemText,Menu,MenuItem}from'@mui/material';
+import{AddRounded,BookmarkBorderRounded,CategoryOutlined,EditNoteRounded,ExpandMoreRounded,HomeOutlined,LanguageRounded,PersonOutlineRounded,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined}from'@mui/icons-material';
+import{categoryCounts,categoryName}from'./categories';
+import{tr,rtl,num}from'./i18n';
+import type{Account,PubBook}from'./types';
 
 export function Logo({dark=false}:{dark?:boolean}){
  const drop=dark?'currentColor':'var(--brand)',page=dark?'var(--surface,#fff)':'#fff',dot=dark?'var(--surface,#fff)':'#ffc93c';
@@ -21,11 +22,32 @@ export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;clas
   {tagline&&<text x="530" y="212" textAnchor="end" fontFamily={fa} fontSize="20" fill="currentColor" opacity=".7">خلاصهٔ کتاب‌ها به فارسی</text>}
  </svg>;
 }
-interface Props{lang:string;onLanguage:(lang:'fa'|'en')=>void;route:string;canEdit:boolean;isEditor:boolean;asVisitor:boolean;onToggleVisitor:()=>void;account:Account|null;query:string;onQuery:(value:string)=>void;navigate:(path:string)=>void;onAdd:()=>void;onSettings:()=>void;onAccount:()=>void;children:ReactNode}
-// Sidebar navigation with a search bar on top; the reader uses its own full-screen layout instead.
-const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,route,canEdit,isEditor,asVisitor,onToggleVisitor,account,query,onQuery,navigate,onAdd,onSettings,onAccount,children},search){
+// Account, settings and language in one place: the top corner (left in Persian). One button, one short menu.
+function AccountMenu({lang,account,onAccount,onSettings,onLanguage}:{lang:string;account:Account|null;onAccount:()=>void;onSettings:()=>void;onLanguage:(lang:'fa'|'en')=>void}){
  const L=(text:string)=>tr(lang,text);
- const[open,setOpen]=useState(false),[searching,setSearching]=useState(false);
+ const[anchor,setAnchor]=useState<HTMLElement|null>(null),close=()=>setAnchor(null),pick=(fn:()=>void)=>()=>{close();fn();};
+ const name=account?.user.name||'';
+ return <>
+  <button className={'acct-btn'+(account?' in':'')} aria-haspopup="menu" aria-expanded={!!anchor} aria-label={L('Account and settings')} onClick={e=>setAnchor(e.currentTarget)}>
+   {account?<Avatar className="acct-avatar">{name.slice(0,1).toUpperCase()}</Avatar>:<PersonOutlineRounded className="acct-person"/>}
+   <span className="acct-label">{account?name.split(/\s+/)[0]:L('Log in')}</span>
+   <SettingsOutlined className="acct-gear"/><ExpandMoreRounded className="acct-chev"/>
+  </button>
+  <Menu dir={rtl(lang)?'rtl':'ltr'} lang={lang} anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{paper:{className:'acct-menu'}}} anchorOrigin={{vertical:'bottom',horizontal:rtl(lang)?'left':'right'}} transformOrigin={{vertical:'top',horizontal:rtl(lang)?'left':'right'}}>
+   <div className="acct-head" dir="auto">{account?<><strong>{name}</strong><small>{account.user.email}</small></>:<><strong>{L('Welcome')}</strong><small>{L('Sign in to save your place and get new books first.')}</small></>}</div>
+   <Divider/>
+   <MenuItem onClick={pick(onAccount)}><ListItemIcon><PersonOutlineRounded fontSize="small"/></ListItemIcon><ListItemText>{account?L('Your account'):L('Log in or sign up')}</ListItemText></MenuItem>
+   <MenuItem onClick={pick(onSettings)}><ListItemIcon><SettingsOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Settings')} secondary={L('Fonts, reading, newsletter, requests')}/></MenuItem>
+   <MenuItem onClick={pick(()=>onLanguage(lang==='fa'?'en':'fa'))}><ListItemIcon><LanguageRounded fontSize="small"/></ListItemIcon><ListItemText>{lang==='fa'?'English':'فارسی'}</ListItemText></MenuItem>
+  </Menu>
+ </>;
+}
+interface Props{books?:PubBook[]|null;lang:string;onLanguage:(lang:'fa'|'en')=>void;route:string;canEdit:boolean;isEditor:boolean;asVisitor:boolean;onToggleVisitor:()=>void;account:Account|null;query:string;onQuery:(value:string)=>void;navigate:(path:string)=>void;onAdd:()=>void;onSettings:()=>void;onAccount:()=>void;children:ReactNode}
+// Sidebar navigation with a search bar on top; the reader uses its own full-screen layout instead.
+const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLanguage,route,canEdit,isEditor,asVisitor,onToggleVisitor,account,query,onQuery,navigate,onAdd,onSettings,onAccount,children},search){
+ const L=(text:string)=>tr(lang,text);
+ const[open,setOpen]=useState(false),[searching,setSearching]=useState(false),[catAnchor,setCatAnchor]=useState<HTMLElement|null>(null);
+ const shelves=books?categoryCounts(books):[];
  // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
  const topNav=route==='/'||/^\/b\/[^/]+$/.test(route),here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
@@ -39,9 +61,6 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
   {item('/saved','Saved passages',<BookmarkBorderRounded/>,route==='/saved')}
   <button className="side-item" onClick={()=>{setOpen(false);onAdd();}}><AddRounded/><span>Add a book</span></button></>}
   {isEditor&&<button className="side-item" onClick={()=>{setOpen(false);onToggleVisitor();}}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(asVisitor?'Back to editing':'View as visitor')}</span></button>}
-  <hr/>
-  <button className="side-item" onClick={()=>{setOpen(false);onSettings();}}><SettingsOutlined/><span>{L('Settings')}</span></button>
-  <button className="side-item" onClick={()=>{setOpen(false);onAccount();}}>{account?<Avatar className="side-avatar">{account.user.name.slice(0,1).toUpperCase()}</Avatar>:<span className="side-avatar empty"/>}<span>{account?account.user.name:L('Log in')}</span></button>
  </nav>;
  const link=(path:string,label:string,active:boolean)=><button className={'tn-link'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{L(label)}</button>;
  return <div className={'shell'+(topNav?' topnav':'')} lang={lang} dir={rtl(lang)?'rtl':'ltr'}>
@@ -51,22 +70,25 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({lang,onLanguage,r
    {topNav&&<header className="topnav-bar">
     <button className="tn-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
     <nav className="tn-links" aria-label={L('Main')}>
-     {link('/library','Library',here==='/library'||here.startsWith('/b/'))}
-     {canEdit&&<>{link('/workspace','Workspace',false)}{link('/saved','Saved passages',false)}<button className="tn-link" onClick={onAdd}>{L('Add a book')}</button></>}
-     {isEditor&&<button className="tn-link" onClick={onToggleVisitor}>{asVisitor?L('Back to editing'):L('View as visitor')}</button>}
+     <button className={'tn-link'+(here==='/library'||here.startsWith('/b/')?' on':'')} aria-current={here==='/library'?'page':undefined} onClick={()=>go('/library')}><MenuBookOutlined/>{L('Library')}</button>
+     {shelves.length>0&&<><button className={'tn-link'+(here.startsWith('/library/c/')?' on':'')} aria-haspopup="menu" aria-expanded={!!catAnchor} onClick={e=>setCatAnchor(e.currentTarget)}><CategoryOutlined/>{L('Categories')}<ExpandMoreRounded className="tn-chev"/></button>
+      <Menu dir={rtl(lang)?'rtl':'ltr'} lang={lang} anchorEl={catAnchor} open={!!catAnchor} onClose={()=>setCatAnchor(null)} slotProps={{paper:{className:'acct-menu'}}}>{shelves.map(({category,count})=><MenuItem key={category.id} onClick={()=>{setCatAnchor(null);go('/library/c/'+category.id);}}><ListItemText>{categoryName(category,lang)}</ListItemText><span className="tn-count">{num(lang,count)}</span></MenuItem>)}</Menu></>}
+     {canEdit&&<><span className="tn-sep" aria-hidden="true"/>
+      <button className="tn-link" onClick={()=>go('/workspace')}><LibraryBooksOutlined/>{L('Workspace')}</button>
+      <button className="tn-link" onClick={()=>go('/saved')}><BookmarkBorderRounded/>{L('Saved passages')}</button>
+      <button className="tn-link tn-add" onClick={onAdd}><AddRounded/>{L('Add a book')}</button></>}
+     {isEditor&&<button className={'tn-link'+(asVisitor?' on':'')} aria-pressed={asVisitor} onClick={onToggleVisitor}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}{asVisitor?L('Back to editing'):L('View as visitor')}</button>}
     </nav>
     <span className="tn-grow"/>
     {searching?<label className="tn-search"><input autoFocus type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)} onBlur={()=>{if(!query)setSearching(false);}} onKeyDown={e=>{if(e.key==='Escape')setSearching(false);}}/></label>:null}
     <IconButton className="tn-icon" aria-label={L('Search your library')} onClick={()=>setSearching(v=>!v)}><SearchRounded/></IconButton>
-    <button className="tn-link" onClick={onSettings}>{L('Settings')}</button>
-    <button className="tn-link" onClick={()=>onLanguage(lang==='fa'?'en':'fa')} aria-label={lang==='fa'?'Switch to English':'تغییر زبان به فارسی'}>{lang==='fa'?'English':'فارسی'}</button>
-    <button className="tn-account" onClick={onAccount}>{account?<><Avatar className="side-avatar">{account.user.name.slice(0,1).toUpperCase()}</Avatar></>:L('Log in')}</button>
+    <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage}/>
    </header>}
    <header className="topbar2">
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
     <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
     <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
-   <button className="language-switch" onClick={()=>onLanguage(lang==='fa'?'en':'fa')} aria-label={lang==='fa'?'Switch to English':'تغییر زبان به فارسی'}>{lang==='fa'?'English':'فارسی'}</button></header>
+   <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage}/></header>
    {asVisitor&&<div className="visitor-bar" role="status"><VisibilityOutlined/><span>{L('You are seeing the site as a visitor does. Editing tools are hidden.')}</span><button onClick={onToggleVisitor}>{L('Back to editing')}</button></div>}
    <main id="main-content" tabIndex={-1}>{children}</main>
   </div>

@@ -6,7 +6,7 @@ import http.client,io,ipaddress,json,os,re,socket,ssl,time
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urljoin,urlsplit
+from urllib.parse import quote,urljoin,urlsplit
 import httpx
 from fastapi import BackgroundTasks,Depends,FastAPI,HTTPException,Query,Request
 from fastapi.exceptions import RequestValidationError
@@ -867,4 +867,14 @@ async def mailing_announce(book_id:str,body:Announce,user:dict=Depends(owner_use
     if not user['email']:raise HTTPException(422,'Your account has no email address to send the test to.')
     try:return await mailing.announce(book_id,user['email'].lower() if body.test else None)
     except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+@app.get('/b/{slug}')
+async def share_page(slug:str):
+    """A book's shareable link. Previews need the book in the HTML; the app then opens the same book."""
+    from . import share
+    index=(dist/'index.html').read_text() if (dist/'index.html').is_file() else '<!doctype html><html lang="en"><head><title>Inkling</title></head><body></body></html>'
+    try:book=library.get(slug)
+    except accounts.AccountError:return Response(share.page(index,None,mailer.public_url()),status_code=404,media_type='text/html')
+    if book['slug']!=slug:  # an old link (book-dab5e9): send it to the readable one
+        return Response(status_code=301,headers={'Location':'/b/'+quote(book['slug'])})
+    return Response(share.page(index,book,mailer.public_url()),media_type='text/html',headers={'Cache-Control':'public, max-age=300'})
 if dist.is_dir():app.mount('/',StaticFiles(directory=dist,html=True),name='reader')

@@ -112,7 +112,7 @@ class PublishTests(RolesTest):
 
     def test_publish_list_read_unlist_and_remove(self):
         owner,_=self.owner();pub=owner.post('/api/library',json={'doc':doc(),'visibility':'public'});self.assertEqual(pub.status_code,200,pub.text)
-        book=pub.json();self.assertEqual(book['languages'],['en']);self.assertTrue(book['slug'].startswith('a-test-book-'))
+        book=pub.json();self.assertEqual(book['languages'],['en']);self.assertEqual(book['slug'],'a-test-book')
         anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
         self.assertEqual([b['title'] for b in anon.get('/api/library').json()['books']],['A Test Book'])
         self.assertIn('blurb',anon.get('/api/library').json()['books'][0])
@@ -477,3 +477,41 @@ class FrameTests(RolesTest):
         # readers and visitors cannot frame
         self.assertEqual(self.reader().put(url,json={'wide':{'x':5,'y':5,'zoom':2}}).status_code,403)
         self.assertIn(anon.put(url,json={'wide':{'x':5,'y':5,'zoom':2}}).status_code,(401,403))
+class CategoryTests(RolesTest):
+    def test_categories_are_saved_listed_and_checked(self):
+        c,_=self.owner()
+        r=c.post('/api/library',json={'doc':doc(categories=['philosophy','history']),'visibility':'public'});self.assertEqual(r.status_code,200,r.text)
+        listed=c.get('/api/library').json()['books'];self.assertEqual([b['categories'] for b in listed],[['philosophy','history']])
+        self.assertEqual(c.post('/api/library',json={'doc':doc(title={'en':'Another'}),'visibility':'public'}).status_code,200)
+        self.assertIn([],[b['categories'] for b in c.get('/api/library').json()['books']])
+        for bad in (['Philosophy'],['x'],['a; drop'],['philosophy','history','science','health','religion']):
+            self.assertEqual(c.post('/api/library',json={'doc':doc(title={'en':'Bad'},categories=bad),'visibility':'public'}).status_code,422,bad)
+class SlugTests(RolesTest):
+    def test_links_are_the_main_title_and_old_links_still_open_the_book(self):
+        self.assertEqual(library._slug('Midlife: A Philosophical Guide'),'midlife')
+        self.assertEqual(library._slug('قرآن و زیرمتنِ کتاب‌مقدسیِ آن'),'قرآن-و-زیرمتن-کتابمقدسی-آن')
+        self.assertEqual(library._slug('جهان‌های بسیار؟ اِوِرِت'),'جهانهای-بسیار')
+        c,_=self.owner()
+        a=c.post('/api/library',json={'doc':doc(title={'en':'Same Title: One'}),'visibility':'public'}).json()
+        b=c.post('/api/library',json={'doc':doc(title={'en':'Same Title: Two'}),'visibility':'public'}).json()
+        self.assertEqual((a['slug'],b['slug']),('same-title','same-title-2'))
+        # a book from before readable links is renamed once, and its old slug becomes an alias
+        library.q('UPDATE library SET slug=? WHERE id=?',('book-'+a['id'][:6],a['id']))
+        library._readable_slugs(library._db());library._readable_slugs(library._db())
+        self.assertEqual(c.get('/api/library/'+a['id']).json()['slug'],'same-title')
+        self.assertEqual(c.get('/api/library/book-'+a['id'][:6]).json()['id'],a['id'])
+class SharePageTests(RolesTest):
+    def test_a_book_link_carries_its_title_summary_and_cover_and_old_links_move(self):
+        from server import share
+        c,_=self.owner()
+        book=c.post('/api/library',json={'doc':doc(title={'en':'Midlife: A Guide','fa':'میانسالی: راهنما'}),'visibility':'public'}).json()
+        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><link rel="icon" href="./favicon.svg"/><title>Inkling</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
+        html=share.page(index,library.get(book['slug']),'https://x.test')
+        self.assertIn('<html lang="fa"',html);self.assertIn('og:title" content="میانسالی: راهنما — نوشتهٔ An Author"',html)
+        self.assertIn('og:description" content="Overview text."',html);self.assertIn('src="/assets/a.js"',html);self.assertNotIn('generic',html)
+        self.assertIn('og:url" content="https://x.test/b/midlife"',html)
+        persian=c.post('/api/library',json={'doc':doc(title={'fa':'قرآن و زیرمتن'},originalLanguage='fa'),'visibility':'public'}).json()
+        self.assertIn('/b/%D9%82%D8%B1%D8%A2%D9%86-',share.page(index,library.get(persian['slug']),'https://x.test'))
+        r=c.get('/b/'+book['id'],follow_redirects=False);self.assertEqual((r.status_code,r.headers['location']),(301,'/b/'+book['slug']))
+        self.assertEqual(c.get('/b/no-such-book').status_code,404)
+        r=c.get('/b/'+book['slug']);self.assertEqual(r.status_code,200);self.assertIn('og:title',r.text)

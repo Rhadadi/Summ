@@ -1,6 +1,7 @@
 """Book requests and the update mailing list. People may subscribe with their account email or with just an address; every subscriber confirms once, can leave with one click, and hears about each new public book."""
 from __future__ import annotations
 import asyncio,html as _html,json,os,secrets,sqlite3,time
+from urllib.parse import quote
 from . import accounts,library,mailer
 from .inline import strip_inline
 SCHEMA='''CREATE TABLE IF NOT EXISTS subscribers(email TEXT PRIMARY KEY COLLATE NOCASE,token TEXT UNIQUE NOT NULL,status TEXT NOT NULL,lang TEXT NOT NULL DEFAULT 'fa',source TEXT NOT NULL DEFAULT 'form',created REAL NOT NULL,confirmed REAL,asked REAL);
@@ -133,7 +134,7 @@ def compose_book(book:dict,lang:str,unsubscribe:str|None,mode:str='new')->tuple[
     """The announcement: cover, title, a taste of the book, three ideas, one clear button. Persian reads right to left."""
     fa=lang=='fa';e=_html.escape;doc=book['doc'];site=mailer.public_url()
     full=(book.get('titles') or {}).get(lang) or book['title'];title=full.split(':')[0].strip() or full;author=book.get('author') or ''
-    url=f"{site}/#/b/{book['slug']}";blurb=_blurb_for(doc,lang,book.get('blurb',''));ideas=_takeaways(doc,lang)
+    url=f"{site}/#/b/{quote(book['slug'])}";blurb=_blurb_for(doc,lang,book.get('blurb',''));ideas=_takeaways(doc,lang)
     langs=book.get('languages') or [];audio=bool(q("SELECT 1 FROM narration WHERE book_id=? AND status='done'",(book['id'],)))
     eyebrow={'new':('تازه در کتابخانه','NEW IN THE LIBRARY'),'request':('کتابی که خواسته بودید آماده است','THE BOOK YOU ASKED FOR IS HERE')}[mode][0 if fa else 1]
     subject=('«'+title+'» حالا در اینکلینگ' if mode=='new' else '«'+title+'» که خواسته بودید، آماده است') if fa else (('New on Inkling: '+title) if mode=='new' else 'You asked for it: '+title+' is on Inkling')

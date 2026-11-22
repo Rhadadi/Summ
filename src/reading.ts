@@ -2,9 +2,9 @@ import{useEffect,useState}from'react';
 
 // How the reader looks: per device, for visitors as well as editors.
 export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean;zen:boolean}
-export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'nazli',en:'literata',justify:false,zen:false};
+export const readingDefaults:Reading={size:20,leading:'normal',width:'medium',theme:'paper',fa:'samim',en:'literata',justify:false,zen:false};
 // Every font ships with the site under a free licence, so each reader sees the same choices.
-interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
+export interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
 export const faFonts:Font[]=[
  {id:'vazirmatn',label:'Vazirmatn · وزیرمتن',family:'"Vazirmatn Variable"'},
  {id:'nazli',label:'Nazli · نازلی (بر پایهٔ نازنین)',family:'"Nazli"'},
@@ -16,6 +16,11 @@ export const faFonts:Font[]=[
  {id:'sahel',label:'Sahel · ساحل',family:'"Sahel"',load:()=>import('./fonts/sahel.css')},
  {id:'samim',label:'Samim · صمیم',family:'"Samim"',load:()=>import('./fonts/samim.css')},
  {id:'shabnam',label:'Shabnam · شبنم',family:'"Shabnam"',load:()=>import('./fonts/shabnam.css')},
+ // From Zekr (the Quran reader): the three of its fonts that carry every Persian letter. Its Hafs, Me-Quran and Amiri
+ // Quran lack گ چ پ ژ, so they would break Persian prose.
+ {id:'scheherazade',label:'Scheherazade · شهرزاد',family:'"Zekr Scheherazade"',load:()=>import('./fonts/zekr.css')},
+ {id:'kfgqpc-naskh',label:'KFGQPC Naskh · نسخ عثمان طه',family:'"Zekr Naskh"',load:()=>import('./fonts/zekr.css')},
+ {id:'noto-sans',label:'Noto Sans Arabic · نوتو',family:'"Zekr Noto Sans"',load:()=>import('./fonts/zekr.css')},
 ];
 export const enFonts:Font[]=[
  {id:'literata',label:'Literata',family:'"Literata Variable"'},
@@ -24,17 +29,23 @@ export const enFonts:Font[]=[
  {id:'atkinson',label:'Atkinson Hyperlegible',family:'"Atkinson Hyperlegible"',load:()=>Promise.all([import('@fontsource/atkinson-hyperlegible/400.css'),import('@fontsource/atkinson-hyperlegible/700.css')])},
  {id:'system',label:'System sans',family:'-apple-system,BlinkMacSystemFont,"Segoe UI"'},
 ];
-const KEY='inkling-reading-v2',OLD_KEY='inkling-reading';
+const KEY='inkling-reading-v3',V2_KEY='inkling-reading-v2',OLD_KEY='inkling-reading';
 function load():Reading{try{
   const current=localStorage.getItem(KEY);
   if(current)return{...readingDefaults,...JSON.parse(current)};
+  // v3 made Samim the default: Nazli was v2's default, so a reader still on it never chose it and moves to Samim
+  const v2=localStorage.getItem(V2_KEY);if(v2){const r=JSON.parse(v2);return{...readingDefaults,...r,fa:!r.fa||r.fa==='nazli'?'samim':r.fa};}
   const old=JSON.parse(localStorage.getItem(OLD_KEY)||'{}');
-  return{...readingDefaults,...old,fa:!old.fa||old.fa==='vazirmatn'?'nazli':old.fa};
+  return{...readingDefaults,...old,fa:!old.fa||old.fa==='vazirmatn'||old.fa==='nazli'?'samim':old.fa};
  }catch{return{...readingDefaults};}}
 export function useReading(){
  const[reading,setReading]=useState<Reading>(load);
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(reading));}catch{/* private mode */}
-  faFonts.find(f=>f.id===reading.fa)?.load?.();enFonts.find(f=>f.id===reading.en)?.load?.();},[reading]);
+  faFonts.find(f=>f.id===reading.fa)?.load?.();enFonts.find(f=>f.id===reading.en)?.load?.();
+  // the Settings dialog and an open reader each hold a copy; tell the others
+  window.dispatchEvent(new CustomEvent('inkling-reading',{detail:reading}));},[reading]);
+ useEffect(()=>{const sync=(e:Event)=>{const next=(e as CustomEvent<Reading>).detail;setReading(r=>JSON.stringify(r)===JSON.stringify(next)?r:next);};
+  window.addEventListener('inkling-reading',sync);return()=>window.removeEventListener('inkling-reading',sync);},[]);
  return[reading,(patch:Partial<Reading>)=>setReading(r=>({...r,...patch}))] as const;
 }
 export function readingStyle(r:Reading):Record<string,string>{
@@ -46,3 +57,6 @@ export function readingStyle(r:Reading):Record<string,string>{
 const POS='inkling-place:';
 export const savePlace=(bookId:string,chapterId:string,y:number)=>{try{localStorage.setItem(POS+bookId,JSON.stringify({chapterId,y:Math.round(y),at:Date.now()}));}catch{/* private mode */}};
 export const lastPlace=(bookId:string):{chapterId:string;y:number}|null=>{try{const v=JSON.parse(localStorage.getItem(POS+bookId)||'null');return v&&typeof v.chapterId==='string'?v:null;}catch{return null;}};
+
+/** Every font's file, so a chooser can show each one in its own face. */
+export const loadAllFonts=()=>{for(const f of [...faFonts,...enFonts])f.load?.();};

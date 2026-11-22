@@ -1,6 +1,6 @@
 import{useEffect,useRef,useState,type ReactNode}from'react';
 import{Alert,Button,CircularProgress,IconButton,Menu,MenuItem,TextField,Tooltip}from'@mui/material';
-import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined}from'@mui/icons-material';
+import{AccessTimeRounded,ArrowBackRounded,AutoAwesomeRounded,PublicOutlined,ChevronRightRounded,DescriptionOutlined,DownloadRounded,EditOutlined,FileUploadOutlined,ImageOutlined,LightbulbOutlined,MenuBookRounded,OpenInNewRounded,PlayArrowRounded,StarRounded,TextSnippetOutlined,IosShareRounded}from'@mui/icons-material';
 import type{RelatedBook,Review,Book,BookInfo,Chapter,GoogleBookEdition,SavedPassage,SummaryParagraph}from'./types';
 import{ApiError,bookInfo,coverImage,pdfReport}from'./api';
 import{store}from'./storage';
@@ -28,6 +28,10 @@ interface Props{
  ownerActions?:{key:string;label:string;icon?:ReactNode;onClick:()=>void}[];
  // Listen is offered only when there is audio to play. Local books leave it on.
  canListen?:boolean;
+ // Library categories of a published book; each opens that category's shelf.
+ categories?:{id:string;label:string}[];
+ // Share the book's previewable link.
+ onShare?:()=>void;
 }
 const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
@@ -38,7 +42,7 @@ async function downscale(blob:Blob){
 // Library categories arrive as "PHILOSOPHY / Ethics & Moral Philosophy"; readers need a few plain words.
 export const tagsOf=(categories:string[])=>{const seen=new Set<string>();return categories.flatMap(c=>c.split('/')).map(t=>t.trim()).filter(Boolean).map(t=>t===t.toUpperCase()?t.toLowerCase().replace(/(^|\s)\p{L}/gu,m=>m.toUpperCase()):t).filter(t=>t.length<34&&!/^general$/i.test(t)&&!seen.has(t.toLowerCase())&&!!seen.add(t.toLowerCase())).slice(0,4);};
 const short=(m:number)=>m<60?m+' min':Math.round(m/60)+' h';
-export default function BookDetail({receptionHref,listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop,ownerActions,canListen=true}:Props){
+export default function BookDetail({receptionHref,listenLabel,audioNote,book,cover,data,saved,onCover,onCreate,onRead,onListen,onExport,onEditContents,onRebuild,onAccount,onBack,onImport,onVersion,review=null,reviewApproved=true,onReview,searchTitle,related,readOnly=false,pubInfo=null,onPublish,backLabel,backdrop,ownerActions,canListen=true,categories=[],onShare}:Props){
  const{report,summaries}=data;
  const[info,setInfo]=useState<BookInfo|null>(readOnly?(pubInfo as BookInfo|null):null),[infoState,setInfoState]=useState<'loading'|'ready'|'none'>(readOnly?(pubInfo?'ready':'none'):'loading');
  const[more2,setMore2]=useState(false);
@@ -111,7 +115,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
      <span className="curated-eyebrow">{L('Study guide')}</span><span className="curated-goldline"/>
      <h1 dir="auto" className={title.length>30?'curated-long':undefined}>{title}</h1>{subtitle&&<p className="curated-subtitle" dir="auto">{subtitle}</p>}
      {author&&<p className="curated-author"><bdi>{displayAuthor(author,lang)}</bdi></p>}
-     <div className={'curated-actions'+(canListen?'':' solo')}><button className="curated-read" onClick={()=>onRead(startAt)}>{L(book.lastRead?'Continue reading':'Start reading')}<ChevronRightRounded/></button>{canListen&&<button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button>}</div>
+     <div className={'curated-actions'+(canListen?'':' solo')}><button className="curated-read" onClick={()=>onRead(startAt)}>{L(book.lastRead?'Continue reading':'Start reading')}<ChevronRightRounded/></button>{canListen&&<button className="curated-listen" aria-label={listenLabel||L('Listen')} onClick={()=>onListen()}><PlayArrowRounded/><span>{listenLabel||L('Listen')}</span></button>}{onShare&&<button className="curated-share" aria-label={L('Share')} onClick={onShare}><IosShareRounded/></button>}</div>
     </div><div className="curated-cover">{cover?<img src={cover} alt=""/>:<span dir="auto">{book.title}</span>}</div></div>
     {backdrop.credit&&<small className="curated-credit">{displayPainting(backdrop.credit,lang)}</small>}
    </div>
@@ -130,6 +134,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
      {author&&<p className="hero-author" dir="auto">{lang==='fa'?'نوشتهٔ ':'by '}{author}</p>}
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}
      {tagsOf([...(review?.themes||[]),...(info?.categories||[])]).length>0&&<div className="hero-tags">{tagsOf([...(review?.themes||[]).slice(0,2),...(info?.categories||[])]).map(t=><span key={t} dir="auto">{L(t)}</span>)}</div>}
+     {categories.length>0&&<nav className="cat-links" aria-label={L('Categories')}>{categories.map(c=><a key={c.id} href={'#/library/c/'+c.id}>{c.label}</a>)}</nav>}
      <div className="stats">
       {info?.ratings[0]&&<span><StarRounded/>{num(lang,+info.ratings[0].rating.toFixed(1))}{info.ratings[0].count?' ('+num(lang,info.ratings[0].count)+' '+L('ratings')+')':''}</span>}
       <span><AccessTimeRounded/>{readOnly?L('Approximate')+' '+num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))+' '+L('min')+' · '+L('Reading time'):readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
@@ -139,6 +144,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
      <Button className="big" variant="contained" startIcon={<MenuBookRounded/>} onClick={()=>onRead(startAt)}>{L(book.lastRead?'Continue reading':'Start reading')}</Button>
      {!readOnly&&!!onImport&&<Button className="big" variant="outlined" startIcon={<FileUploadOutlined/>} onClick={onImport}>{data.versions.length?'Add another summary':'Prepare or import a summary'}</Button>}
      {canListen&&<Button className="big" variant="outlined" startIcon={<PlayArrowRounded/>} disabled={!listenable&&!readOnly} onClick={()=>onListen()}>{readOnly?(listenLabel||L('Listen')):listenable?'Listen · '+listenable+(listenable===1?' chapter':' chapters')+' ready':'Listen · summarize chapters first'}</Button>}
+     {onShare&&<Button className="big" variant="text" startIcon={<IosShareRounded/>} onClick={onShare}>{L('Share')}</Button>}
      {audioNote&&canListen&&<p className="audio-note">{audioNote}</p>}
      {!readOnly&&!!onPublish&&<Button className="big" variant="text" startIcon={<PublicOutlined/>} onClick={onPublish}>{book.published?'Published · manage':'Publish this summary'}</Button>}
     </div>

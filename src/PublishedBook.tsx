@@ -1,5 +1,6 @@
 import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react';
 import{Alert,Button,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,MenuItem,Snackbar,TextField}from'@mui/material';
+import{bookCategories,categoryById,categoryName}from'./categories';
 import type{HomeConfig,PubBook,PubDoc,RelatedBook,Review,Settings}from'./types';
 import{bookBackdrop,homeBooks}from'./bookBackdrop';
 import{ApiError,libraryBook,libraryReception,libraryRelated,narrationStatus,publishBook,setFrame}from'./api';
@@ -34,7 +35,13 @@ const noop=()=>{};
 export default function PublishedBook({listenOnOpen=false,slug,mode,section,settings,player,navigate,toast,onPreferences,published,home,owner,onSaved}:Props){
  const L=(t:string)=>tr(settings.uiLanguage||'fa',t);
  const[pub,setPub]=useState<(PubBook&{doc:PubDoc})|null>(null),[error,setError]=useState(''),[chosen,setChosen]=useState(''),[position,setPosition]=useState({index:0,completed:[] as string[],lastRead:0});
- useEffect(()=>{let live=true;setPub(null);setError('');libraryBook(slug).then(b=>{if(live){setPub(b);setPosition(readPosition(b.id));}}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[slug]);
+ useEffect(()=>{let live=true;setPub(null);setError('');libraryBook(slug).then(b=>{if(!live)return;
+  // an old link (book-dab5e9) or the id still opens the book; the address bar then shows the readable one
+  if(b.slug!==slug){if(!location.hash){history.replaceState(null,'','/b/'+encodeURIComponent(b.slug));window.dispatchEvent(new HashChangeEvent('hashchange'));return;}
+   const here=decodeURIComponent(location.hash.slice(1));location.replace('#'+here.replace('/b/'+slug,'/b/'+b.slug));return;}
+  setPub(b);setPosition(readPosition(b.id));}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[slug]);
+ // the book page shows its shareable address (/b/<slug>), so copying it from the address bar also gives a preview
+ useEffect(()=>{if(pub&&mode==='detail'&&location.pathname==='/'&&location.hash)history.replaceState(null,'','/b/'+encodeURIComponent(pub.slug));},[pub,mode]);
  const version=pub?pickVersion(pub.doc,chosen,settings.language):undefined;
  // ---- inline editing: the owner's draft lives here (use-draft.ts); the editor itself loads lazily
  const vk=version?versionKey(version):'',mayEdit=!!owner&&!owner.asVisitor&&!!pub&&owner.editable.includes(pub.id);
@@ -123,6 +130,10 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  if(error)return <div className="empty-state"><h2>{L('This book isn’t available.')}</h2><p>{error}</p><Button onClick={()=>navigate('/library')}>{L('Back to the library')}</Button></div>;
  if(!pub||!version||!adapted)return <div className="center-state"><CircularProgress/><p>{L('Opening the book…')}</p></div>;
  const{book,data}=adapted;const base='/b/'+pub.slug;
+ const shareUrl=location.origin+'/b/'+encodeURIComponent(pub.slug);
+ const share=async()=>{const title=pub.titles[version.language]||pub.title;
+  if(navigator.share){try{await navigator.share({title,url:shareUrl});}catch{/* closed */}return;}
+  try{await navigator.clipboard.writeText(shareUrl);toast(tr(version.language,'Link copied. It shows the cover and summary when shared.'));}catch{prompt('',shareUrl);}};
  const artIndex=homeBooks(published||[],home).findIndex(b=>b.id===pub.id);
  const backdrop=bookBackdrop(pub,Math.max(0,artIndex));
  // Background: a painting or an uploaded picture can be framed here; for the automatic gallery or the cover the editor explains why not.
@@ -176,6 +187,6 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}{audioUi}{frameUi}<BookDetail canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},...(owner!.audio?[{key:'audio',label:L(audio.book?'Audio':'Add audio'),icon:<GraphicEqRounded/>,onClick:()=>setAudioOpen({})}]:[]),{key:'background',label:L('Background'),icon:<WallpaperRounded/>,onClick:background!},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
+ return <>{switcher}{audioUi}{frameUi}<BookDetail onShare={share} categories={bookCategories(pub).map(id=>({id,label:categoryName(categoryById(id)!,version.language)}))} canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},...(owner!.audio?[{key:'audio',label:L(audio.book?'Audio':'Add audio'),icon:<GraphicEqRounded/>,onClick:()=>setAudioOpen({})}]:[]),{key:'background',label:L('Background'),icon:<WallpaperRounded/>,onClick:background!},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

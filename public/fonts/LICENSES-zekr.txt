@@ -1,0 +1,3 @@
+scheherazade-new.woff2  Scheherazade New, (c) SIL Global. SIL Open Font License 1.1.
+noto-sans-arabic.woff2  Noto Sans Arabic, Copyright 2022 The Noto Project Authors. SIL Open Font License 1.1 (converted from TTF to WOFF2, unchanged otherwise).
+kfgqpc-naskh.woff2  KFGQPC Uthman Taha Naskh, King Fahd Glorious Quran Printing Complex, free for non-commercial distribution as published by the Complex.

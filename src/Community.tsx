@@ -7,7 +7,8 @@ import{tr}from'./i18n';
 type Joined='none'|'pending'|'active'|'unsubscribed';
 const message=(e:unknown)=>e instanceof Error?e.message:'Something went wrong. Please try again.';
 // Two doors for readers: ask for a book to be summarised, and hear about each new one by email, with or without an account.
-export default function Community({lang,account,mailEnabled}:{lang:string;account:Account|null;mailEnabled:boolean}){
+// compact: inside the settings window (one column, no page margins) instead of a band across the home page
+export default function Community({lang,account,mailEnabled,compact=false}:{lang:string;account:Account|null;mailEnabled:boolean;compact?:boolean}){
  const L=(t:string)=>tr(lang,t),mine=account?.user.email||'';
  const[title,setTitle]=useState(''),[by,setBy]=useState(''),[note,setNote]=useState(''),[reply,setReply]=useState(mine),[trap,setTrap]=useState(''),[asked,setAsked]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const[email,setEmail]=useState(mine),[joined,setJoined]=useState<Joined>('none'),[mailBusy,setMailBusy]=useState(false),[mailError,setMailError]=useState('');
@@ -19,7 +20,7 @@ export default function Community({lang,account,mailEnabled}:{lang:string;accoun
   try{const r=await subscribeMail(account&&mine&&(!email||email===mine)?'':email,lang,trap);setJoined(r.status);}catch(x){setMailError(message(x));}finally{setMailBusy(false);}};
  const leave=async()=>{setMailBusy(true);try{await leaveMail();setJoined('unsubscribed');}catch(x){setMailError(message(x));}finally{setMailBusy(false);}};
  const own=!!account&&!!mine&&(!email||email===mine);
- return <section className="m-community" dir={lang==='fa'?'rtl':'ltr'} aria-label={L('Ask for a book')}>
+ return <section className={'m-community'+(compact?' compact':'')} dir={lang==='fa'?'rtl':'ltr'} aria-label={L('Ask for a book')}>
   <div className={'m-community-grid'+(mailEnabled?'':' single')}>
    <div className="m-pane">
     <div className="m-pane-head"><span className="m-pane-icon"><MenuBookRounded/></span><h2>{L('Is there a book you wish you could read in minutes?')}</h2></div>

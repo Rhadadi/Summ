@@ -5,6 +5,7 @@ import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,Li
 import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
 import Inline from'./InlineText';
+import FontChooser from'./FontChooser';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
 import type{Account,Block,Book,Chapter,Depth,SavedPassage,Settings,Summary,SummaryParagraph}from'./types';
 import{bodyChapter,bookWords,depthLabels,isHeading,languages,sectionKind}from'./core';
@@ -193,10 +194,7 @@ function ReadingPanel({lang,reading,onChange,onClose}:{lang:string;reading:Readi
   <label>{L('Page width')}</label>{seg('width',[['narrow','Narrow'],['medium','Medium'],['wide','Wide']])}
   <button className="look-fold" aria-expanded={fontsOpen} onClick={()=>setFontsOpen(!fontsOpen)}><span>{L('Fonts')}</span><small>{current?.label.split(' · ')[0]} · {currentEn?.label}</small></button>
   {fontsOpen&&<>
-  <label>{L('Persian font')}</label>
-  <div className="look-fonts">{faFonts.map(f=><button key={f.id} className={reading.fa===f.id?'on':''} onClick={()=>onChange({fa:f.id})} style={{fontFamily:f.family+',"Vazirmatn Variable"'}}><span dir="rtl">زندگی پیش از مرگ</span><small>{f.label}</small></button>)}</div>
-  <label>{L('English font')}</label>
-  <div className="look-fonts en">{enFonts.map(f=><button key={f.id} className={reading.en===f.id?'on':''} onClick={()=>onChange({en:f.id})} style={{fontFamily:f.family}}><span>The examined life</span><small>{f.label}</small></button>)}</div>
+  <FontChooser lang={lang} reading={reading} onChange={onChange}/>
   </>}
   <label className="look-switch"><input type="checkbox" checked={reading.zen} onChange={e=>{onChange({zen:e.target.checked});if(e.target.checked)onClose();}}/> {L('Zen mode')} <small>— {L('only the text, nothing else')}</small></label>
   <label className="look-switch"><input type="checkbox" checked={reading.justify} onChange={e=>onChange({justify:e.target.checked})}/> {L('Justify text')}</label>

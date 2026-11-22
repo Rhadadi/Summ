@@ -13,7 +13,7 @@ import{wallBooks}from'./home-order.ts';
 import{tr,num}from'./i18n';
 import{publicTitle}from'./discovery';
 import{art}from'./art';
-import Community from'./Community';
+import CategoryChips from'./CategoryChips';
 import type{Account}from'./types';
 
 interface Props{account:Account|null;mailEnabled:boolean;isOwner:boolean;config:HomeConfig|null;onEditHome:()=>void;lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
@@ -42,9 +42,9 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
    {wall.length>0&&<h2 className="m-wall-h">{L('All books')} · {num(lang,wall.length)}</h2>}
+   <CategoryChips books={wall} lang={lang} active={null} all={false} onPick={id=>navigate(id?'/library/c/'+id:'/library')}/>
    {wall.length>0&&<div className="m-wall-grid">{wall.map(b=><button key={b.id} className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong><span dir="auto">{displayName(b.author)}</span></button>)}</div>}
   </section>}
-  <Community lang={lang} account={account} mailEnabled={mailEnabled}/>
  </>;
  if(!canEdit)return <div className="museum-home">{intro}</div>;
  if(!books.length)return <div className="museum-home">{intro}<div className="home desk"><h2 className="m-kicker">Your desk</h2><h1 className="home-h"><span className="home-icon"><LibraryBooksOutlined/></span>Your workspace is empty</h1><Button variant="contained" onClick={onAdd}>Add a book</Button></div></div>;
