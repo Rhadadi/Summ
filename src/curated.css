@@ -105,3 +105,6 @@
 .curated-art.framed{object-fit:cover;object-position:var(--fx) var(--fy)!important;transform:scale(var(--fz))!important;transform-origin:var(--fx) var(--fy)}
 .curated-art.framed.whole{object-fit:contain}
 @media (max-width:899px){.curated-intro-art .curated-art.framed{object-position:var(--pfx,var(--fx)) var(--pfy,var(--fy))!important;transform:scale(var(--pfz,var(--fz)))!important;transform-origin:var(--pfx,var(--fx)) var(--pfy,var(--fy))}}
+/* In a left-to-right book the text sits on the left, so that is the side the shade darkens (it was always the right, the Persian side). */
+.curated-detail[dir=ltr] .curated-art-shade{background:linear-gradient(to right,rgba(18,33,35,.96),rgba(18,33,35,.83) 42%,rgba(18,33,35,.15) 100%),linear-gradient(to top,rgba(18,33,35,.45),transparent 55%)}
+.curated-reader[dir=ltr] .curated-chapter-art .curated-art-shade{background:linear-gradient(to right,rgba(24,45,48,.97),rgba(24,45,48,.85) 45%,rgba(24,45,48,.2) 100%)}

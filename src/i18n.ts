@@ -282,6 +282,12 @@ const fa:Record<string,string>={
  'Only a painting or an uploaded picture can be framed; the automatic gallery and the cover change or blur.':'فقط نقاشی یا تصویر بارگذاری‌شده را می‌توان قاب‌بندی کرد؛ گالری خودکار و جلد تغییر می‌کنند یا محو می‌شوند.',
  'Background':'پس‌زمینه','Adjust background…':'تنظیم پس‌زمینه…',
  'Choose a painting or upload a picture first; the automatic gallery and the cover cannot be framed.':'نخست نقاشی انتخاب کنید یا تصویری بارگذاری کنید؛ گالری خودکار و جلد را نمی‌توان قاب‌بندی کرد.',
+ 'Edit the home page':'ویرایش صفحهٔ اصلی',
+ 'Choose which books slide on the home page, their order, and how long each stays. A book\'s picture is chosen in its Publish dialog. Unticked books leave the slideshow but stay in the list below.':'انتخاب کنید کدام کتاب‌ها در صفحهٔ اصلی اسلاید شوند، به چه ترتیب و هر کدام چه مدت بمانند. تصویر هر کتاب در پنجرهٔ انتشار آن انتخاب می‌شود. کتاب‌های بی‌علامت از اسلایدشو بیرون می‌روند اما در فهرست زیر می‌مانند.',
+ 'Seconds per slide':'ثانیه برای هر اسلاید','Slide automatically':'اسلاید خودکار','Seconds':'ثانیه',
+ 'Publish a book and it appears here.':'کتابی را منتشر کنید تا اینجا دیده شود.','Also on the page':'در صفحه همچنین',
+ 'Show the star rating on each slide':'نمایش امتیاز ستاره‌ای روی هر اسلاید','Show the shelf of book covers under the slides':'نمایش قفسهٔ جلد کتاب‌ها زیر اسلایدها',
+ 'Replace from a ZIP':'جایگزینی از فایل ZIP',
 };
 export const rtl=(lang?:string)=>lang==='fa'||lang==='ar';
 export const tr=(lang:string|undefined,text:string)=>lang==='fa'?fa[text]??text:text;

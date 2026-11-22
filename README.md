@@ -17,6 +17,10 @@ A source-first reading app with a Google Material Design–inspired interface. I
 - Narration: free offline Piper voices on the server (English, Persian, and six more languages), or ElevenLabs with each user's own key. Audio is cached in the browser.
 - A typeset PDF of the study guide (cover, contents with page numbers, running heads; Vazirmatn and right-to-left layout for Persian and Arabic).
 - Light/dark appearance, keyboard navigation, responsive layouts, and Persian/Arabic text support.
+- Owners and editors can fix a published book where it is read: switch on Edit this page, select text and press Bold or Italic, split, merge and reorder paragraphs, and save (saving goes live at once; a draft stays on the device, and a save made from a stale copy is refused with the choice to load the latest). The old book editor takes the same `**bold**` and `*italic*` markers.
+- Audio can be added, replaced, stopped or deleted at any time from a published book's Audio panel: the offline Piper voice with a speed, or ElevenLabs with your own voices, model and voice settings, for the whole book, only the chapters whose text changed, or chosen chapters. Listeners keep the current audio until the new set is complete, and Listen appears only where there is audio.
+- Background framing: for a painting or an uploaded picture the owner drags a focus ring and zooms (1x to 3x), optionally framing phones differently, with live previews of the home slider, the book page and the chapter header. Pictures chosen automatically or taken from the cover are not framed.
+- The home page lists every published book under the slideshow; "View as visitor" and "Back to editing" keep the book and chapter; the book page has a redesigned reception section and a rated "If you liked this book" shelf that includes books from this library.
 
 Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Inkling server, which calls Gemini with the signed-in user's own key.
 

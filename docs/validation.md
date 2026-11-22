@@ -1,5 +1,15 @@
 # Validation
 
+## Owner editing, audio panel and background framing — November 22, 2026
+
+Nine owner requests (see `docs/plans/2026-11-22-owner-editing.md`): every published book in the home list, a view switch that keeps the book and chapter, Listen only where audio exists, rated related books, a redesigned reception section, bold and italic markers, version-checked saves, inline editing on the reading page, an Audio panel, and background framing.
+
+- `npm test` (frame, inline, draft, listening, view-switch, home-order, reception and related tests included), `npm run build` and the Python suite passed after each step. The framing route is covered by `FrameTests`: range validation, 422 for the cover and automatic modes, 422 for phones without wide screens, the frame kept on a fit or caption change and dropped with a new picture, and editors only.
+- Browser matrix (Chrome via Playwright, local dev servers, throwaway database with 14 published books, one with audio, one framed; no provider called): Persian and English at 390 and 1440 px, as visitor and as owner. Checked the home list (all 14 books), book page (owner strip only for the owner; Listen only on the book with audio), chapter reader (Listen, the ⋯ menu, View as visitor and Back to editing keep the same chapter, edit mode), the Audio panel and the frame dialog. No horizontal overflow and no console errors on any page.
+- Framing, before and after on one book: focus dragged to the top-left corner and zoom 1.6x. The home slider (desktop and phone), book intro and chapter header all follow the frame, a separate phone framing applies to the slider and intro only, and the slider's text colour flips to dark when the framed crop is bright. Unframed books carry no `framed` class and render as before.
+- Fixed in the final pass: the Persian home page scrolled sideways (the hidden mailing-list trap input was placed 9,999 px to the right in right-to-left pages); the book intro and chapter header shaded the right side in left-to-right books although their text sits on the left; HomeEditor and the book editor's "Replace from a ZIP" had no Persian.
+- Not verified: Safari and iOS keyboard behaviour of the inline editor toolbar; ElevenLabs with a real key (audio checks use `SUMM_FAKE_AUDIO=1`).
+
 ## Six-persona UX follow-up — November 12, 2026
 
 Deployed on top of Claude's `62e8739` reader/reception update. Preserved the new fonts, reading preferences, painting picker, and removal of public page chips and completion controls.
