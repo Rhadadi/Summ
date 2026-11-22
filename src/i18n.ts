@@ -169,6 +169,7 @@ const fa:Record<string,string>={
  'Public':'عمومی','Unlisted':'فقط با پیوند','Edit book':'ویرایش کتاب','View':'نمایش','No published books yet. Add a source below, write or import a summary, then publish it.':'هنوز کتابی منتشر نشده است. کتابی بیفزایید، خلاصه‌اش را آماده کنید و سپس منتشرش کنید.',
  'Sources on this device':'منابع این دستگاه','Import a book here, prepare its summary, then publish it for editing on any device.':'کتاب را اینجا وارد و خلاصه‌اش را آماده کنید؛ پس از انتشار، ویرایش آن از هر دستگاهی ممکن است.',
  'Up':'بالاتر','Down':'پایین‌تر','Delete chapter':'حذف فصل','Chapter title':'عنوان فصل','Main chapter':'فصل اصلی','Front matter':'بخش آغازین','Back matter':'بخش پایانی','Remove this chapter and its summaries from every language?':'این فصل و خلاصهٔ آن را از همهٔ زبان‌ها حذف می‌کنید؟',
+ '**bold** and *italic* appear formatted to readers':'**پررنگ** و *مورب* برای خوانندگان قالب‌بندی‌شده نمایش داده می‌شوند','Load the latest':'بارگذاری آخرین نسخه','Keep mine':'نگه‌داشتن نسخهٔ من',
 };
 export const rtl=(lang?:string)=>lang==='fa'||lang==='ar';
 export const tr=(lang:string|undefined,text:string)=>lang==='fa'?fa[text]??text:text;

@@ -1,6 +1,6 @@
 """The public library: published summaries, covers, and narration. The original book text is never stored here."""
 from __future__ import annotations
-import json,os,re,secrets,sqlite3,threading,time,unicodedata,uuid
+import hashlib,json,os,re,secrets,sqlite3,threading,time,unicodedata,uuid
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field,model_validator
@@ -61,6 +61,8 @@ class PublishRequest(Strict):
     id:str|None=Field(default=None,max_length=64)
     doc:Doc
     visibility:Literal['public','unlisted']='public'
+    # The rev the editor loaded. When it no longer matches, someone else saved in between and the save is refused (409) instead of silently overwriting.
+    base:str|None=Field(default=None,pattern=r'^[0-9a-f]{16}$')
 accounts.EXTRA_SCHEMA.append(SCHEMA)
 def _migrate(db:sqlite3.Connection):
     """Columns added after the first release. engine: which voice made the audio; type: which summary version it narrates ('' for older rows, which match any); settings: voice settings used."""
@@ -119,23 +121,26 @@ def _public(row,audio_map:dict[str,list[str]]|None=None)->dict:
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
             'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'tags':_tags(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
+def rev_of(raw:str)->str:return hashlib.sha256(raw.encode()).hexdigest()[:16]
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)
     raw=json.dumps(doc,ensure_ascii=False)
     if len(raw)>MAX_DOC:raise accounts.AccountError(413,'This summary is too large to publish. Publish fewer chapters or versions.')
     now=time.time();title=_title(doc)
     if request.id:
-        rows=q('SELECT owner_id FROM library WHERE id=?',(request.id,))
-        if not rows:raise accounts.AccountError(404,'That published book no longer exists.')
-        if rows[0][0]!=user['id'] and user['role']!='owner':raise accounts.AccountError(403,'You can only update books you published.')
-        q('UPDATE library SET title=?,author=?,doc=?,visibility=?,updated=? WHERE id=?',(title,doc.get('author',''),raw,request.visibility,now,request.id));book_id=request.id
+        with accounts._lock:  # the check and the write are one step, so two saves cannot both pass
+            rows=q('SELECT owner_id,doc FROM library WHERE id=?',(request.id,))
+            if not rows:raise accounts.AccountError(404,'That published book no longer exists.')
+            if rows[0][0]!=user['id'] and user['role']!='owner':raise accounts.AccountError(403,'You can only update books you published.')
+            if request.base and request.base!=rev_of(rows[0][1]):raise accounts.AccountError(409,'This book was changed somewhere else after you opened it. Load the latest version, then save again.')
+            q('UPDATE library SET title=?,author=?,doc=?,visibility=?,updated=? WHERE id=?',(title,doc.get('author',''),raw,request.visibility,now,request.id));book_id=request.id
     else:
         book_id=str(uuid.uuid4());q('INSERT INTO library(id,slug,owner_id,title,author,doc,visibility,created,updated) VALUES(?,?,?,?,?,?,?,?,?)',(book_id,_slug(title,book_id),user['id'],title,doc.get('author',''),raw,request.visibility,now,now))
     return get(book_id,include_private=True)
 def get(key:str,include_private:bool=False)->dict:
     rows=q('SELECT '+COLUMNS+' FROM library WHERE id=? OR slug=?',(key,key))
     if not rows:raise accounts.AccountError(404,'This book is not in the library.')
-    out=_public(rows[0],{rows[0][0]:[r[0] for r in q("SELECT language FROM narration WHERE book_id=? AND tracks!='[]' ORDER BY language",(rows[0][0],))]});out['doc']=json.loads(rows[0][7]);return out
+    out=_public(rows[0],{rows[0][0]:[r[0] for r in q("SELECT language FROM narration WHERE book_id=? AND tracks!='[]' ORDER BY language",(rows[0][0],))]});out['doc']=json.loads(rows[0][7]);out['rev']=rev_of(rows[0][7]);return out
 def listing(owner_id:str|None=None)->list[dict]:
     if owner_id:rows=q('SELECT '+COLUMNS+' FROM library WHERE owner_id=? ORDER BY updated DESC',(owner_id,))
     else:rows=q("SELECT "+COLUMNS+" FROM library WHERE visibility='public' ORDER BY updated DESC")

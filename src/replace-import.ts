@@ -112,3 +112,14 @@ export function publishProblems(doc:PubDoc):string[]{
  }
  return out;
 }
+
+// The checks before any save (the book editor and the reading page share them): what a person must fix, in the order they would meet it.
+export function editorProblems(doc:PubDoc):string[]{
+ const out:string[]=[],empty=(p:PubPara)=>!p.text.trim();
+ if(!Object.values(doc.title).some(t=>t.trim()))out.push('Add a title.');
+ if(!doc.chapters.length)out.push('Keep at least one chapter.');
+ if(doc.chapters.some(c=>!Object.values(c.title).some(t=>t.trim())))out.push('Every chapter needs a title.');
+ if(doc.chapters.some(c=>doc.versions.every(v=>!v.chapters[c.id]?.paragraphs.length)))out.push('Add a summary to each chapter before saving.');
+ for(const v of doc.versions)if(v.overview?.paragraphs.some(empty)||v.overview?.takeaways?.some(empty)||Object.values(v.chapters).some(c=>[...c.paragraphs,...(c.review||[])].some(empty))||v.guide?.sections.some(s=>!s.title.trim()||s.items.some(empty))){out.push('Finish or remove empty paragraphs before saving.');break;}
+ return out;
+}

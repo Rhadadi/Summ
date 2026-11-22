@@ -4,7 +4,7 @@ import{AddRounded,AutoAwesomeRounded,DeleteOutlineRounded,ArrowBackRounded}from'
 import ArtPicker from'./ArtPicker';
 import ReviewDialog from'./ReviewDialog';
 import ReplaceDialog from'./ReplaceDialog';
-import{publishProblems,type Replaced}from'./replace-import';
+import{editorProblems,publishProblems,type Replaced}from'./replace-import';
 import type{SummaryImage}from'./types';
 import type{ArtResult,LocalReview,PubBook,PubDoc,PubPara,PubVersion}from'./types';
 import{bookInfo,coverImage,editorialAssist,libraryBook,publishBook,removeCover,setSlide,unpublishBook,uploadBackground,uploadCover,uploadFigure}from'./api';
@@ -22,7 +22,7 @@ interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;o
 export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount,initialTab='details',focusChapter='',backToBook=false,onViewPage}:Props){
  const L=(text:string)=>tr(language,text);
  const[book,setBook]=useState<Edition|null>(null),[doc,setDoc]=useState<PubDoc|null>(null),[tab,setTab]=useState(()=>Math.max(0,Math.min(editorTabs.indexOf(initialTab),4))),[flash,setFlash]=useState(''),[versionIndex,setVersionIndex]=useState(0);
- const[figStamp,setFigStamp]=useState(Date.now());
+ const[figStamp,setFigStamp]=useState(Date.now()),[conflict,setConflict]=useState(false);
  const[replaceOpen,setReplaceOpen]=useState(false),[pendingFigures,setPendingFigures]=useState<{name:string;image:SummaryImage}[]>([]);
  const[capText,setCapText]=useState(''),[capUrl,setCapUrl]=useState('');
  const[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[pick,setPick]=useState<Pick>(null),[reviewOpen,setReviewOpen]=useState(false),[reviewDraft,setReviewDraft]=useState<LocalReview|null>(null),[coverChoices,setCoverChoices]=useState<string[]>([]);
@@ -56,20 +56,23 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
   return <section className="editor-section"><div className="editor-section-head"><h3>{L(label)}</h3><Button startIcon={<AddRounded/>} onClick={actions.add}>{L('Add paragraph')}</Button></div>
    {list.map((p,i)=><div className="editor-paragraph" key={i}>
     <TextField label={L('Heading (optional)')} value={p.heading||''} onChange={e=>actions.change(i,'heading',e.target.value)} fullWidth/>
-    <TextField label={L('Text')} multiline minRows={3} value={p.text} onChange={e=>actions.change(i,'text',e.target.value)} fullWidth dir={lang==='fa'||lang==='ar'?'rtl':'ltr'}/>
+    <TextField label={L('Text')} helperText={L('**bold** and *italic* appear formatted to readers')} multiline minRows={3} value={p.text} onChange={e=>actions.change(i,'text',e.target.value)} fullWidth dir={lang==='fa'||lang==='ar'?'rtl':'ltr'}/>
     <div className="editor-row-actions"><Button size="small" disabled={!!busy||!p.text.trim()} startIcon={<AutoAwesomeRounded/>} onClick={()=>assist('polish',p.text,value=>actions.change(i,'text',value))}>{L('Polish with AI')}</Button><Button size="small" disabled={i===0} onClick={()=>actions.move(i,-1)}>{L('Move up')}</Button><Button size="small" disabled={i===list.length-1} onClick={()=>actions.move(i,1)}>{L('Move down')}</Button><IconButton aria-label={L('Delete paragraph')+' '+(i+1)} onClick={()=>actions.remove(i)}><DeleteOutlineRounded/></IconButton></div>
    </div>)}
   </section>;
  }
  async function save(){
-  setError('');setNotice('');
-  if(!Object.values(currentDoc.title).some(t=>t.trim())){setError('Add a title.');return;}
-  if(!currentDoc.chapters.length){setError('Keep at least one chapter.');return;}
-  if(currentDoc.chapters.some(c=>!Object.values(c.title).some(t=>t.trim()))){setError('Every chapter needs a title.');return;}
-  if(currentDoc.chapters.some(c=>currentDoc.versions.every(v=>!v.chapters[c.id]?.paragraphs.length))){setError('Add a summary to each chapter before saving.');return;}
-  for(const v of currentDoc.versions){if(v.overview?.paragraphs.some(p=>!p.text.trim())||v.overview?.takeaways?.some(p=>!p.text.trim())||Object.values(v.chapters).some(c=>[...c.paragraphs,...(c.review||[])].some(p=>!p.text.trim()))||v.guide?.sections.some(s=>!s.title.trim()||s.items.some(p=>!p.text.trim()))){setError('Finish or remove empty paragraphs before saving.');return;}}
+  setError('');setNotice('');setConflict(false);
+  const basic=editorProblems(currentDoc);if(basic.length){setError(basic[0]);return;}
   const problems=publishProblems(currentDoc);if(problems.length){setError('This cannot be saved yet: '+problems.slice(0,3).join(' ')+(problems.length>3?' (and '+(problems.length-3)+' more)':''));return;}
-  setBusy('save');try{const updated=await publishBook({id:currentBook.id,doc:currentDoc,visibility:currentBook.visibility});for(const f of pendingFigures)await uploadFigure(currentBook.id,f.name,await figureBlob(f.image));setPendingFigures([]);setFigStamp(Date.now());setBook(updated);setDoc(copy(updated.doc));setNotice('Saved. Readers now see these changes.');onSaved();}catch(e){setError((e as Error).message);}finally{setBusy('');}
+  setBusy('save');try{const updated=await publishBook({id:currentBook.id,doc:currentDoc,visibility:currentBook.visibility,base:currentBook.rev});for(const f of pendingFigures)await uploadFigure(currentBook.id,f.name,await figureBlob(f.image));setPendingFigures([]);setFigStamp(Date.now());setBook(updated);setDoc(copy(updated.doc));setNotice('Saved. Readers now see these changes.');onSaved();}catch(e){setError((e as Error).message);setConflict((e as {status?:number}).status===409);}finally{setBusy('');}
+ }
+ // After a refused save: take the newer book (dropping these edits), or keep these edits and save over it with the next press of Save.
+ async function latest(dropMine:boolean){
+  try{const fresh=await libraryBook(currentBook.id);setConflict(false);setError('');
+   if(dropMine){setBook(fresh);setDoc(copy(fresh.doc));setNotice('Loaded the latest version.');}
+   else{setBook({...currentBook,rev:fresh.rev});setNotice('Press Save changes to replace the newer version with yours.');}
+  }catch(e){setError((e as Error).message);}
  }
  async function upload(file:File){setBusy('cover');setError('');try{const blob=await coverBlob(file);await uploadCover(currentBook.id,blob);setBook({...currentBook,cover:'/api/library/'+currentBook.id+'/cover?v='+Date.now()});setNotice('Cover updated.');onSaved();}catch(e){setError((e as Error).message);}finally{setBusy('');}}
  async function useArt(art:ArtResult){setPick(null);setBusy('art');setError('');try{
@@ -92,7 +95,7 @@ export default function PublishedEditor({bookId,language,onBack,onSaved,onAccoun
  return <div className="editor-workspace">
   <Button startIcon={<ArrowBackRounded/>} onClick={onBack}>{L(backToBook?'Back to the book':'Workspace')}</Button>
   <div className="editor-heading"><div><span className="eyebrow">{L('BOOK EDITOR')}</span><h1 dir="auto">{title}</h1><p>{L('Change the published book directly. Text changes go live when you save.')}</p></div><span><Button sx={{mr:1}} variant="outlined" disabled={!!busy} onClick={()=>setReplaceOpen(true)}>{L('Replace from a ZIP')}</Button><Button variant="contained" disabled={!!busy} onClick={save}>{L(busy==='save'?'Saving…':'Save changes')}</Button></span></div>
-  {error&&<Alert severity="error" onClose={()=>setError('')} sx={{mb:2}}>{error}</Alert>}{notice&&<Alert severity="success" onClose={()=>setNotice('')} sx={{mb:2}}>{notice}</Alert>}
+  {error&&<Alert severity={conflict?'warning':'error'} onClose={()=>{setError('');setConflict(false);}} sx={{mb:2}} action={conflict?<><Button color="inherit" size="small" onClick={()=>void latest(true)}>{L('Load the latest')}</Button><Button color="inherit" size="small" onClick={()=>void latest(false)}>{L('Keep mine')}</Button></>:undefined}>{error}</Alert>}{notice&&<Alert severity="success" onClose={()=>setNotice('')} sx={{mb:2}}>{notice}</Alert>}
   {doc.versions.length>1&&<TextField select size="small" label={L('Summary version')} value={versionIndex} onChange={e=>setVersionIndex(Number(e.target.value))} sx={{minWidth:260,mb:2}}>{doc.versions.map((v,i)=><MenuItem key={i} value={i}>{v.label} · {v.language}</MenuItem>)}</TextField>}
   <Tabs value={tab} onChange={(_,n)=>setTab(n)} variant="scrollable" scrollButtons="auto" aria-label={L('Book editor sections')}><Tab label={L('Details & images')}/><Tab label={L('Overview')}/><Tab label={L('Chapters')}/><Tab label={L('Study guide')}/><Tab label={L('Reception')}/></Tabs>
   {tab===0&&<div className="editor-panel"><h2>{L('Book details')}</h2><div className="editor-fields">

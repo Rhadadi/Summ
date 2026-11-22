@@ -50,7 +50,7 @@ export const libraryMine=()=>call<{books:PubBook[]}>('library/mine').then(r=>r.b
 export const libraryBook=(key:string)=>call<PubBook&{doc:PubDoc}>('library/'+encodeURIComponent(key));
 export const editorialAssist=(body:{action:'polish'|'overview'|'title'|'revise';source:string;language:string;instruction?:string})=>call<{text:string}>('editor/assist',{body});
 export const identifyBook=(body:{title:string;text:string})=>call<{original_title:string;author:string;year:string;original_language:string}>('editor/identify',{body,signal:AbortSignal.timeout(120000)});
-export const publishBook=(body:{id?:string;doc:PubDoc;visibility:'public'|'unlisted'})=>call<PubBook&{doc:PubDoc}>('library',{body});
+export const publishBook=(body:{id?:string;doc:PubDoc;visibility:'public'|'unlisted';base?:string})=>call<PubBook&{doc:PubDoc}>('library',{body});
 export const unpublishBook=(id:string)=>call<{ok:boolean}>('library/'+id,{method:'DELETE'});
 export const setVisibility=(id:string,visibility:'public'|'unlisted')=>call<PubBook&{doc:PubDoc}>('library/'+id+'/visibility',{method:'PUT',body:{visibility}});
 export const uploadCover=(id:string,blob:Blob)=>binary('library/'+id+'/cover',{method:'PUT',headers:{'Content-Type':blob.type||'image/jpeg','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});

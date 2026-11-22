@@ -120,6 +120,17 @@ class PublishTests(RolesTest):
         owner.put('/api/library/'+book['id']+'/visibility',json={'visibility':'unlisted'})
         self.assertEqual(anon.get('/api/library').json()['books'],[]);self.assertEqual(anon.get('/api/library/'+book['slug']).status_code,200)
         owner.delete('/api/library/'+book['id']);self.assertEqual(anon.get('/api/library/'+book['slug']).status_code,404)
+    def test_saving_with_a_stale_base_is_refused_and_without_one_still_works(self):
+        owner,_=self.owner();book=owner.post('/api/library',json={'doc':doc(),'visibility':'public'}).json()
+        self.assertRegex(book['rev'],r'^[0-9a-f]{16}$');self.assertEqual(owner.get('/api/library/'+book['id']).json()['rev'],book['rev'])
+        edited=doc();edited['versions'][0]['overview']['paragraphs'][0]['text']='Overview **changed**.'
+        ok=owner.post('/api/library',json={'id':book['id'],'doc':edited,'visibility':'public','base':book['rev']});self.assertEqual(ok.status_code,200,ok.text)
+        self.assertNotEqual(ok.json()['rev'],book['rev'])
+        stale=owner.post('/api/library',json={'id':book['id'],'doc':doc(),'visibility':'public','base':book['rev']})
+        self.assertEqual(stale.status_code,409);self.assertIn('changed somewhere else',stale.json()['detail'])
+        self.assertEqual(owner.get('/api/library/'+book['id']).json()['doc']['versions'][0]['overview']['paragraphs'][0]['text'],'Overview **changed**.')
+        self.assertEqual(owner.post('/api/library',json={'id':book['id'],'doc':doc(),'visibility':'public'}).status_code,200)  # no base: as before
+        self.assertEqual(owner.post('/api/library',json={'id':book['id'],'doc':doc(),'visibility':'public','base':'nothex'}).status_code,422)
     def test_a_published_book_carries_no_original_text_fields(self):
         owner,_=self.owner()
         bad=doc();bad['chapters'][0]['blocks']=[{'id':'b','text':'COPYRIGHTED ORIGINAL PASSAGE'}]
