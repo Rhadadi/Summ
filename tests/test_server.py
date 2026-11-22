@@ -30,11 +30,13 @@ class ServerTest(unittest.TestCase):
     def setUp(self):
         self.data=tempfile.TemporaryDirectory()
         self.env=patch.dict(os.environ,{'SUMM_DATA_DIR':self.data.name,'SUMM_SECRET_KEY':'s'*40,'SUMM_INSECURE_COOKIES':'true'});self.env.start();hits.clear()
+        # Publishing warms the related-books cache in the background; tests must not reach Open Library.
+        self.warm=patch('server.app.warm_related',new=AsyncMock());self.warm.start()
         self.client=TestClient(app,headers={'X-Summ-Request':'1'})
     def tearDown(self):
         self.client.close()
         if accounts._conn:accounts._conn.close();accounts._conn=None
-        self.env.stop();self.data.cleanup()
+        self.warm.stop();self.env.stop();self.data.cleanup()
     def sign_up(self,client=None,username='reader',key='AIza-test-key-0000000000000x7Qa',role='editor'):
         client=client or self.client
         email=username+'@example.com';sent=[]

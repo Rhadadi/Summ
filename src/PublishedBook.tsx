@@ -24,7 +24,7 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const version=pub?pickVersion(pub.doc,chosen,settings.language):undefined;
  // Until the owner approves a researched reception, the page shows the reviews Wikipedia and the newspapers' own APIs list.
  const[found,setFound]=useState<Review|null>(null),[related,setRelated]=useState<RelatedBook[]>([]);
- useEffect(()=>{setRelated([]);if(!pub)return;let live=true;libraryRelated(pub.id).then(r=>{if(live)setRelated(r);}).catch(()=>{});return()=>{live=false;};},[pub?.id]);
+ useEffect(()=>{setRelated([]);if(!pub||!version)return;let live=true;libraryRelated(pub.id,version.language).then(r=>{if(live)setRelated(r);}).catch(()=>{});return()=>{live=false;};},[pub?.id,version?.language]);
  useEffect(()=>{setFound(null);if(!pub||pub.doc.review)return;let live=true;libraryReception(pub.id,version?.language||'en').then(r=>{if(live&&r.critics.length)setFound({verdict:'',pros:[],cons:[],quotes:[],sources:[],rating:null,model:'',createdAt:0,critics:r.critics});}).catch(()=>{});return()=>{live=false;};},[pub,version?.language]);
  const[audioStatus,setAudioStatus]=useState<Awaited<ReturnType<typeof narrationStatus>>|null>(null);
  useEffect(()=>{setAudioStatus(null);if(!pub||!version)return;let live=true;narrationStatus(pub.id,version.language).then(s=>{if(live)setAudioStatus(s);}).catch(()=>{});return()=>{live=false;};},[pub?.id,version?.language]);

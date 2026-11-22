@@ -70,10 +70,10 @@ PROMPT='''Use Google Search thoroughly to research how critics and readers recei
 Return ONE JSON object and nothing else, with this shape (write the descriptive fields in {language}; keep excerpts verbatim in their original language):
 {{"verdict": two or three sentences capturing the overall reception, vivid and specific,
  "ratings": up to 3 objects {{"value": average from 0 to 5, "source": site name such as "Goodreads", "count": number of ratings or null, "url": "https://..."}},
- "critics": up to 6 objects, one per published review {{"publication": outlet, "reviewer": critic's name, "date": when, "headline": the review's headline, "stance": "positive" | "mixed" | "negative", "excerpt": a verbatim sentence from the review of at most 35 words, "summary": two sentences on the critic's argument, "url": "https://..." of the review}},
+ "critics": up to 6 objects, one per published review {{"publication": outlet, "reviewer": critic's name, "date": "YYYY-MM-DD" or "YYYY", "headline": the review's headline, "stance": "positive" | "mixed" | "negative", "excerpt": a verbatim sentence from the review of at most 35 words, "summary": two sentences on the critic's argument, "url": "https://..." of the review}},
  "readers": up to 4 objects from well-liked reader reviews {{"name": reviewer's display name, "stars": their rating 0-5 or null, "excerpt": a verbatim line of at most 35 words, "translation": that line translated into {language} (empty if already in {language}), "summary": one sentence, "url": "https://..."}},
- "pros": up to 6 strengths that critics and readers name,
- "cons": up to 6 weaknesses they name,
+ "pros": up to 6 strengths that critics and readers name, each a short phrase of at most 12 words,
+ "cons": up to 6 weaknesses they name, each a short phrase of at most 12 words,
  "audience": two sentences on who this book is for and who may not enjoy it,
  "aboutAuthor": three sentences about the author's background, other books and standing,
  "themes": up to 6 short theme labels,
@@ -235,3 +235,17 @@ Return JSON: {{"books":[{{"title":"...","author":"...","why":"one short sentence
 async def suggest_books(title:str,author:str,language:str,creds:tuple[str,str],gemini:str)->list[dict]:
     data,_=await _ask(SUGGEST.format(title=title[:200],by=' by '+author[:100] if author else '',language=LANGS.get(language,'English')),creds,gemini,tokens=4096)
     return [{'title':_text(b.get('title'),200),'author':_text(b.get('author'),120),'why':_text(b.get('why'),300)} for b in (data.get('books') or []) if isinstance(b,dict) and _text(b.get('title'),200)][:8]
+
+LOCALIZE='''For a reader of {language}, give each book below as it is known to {language} readers. "title": the title the book is published under in {language} when a translation exists, otherwise a faithful translation of the title (never invent a publisher's title). "author": the author's name in {language} script. "why": rewrite the note in {language}, one short sentence (empty if the note is empty).
+Return JSON: {{"items":[{{"n":number,"title":"...","author":"...","why":"..."}}]}}
+{items}'''
+async def localize_books(items:list[dict],language:str,creds:tuple[str,str],gemini:str)->list[dict]:
+    """One batched call so a Persian shelf shows Persian titles and authors. Always returns one dict per item; missing answers stay empty."""
+    name=LANGS.get(language,language)
+    listing='\n'.join(json.dumps({'n':i+1,'title':b.get('title',''),'author':b.get('author',''),'why':b.get('why','')},ensure_ascii=False) for i,b in enumerate(items))
+    data,_=await _ask(LOCALIZE.format(language=name,items=listing),creds,gemini,tokens=4096)
+    out=[{} for _ in items]
+    for x in data.get('items') or []:
+        if isinstance(x,dict) and isinstance(x.get('n'),int) and 0<x['n']<=len(out):
+            out[x['n']-1]={'localTitle':_text(x.get('title'),200),'localAuthor':_text(x.get('author'),120),'why':_text(x.get('why'),300)}
+    return out

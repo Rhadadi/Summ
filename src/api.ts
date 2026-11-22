@@ -67,7 +67,7 @@ export const artIdeas=(body:{title:string;author:string;about:string;themes:stri
 export const libraryReception=(id:string,lang='en')=>call<{critics:NonNullable<Review['critics']>}>('library/'+id+'/reception?lang='+encodeURIComponent(lang),{signal:AbortSignal.timeout(60000)});
 export const homeConfig=()=>call<HomeConfig>('home');
 export const saveHomeConfig=(body:HomeConfig)=>call<HomeConfig>('home',{method:'PUT',body});
-export const libraryRelated=(id:string)=>call<{books:RelatedBook[]}>('library/'+id+'/related',{signal:AbortSignal.timeout(60000)}).then(r=>r.books);
+export const libraryRelated=(id:string,lang='en')=>call<{books:RelatedBook[]}>('library/'+id+'/related?lang='+encodeURIComponent(lang),{signal:AbortSignal.timeout(60000)}).then(r=>r.books);
 // ---- book requests and the update mailing list
 export const requestBook=(b:{title:string;author:string;note:string;email:string;lang:string;website:string})=>call<{ok:boolean}>('requests',{body:b});
 export const subscribeMail=(email:string,lang:string,website='')=>call<{status:'active'|'pending'}>('mailing/subscribe',{body:{email,lang,website}});

@@ -195,7 +195,7 @@ body{background:var(--bg);color:var(--ink)}
 .band{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:20px 36px;background:var(--brand-tint)}
 .band>div{flex:1 1 360px;display:flex;flex-direction:column;gap:4px}.band strong{font-size:18px}.band span{font-size:15px;color:var(--muted)}
 .band .dark.MuiButton-root{min-height:50px;padding-inline:26px;border-radius:25px;background:#173a42;color:#fff}
-.about h2,.chapters h2,.reception h2{margin:0 0 18px;font:700 28px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.about h2,.chapters h2,.reception h2,.related h2{margin:0 0 18px;font:700 28px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .chips{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px}.chips span{padding:14px 20px;border-radius:6px;background:var(--side);font-size:17px}
 .about p,.reception p{margin:0 0 8px;max-width:760px;font:19px/1.7 var(--serif)}.about small,.reception small{color:var(--muted)}
 .ch-row{display:flex;align-items:center;gap:20px;width:100%;padding:18px 4px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:start;cursor:pointer;font:inherit}
@@ -373,8 +373,6 @@ body{background:var(--bg);color:var(--ink)}
 @media (max-width:899px){.visitor-bar{padding:10px 16px;flex-wrap:wrap}}
 .rv-themes{display:flex;flex-wrap:wrap;gap:8px}.rv-themes span{border:1px solid var(--line);border-radius:980px;padding:5px 14px;font:500 14px var(--serif);background:var(--surface)}
 .rv-cols p{margin:0;font:400 16px/1.65 var(--serif)}
-.rv-similar h3{margin:0 0 12px;font:600 13px -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.rv-similar>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
-.rv-similar a{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit;text-decoration:none;transition:transform .2s,border-color .2s}.rv-similar a:hover{transform:translateY(-2px);border-color:var(--brand)}.rv-similar strong{font:600 16px/1.3 var(--serif)}.rv-similar span{font-size:13px;color:var(--muted)}.rv-similar small{margin-top:4px;font-size:13px;line-height:1.45;color:var(--muted)}
 
 /* Reader, redesigned: brand and book at the top of the contents, quiet rows, reading settings */
 .r2{--rbg:var(--bg);--rink:var(--ink);--rmuted:var(--muted);--rline:var(--line);--rside:var(--surface-low);background:var(--rbg);color:var(--rink)}
@@ -671,12 +669,6 @@ body{background:var(--bg);color:var(--ink)}
 .zip-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.zip-choices button{padding:0;border:2px solid transparent;border-radius:6px;background:none;overflow:hidden}.zip-choices button:hover{border-color:var(--brand)}.zip-choices img{display:block;width:100%;aspect-ratio:2/3;object-fit:cover}
 
 /* Books to read next: a shelf of covers */
-.rv-shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:22px 18px}
-.rv-book{display:flex;flex-direction:column;gap:3px;color:inherit;text-decoration:none}
-.rv-cover{display:block;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:var(--brand-tint);box-shadow:0 10px 22px -12px rgba(0,0,0,.45);transition:transform .25s ease;margin-bottom:8px}
-.rv-book:hover .rv-cover{transform:translateY(-5px)}
-.rv-cover img{width:100%;height:100%;object-fit:cover;display:block}.rv-cover.blank{display:grid;place-items:center;padding:10px;text-align:center;font:600 15px/1.3 var(--serif);color:var(--brand)}
-.rv-book strong{font:600 15px/1.3 var(--serif)}.rv-book>span:not(.rv-cover){font-size:13px;color:var(--muted)}.rv-book small{font-size:12px;line-height:1.45;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 
 /* ---- ask for a book, and the update mailing list */
 .m-community{max-width:1320px;margin-inline:auto;padding:56px 64px 80px}
@@ -724,3 +716,19 @@ body{background:var(--bg);color:var(--ink)}
 :root[data-mode="dark"] .nb-task.nb-failed{background:color-mix(in srgb,#ff8a80 12%,var(--surface))}
 
 .editor-chapter{scroll-margin-top:16px}.editor-chapter.flash{outline:2px solid var(--brand);outline-offset:4px;border-radius:10px;transition:outline-color .6s}
+
+/* "If you liked this book": 4 per row on desktop, a snapping row on phones */
+.related{margin-top:56px}
+.rel-shelf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:34px 26px}
+.rel-book{display:flex;flex-direction:column;gap:3px;min-width:0;color:inherit;text-decoration:none}
+.rel-cover{position:relative;display:block;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:#e3d7c0;box-shadow:0 14px 30px -12px rgba(42,33,24,.5);transition:transform .35s ease,box-shadow .35s ease;margin-bottom:10px}
+a.rel-book:hover .rel-cover{transform:translateY(-6px);box-shadow:0 24px 38px -14px rgba(42,33,24,.55)}
+.rel-cover img{width:100%;height:100%;object-fit:cover;display:block}.rel-cover.blank{display:grid;place-items:center;padding:16px;text-align:center;font:500 18px/1.3 var(--serif);color:#4a3d2a}
+.rel-badge{position:absolute;inset-block-end:8px;inset-inline-start:8px;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:980px;background:rgba(255,255,255,.94);color:#256673;font:600 11.5px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.18)}.rel-badge svg{font-size:14px}
+.rel-title{font:600 17px/1.3 var(--serif);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rel-original{font:400 12px/1.4 var(--serif);color:var(--muted);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.rel-author{font:400 13.5px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted)}
+.rel-rating{display:flex;align-items:center;gap:5px;margin-top:2px;font:600 13px -apple-system,BlinkMacSystemFont,sans-serif}.rel-rating .rv-stars svg{font-size:16px;margin-inline-end:-1px}.rel-rating small{color:var(--muted);font-weight:400}
+.rel-why{margin-top:3px;font:400 13px/1.5 var(--serif);color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media(max-width:900px){.rel-shelf{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.related{margin-top:40px}.rel-shelf{display:flex;gap:16px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x mandatory;padding:4px 2px 14px;margin-inline:-2px}.rel-book{flex:0 0 138px;scroll-snap-align:start}}

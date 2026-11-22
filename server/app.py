@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urljoin,urlsplit
 import httpx
-from fastapi import Depends,FastAPI,HTTPException,Request
+from fastapi import BackgroundTasks,Depends,FastAPI,HTTPException,Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -488,8 +488,9 @@ async def library_mine(user:dict=Depends(editor_user)):return {'books':library.l
 @app.get('/api/library/{key}')
 async def library_book(key:str,request:Request):throttle('lib:'+client_ip(request),120);return library.get(key)
 @app.post('/api/library')
-async def library_publish(body:library.PublishRequest,user:dict=Depends(editor_user)):
-    throttle('publish:'+user['id'],20);return await asyncio.to_thread(library.publish,user,body)
+async def library_publish(body:library.PublishRequest,tasks:BackgroundTasks,user:dict=Depends(editor_user)):
+    throttle('publish:'+user['id'],20);saved=await asyncio.to_thread(library.publish,user,body)
+    related.invalidate(saved['id']);tasks.add_task(warm_related,saved['id']);return saved
 @app.delete('/api/library/{book_id}')
 async def library_remove(book_id:str,user:dict=Depends(editor_user)):own_or_owner(user,book_id);library.remove(book_id);return {'ok':True}
 class VisibilityBody(StrictModel):visibility:Literal['public','unlisted']
@@ -528,16 +529,32 @@ async def library_reception(book_id:str,request:Request,lang:str='en'):
     owner=library.owner_of(book['id']);creds=accounts.credentials(owner) if owner else None
     translate=(lambda critics,l:reviews.translate_critics(critics,l,creds,GEMINI)) if creds else None
     return await reception.cached(book['id'],title,doc.get('author',''),language,translate)
-@app.get('/api/library/{book_id}/related')
-async def library_related(book_id:str,request:Request):
-    throttle('rel:'+client_ip(request),30)
-    book=library.get(book_id);doc=book['doc'];info=doc.get('info') or {}
+async def related_books(book:dict,lang:str,force:bool=False)->list[dict]:
+    """"If you liked this book": this library's own books (fresh), then rated external books (cached per language)."""
+    doc=book['doc'];info=doc.get('info') or {}
     title=(doc['title'].get('en') or doc['title'].get(doc.get('originalLanguage','en')) or book['title'])
     picks=[{'title':x['title'],'author':x.get('author',''),'why':x.get('why','')} for x in ((doc.get('review') or {}).get('similar') or [])]
-    language=(doc['versions'][0]['language'] if doc.get('versions') else 'en')
     owner=library.owner_of(book['id']);creds=accounts.credentials(owner) if owner else None
-    suggest=(lambda:reviews.suggest_books(title,doc.get('author',''),language,creds,GEMINI)) if creds else None
-    return {'books':await related.cached(book['id'],title,doc.get('author',''),info.get('categories') or [],picks,suggest)}
+    suggest=(lambda:reviews.suggest_books(title,doc.get('author',''),lang,creds,GEMINI)) if creds else None
+    localize=(lambda items:reviews.localize_books(items,lang,creds,GEMINI)) if creds and lang!='en' else None
+    external=await related.cached(book['id'],title,doc.get('author',''),info.get('categories') or [],picks,suggest,lang,localize,force)
+    local=related.in_library({'id':book['id'],'author':doc.get('author',''),'tags':book.get('tags') or []},picks,library.listing())
+    return related.combine(local,external)
+async def warm_related(book_id:str):
+    """After a publish the lists are recomputed in the background, so the first reader does not wait for Open Library."""
+    try:
+        book=library.get(book_id)
+        for lang in sorted({v['language'] for v in book['doc']['versions'] if v['language'] in reviews.LANGS})[:3]:await related_books(book,lang,True)
+    except Exception:pass  # noqa: BLE001 - a warm-up must never affect the publish
+@app.get('/api/library/{book_id}/related')
+async def library_related(book_id:str,request:Request,lang:str='en'):
+    throttle('rel:'+client_ip(request),30)
+    return {'books':await related_books(library.get(book_id),lang if lang in reviews.LANGS else 'en')}
+@app.post('/api/library/{book_id}/related/refresh')
+async def library_related_refresh(book_id:str,lang:str='en',user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);throttle('relr:'+user['id'],10)
+    related.invalidate(book_id)
+    return {'books':await related_books(library.get(book_id),lang if lang in reviews.LANGS else 'en',True)}
 @app.post('/api/review/research')
 async def review_research(body:reviews.ResearchRequest,user:dict=Depends(ai_user)):
     return (await reviews.research(body,user_credentials(user),GEMINI)).model_dump()

@@ -103,11 +103,20 @@ def _audio_map()->dict[str,list[str]]:
     out:dict[str,list[str]]={}
     for book_id,language in q("SELECT book_id,language FROM narration WHERE tracks!='[]' ORDER BY language"):out.setdefault(book_id,[]).append(language)
     return out
+TAG_STOP={'aspects','psychological','will','free','general','nonfiction','non-fiction','fiction','book','books','other','and','the','for','with'}
+def _tags(d:dict)->list[str]:
+    """Up to 6 category words plus the review's themes, lower-cased: what "If you liked this book" compares between two books."""
+    words:list[str]=[]
+    for c in (d.get('info') or {}).get('categories') or []:
+        for w in re.split(r'[\s/&,>:.;()-]+',c.lower()):
+            if len(w)>=4 and w not in TAG_STOP and w not in words:words.append(w)
+    themes=[' '.join(t.lower().split()) for t in ((d.get('review') or {}).get('themes') or []) if isinstance(t,str) and t.strip()]
+    return words[:6]+[t for t in themes if t not in words][:6]
 def _public(row,audio_map:dict[str,list[str]]|None=None)->dict:
     id_,slug,title,author,visibility,cover,updated,doc=row
     d=json.loads(doc)
     return {'id':id_,'slug':slug,'title':title,'titles':d['title'],'author':author,'visibility':visibility,'cover':'/api/library/'+id_+'/cover?v='+str(int(updated)) if cover else None,'updated':updated,
-            'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
+            'languages':sorted({v['language'] for v in d['versions']}),'audio':(audio_map if audio_map is not None else _audio_map()).get(id_,[]),'blurb':_blurb(d),'tags':_tags(d),'rating':_rating(d),'slide':_slide(id_),'year':(d.get('info') or {}).get('year') or '','types':sorted({v['type'] for v in d['versions']}),'chapters':sum(c.get('group','main')=='main' and not any(re.match(r'^(?:title pages?|front matter|صفحات عنوان|صفحهٔ عنوان|صفحه عنوان|فهرست مطالب|پیشگفتار|پیش‌گفتار)',t.strip(),re.I) for t in c['title'].values()) for c in d['chapters'])}
 COLUMNS='id,slug,title,author,visibility,cover_type,updated,doc'
 def publish(user:dict,request:PublishRequest)->dict:
     doc=request.doc.model_dump(exclude_none=True)

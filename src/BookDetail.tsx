@@ -10,6 +10,7 @@ import{chapterTitle,mainChapters,strip,type BookData}from'./bookData';
 import{Shelf}from'./HomePage';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 import ReviewSection from'./ReviewSection';
+import RelatedShelf from'./RelatedShelf';
 import{num,rtl,tr}from'./i18n';
 import type{Backdrop}from'./MuseumHero';
 import{displayAuthor,displayPainting}from'./persian-display';
@@ -90,7 +91,7 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
  const fileCover=book.format==='PDF'||book.format==='EPUB';
  const shortL=(m:number)=>m<60?num(lang,m)+' '+L('min'):num(lang,Math.round(m/60))+' '+(lang==='fa'?'ساعت':'h');
  const lang=readOnly?(data.version?.language||report?.language||Object.values(summaries)[0]?.language):undefined,L=(t:string)=>tr(lang,t);
- return <div className={'detail'+(readOnly&&backdrop?' curated-detail':'')} lang={lang} dir={rtl(lang)?'rtl':undefined}>
+ return <div className={'detail'+(readOnly&&backdrop?' curated-detail':'')} lang={lang} dir={rtl(lang)?'rtl':lang?'ltr':undefined}>
   {!!ownerActions?.length&&<div className="home-edit" role="toolbar" aria-label={L('Owner tools')}>{ownerActions.map(a=><button key={a.key} onClick={a.onClick}>{a.icon}{a.label}</button>)}</div>}
   <button className="back-link" onClick={onBack}><ArrowBackRounded/>{L(backLabel||'My library')}</button>
   {rebuilding&&<Alert severity="info" icon={<CircularProgress size={18}/>}>Re-reading the file with cleaner text extraction…</Alert>}
@@ -182,12 +183,13 @@ export default function BookDetail({listenLabel,audioNote,book,cover,data,saved,
    <h2>{L('What others say')}</h2>
    {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
-    <ReviewSection related={related} lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} draft={!!review&&!reviewApproved&&!readOnly}/>
+    <ReviewSection lang={lang} review={review} scores={(info?.ratings||[]).filter(r=>(r.count||0)>=20).map(r=>({value:r.rating,source:r.source,count:r.count,url:r.url}))} draft={!!review&&!reviewApproved&&!readOnly}/>
 
     {info&&<p className="facts-line">{[info.publisher||info.google_edition?.publisher,info.google_edition?.published_date||info.year,pages?num(lang,pages)+' '+L('pages'):'',info.google_edition?.isbns[0]?'ISBN '+info.google_edition.isbns[0]:''].filter(Boolean).join(' · ')}</p>}
    </>}
    {!readOnly&&<div className="reception-actions">{!!onReview&&<Button variant={review?'text':'outlined'} startIcon={<AutoAwesomeRounded/>} onClick={onReview}>{review?'Edit the reception':'Research reviews and ratings'}</Button>}{editing?<form className="guide-edit" onSubmit={e=>{e.preventDefault();setEditing(false);lookup(query.title,query.author,true);}}><TextField size="small" label="Title" value={query.title} onChange={e=>setQuery({...query,title:e.target.value})}/><TextField size="small" label="Author" value={query.author} onChange={e=>setQuery({...query,author:e.target.value})}/><Button type="submit" variant="contained">Search again</Button></form>:<Button onClick={()=>setEditing(true)}>Not the right book?</Button>}<Button disabled={infoState==='loading'} onClick={()=>setEditionOpen(true)}>Choose edition</Button></div>}
   </section>}
+  <RelatedShelf books={related||[]} lang={lang}/>
   {editionOpen&&<GoogleBooksDialog initialQuery={[query.title,query.author].filter(Boolean).join(' ')} onClose={()=>setEditionOpen(false)} onChoose={chooseEdition}/>}
   <Menu anchorEl={coverMenu} open={!!coverMenu} onClose={()=>setCoverMenu(null)}>
    {fileCover&&<MenuItem onClick={()=>{setCoverMenu(null);coverFromFile();}}>{book.format==='PDF'?'Use a page from the PDF':'Use the EPUB cover'}</MenuItem>}
