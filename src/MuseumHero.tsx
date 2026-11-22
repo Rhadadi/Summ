@@ -4,9 +4,10 @@ import{useMediaQuery}from'@mui/material';
 import{tr,num}from'./i18n';
 import{artSrcSet,artUrl,type Art}from'./art';
 import{sized,srcSet}from'./img';
+import{frameCrop,frameVars,type Frame}from'./frame.ts';
 
 // Where a slide's picture comes from: a gallery painting, a painting chosen for the book, or the cover itself.
-export interface Backdrop{url:string;srcset?:string;position:string;whole?:boolean;caption?:{text:string;url?:string};blur?:boolean;credit?:{title:string;artist:string;year:string;page?:string}|null}
+export interface Backdrop{url:string;srcset?:string;position:string;frame?:Frame;framePhone?:Frame;whole?:boolean;caption?:{text:string;url?:string};blur?:boolean;credit?:{title:string;artist:string;year:string;page?:string}|null}
 export const galleryBackdrop=(a:Art):Backdrop=>({url:artUrl(a),srcset:artSrcSet(a),position:a.position,credit:{title:a.title,artist:a.artist,year:a.year}});
 
 // A full-bleed slideshow: one painting, one book or idea at a time, in the manner of a museum's opening gallery.
@@ -15,14 +16,16 @@ export interface Slide{key:string;backdrop:Backdrop;eyebrow:string;title:string;
 // and a firmer shade where bright and dark patches mix. Measured once per picture, on a tiny copy of it.
 export type Tone='dark'|'bright'|'mixed';
 const tones=new Map<string,Tone>();
-function measure(url:string,rtl:boolean,narrow:boolean):Promise<Tone>{
+function measure(url:string,rtl:boolean,narrow:boolean,frame?:Frame):Promise<Tone>{
  return new Promise(resolve=>{
   const img=new Image();img.crossOrigin='anonymous';
   img.onload=()=>{
    try{
     const w=48,h=27,c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d',{willReadFrequently:true})!;
     // "cover" crop of the picture, as the slide shows it
-    const r=Math.max(w/img.width,h/img.height),sw=w/r,sh=h/r;g.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,w,h);
+    // A framed picture is cropped at its focus and zoom instead, in the real shape of the slide (about 2.4:1 wide, 0.65:1 on phones).
+    if(frame){const c=frameCrop({w:img.width,h:img.height},narrow?{w:65,h:100}:{w:240,h:100},frame);g.drawImage(img,c.sx,c.sy,c.sw,c.sh,0,0,w,h);}
+    else{const r=Math.max(w/img.width,h/img.height),sw=w/r,sh=h/r;g.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,w,h);}
     const x0=narrow?0:rtl?Math.round(w*.42):0,x1=narrow?w:rtl?w:Math.round(w*.58),y0=Math.round(h*(narrow?.4:.14)),y1=Math.round(h*(narrow?.9:.8));
     const d=g.getImageData(x0,y0,x1-x0,y1-y0).data,lum:number[]=[];
     for(let i=0;i<d.length;i+=4)lum.push((.2126*d[i]+.7152*d[i+1]+.0722*d[i+2])/255);
@@ -40,7 +43,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
  const reduce=useMediaQuery('(prefers-reduced-motion: reduce)');
  const x=useRef<number|null>(null),swiped=useRef(false);
  const[tone,setTone]=useState<Record<string,Tone>>({});
- useEffect(()=>{let live=true;const rtl=lang==='fa'||lang==='ar',narrow=window.innerWidth<900;for(const s of slides){const key=s.backdrop.url+(rtl?'r':'l')+(narrow?'n':'w');const known=tones.get(key);if(known){setTone(t=>t[s.key]===known?t:{...t,[s.key]:known});continue;}measure(s.backdrop.srcset?s.backdrop.srcset.split(' ')[0]:sized(s.backdrop.url,320),rtl,narrow).then(v=>{tones.set(key,v);if(live)setTone(t=>({...t,[s.key]:v}));});}return()=>{live=false;};},[slides.map(s=>s.key+s.backdrop.url).join('|'),lang]);
+ useEffect(()=>{let live=true;const rtl=lang==='fa'||lang==='ar',narrow=window.innerWidth<900;for(const s of slides){const frame=narrow?s.backdrop.framePhone||s.backdrop.frame:s.backdrop.frame,key=s.backdrop.url+(rtl?'r':'l')+(narrow?'n':'w')+(frame?[frame.x,frame.y,frame.zoom].join(','):'');const known=tones.get(key);if(known){setTone(t=>t[s.key]===known?t:{...t,[s.key]:known});continue;}measure(s.backdrop.srcset?s.backdrop.srcset.split(' ')[0]:sized(s.backdrop.url,320),rtl,narrow,frame).then(v=>{tones.set(key,v);if(live)setTone(t=>({...t,[s.key]:v}));});}return()=>{live=false;};},[slides.map(s=>s.key+s.backdrop.url+(s.backdrop.frame?JSON.stringify([s.backdrop.frame,s.backdrop.framePhone]):'')).join('|'),lang]);
  const n=slides.length,go=(i:number)=>setAt(((i%n)+n)%n);
 
  useEffect(()=>{if(at>=n)setAt(0);},[n,at]);
@@ -58,7 +61,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
   {slides.map((s,i)=><div key={s.key} className={'m-slide'+(i===at?' on':'')+(tone[s.key]&&tone[s.key]!=='dark'?' tone-'+tone[s.key]:'')} aria-hidden={i!==at} role="group" aria-roledescription="slide" aria-label={(i+1)+' of '+n} onClick={()=>{if(!swiped.current&&s.cover)s.actions[0]?.onClick();}} style={s.cover?{cursor:'pointer'}:undefined} {...(i!==at?{inert:true}:{})}>
    {/* The painting is shown whole; a blurred copy of it fills the rest of the frame. */}
    {near(i)&&s.backdrop.whole&&<img className="m-fill" src={sized(s.backdrop.url,480)} alt="" aria-hidden="true" decoding="async"/>}
-   {near(i)&&<img className={'m-art'+(s.backdrop.blur?' blur':'')+(s.backdrop.whole?' whole':'')} src={s.backdrop.blur?sized(s.backdrop.url,480):s.backdrop.url} srcSet={s.backdrop.blur?undefined:(s.backdrop.srcset||srcSet(s.backdrop.url))} sizes="100vw" alt="" fetchPriority={i===at?'high':'low'} decoding="async"/>}
+   {near(i)&&<img className={'m-art'+(s.backdrop.blur?' blur':'')+(s.backdrop.whole?' whole':'')+(s.backdrop.frame?' framed':'')} style={frameVars(s.backdrop)} src={s.backdrop.blur?sized(s.backdrop.url,480):s.backdrop.url} srcSet={s.backdrop.blur?undefined:(s.backdrop.srcset||srcSet(s.backdrop.url))} sizes="100vw" alt="" fetchPriority={i===at?'high':'low'} decoding="async"/>}
    <div className="m-shade"/>
    <div className="m-inner">
     <div className="m-text">

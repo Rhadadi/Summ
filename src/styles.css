@@ -747,3 +747,8 @@ a.rx-score:hover{border-color:var(--brand);transform:translateY(-2px)}
 /* Bold and italic typed by the owner. Persian fonts have no italic: it stays upright, in the brand ink, with a touch more weight. */
 :is(p,li,figcaption,blockquote) strong{font-weight:700}
 :is(p,li,figcaption,blockquote) em:lang(fa),:is(p,li,figcaption,blockquote) em:lang(ar){font-style:normal;font-weight:600;color:var(--primary)}
+/* A framed background (the owner moved or zoomed it). Two classes beat the earlier single-class !important rules for fit, transform and
+   animation; the focus is pinned with object-position and the zoom grows around that same point. Unframed pictures never get the class. */
+.m-art.framed{object-fit:cover!important;object-position:var(--fx) var(--fy)!important;transform:scale(var(--fz))!important;transform-origin:var(--fx) var(--fy);animation:none!important}
+.m-art.framed.whole{object-fit:contain!important}
+@media (max-width:899px){.m-art.framed{object-position:var(--pfx,var(--fx)) var(--pfy,var(--fy))!important;transform:scale(var(--pfz,var(--fz)))!important;transform-origin:var(--pfx,var(--fx)) var(--pfy,var(--fy))}}

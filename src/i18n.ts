@@ -269,6 +269,19 @@ const fa:Record<string,string>={
  'It cannot be undone once it starts, but you can stop it.':'پس از شروع، اعتبار مصرف‌شده برنمی‌گردد، اما می‌توانید آن را متوقف کنید.',
  'Delete this audio?':'این صدا حذف شود؟',
  'Readers will no longer see a Listen button for this language until you make audio again.':'تا دوباره صدا نسازید، خوانندگان برای این زبان دکمهٔ «شنیدن» را نمی‌بینند.',
+ 'Frame the background':'قاب‌بندی پس‌زمینه',
+ 'Drag the ring to the part of the picture that matters. Readers see the picture cropped around it.':'حلقه را روی بخشی از تصویر ببرید که اهمیت دارد. خوانندگان تصویر را پیرامون همان بخش می‌بینند.',
+ 'Which screens':'کدام صفحه‌ها',
+ 'Wide screens':'صفحه‌های عریض','Phones':'گوشی‌ها','Phones use the same framing':'گوشی‌ها همین قاب را به کار ببرند',
+ 'Focus point. Use the arrow keys to move it, plus and minus to zoom.':'نقطهٔ تمرکز. با کلیدهای جهت‌دار جابه‌جایش کنید و با + و − بزرگ‌نمایی کنید.',
+ 'Zoom':'بزرگ‌نمایی','Zoom in':'بزرگ‌تر','Zoom out':'کوچک‌تر','Reset':'بازنشانی',
+ 'Arrow keys move the focus by 1%, with Shift by 5%. Plus and minus zoom; so does the mouse wheel over a preview.':'کلیدهای جهت‌دار نقطهٔ تمرکز را ۱٪ و با Shift پنج درصد جابه‌جا می‌کنند. + و − و چرخ موشواره روی پیش‌نمایش بزرگ‌نمایی می‌کنند.',
+ 'Home page slider':'اسلایدر صفحهٔ اصلی','Book page':'صفحهٔ کتاب','Chapter header':'سربرگ فصل',
+ 'Frame the picture':'قاب‌بندی تصویر','Framing saved.':'قاب‌بندی ذخیره شد.',
+ 'Move and zoom the picture so the part that matters stays in view.':'تصویر را جابه‌جا و بزرگ کنید تا بخش مهم آن دیده شود.',
+ 'Only a painting or an uploaded picture can be framed; the automatic gallery and the cover change or blur.':'فقط نقاشی یا تصویر بارگذاری‌شده را می‌توان قاب‌بندی کرد؛ گالری خودکار و جلد تغییر می‌کنند یا محو می‌شوند.',
+ 'Background':'پس‌زمینه','Adjust background…':'تنظیم پس‌زمینه…',
+ 'Choose a painting or upload a picture first; the automatic gallery and the cover cannot be framed.':'نخست نقاشی انتخاب کنید یا تصویری بارگذاری کنید؛ گالری خودکار و جلد را نمی‌توان قاب‌بندی کرد.',
 };
 export const rtl=(lang?:string)=>lang==='fa'||lang==='ar';
 export const tr=(lang:string|undefined,text:string)=>lang==='fa'?fa[text]??text:text;

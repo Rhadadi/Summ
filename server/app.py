@@ -660,6 +660,16 @@ async def library_slide(book_id:str,body:SlideBody,user:dict=Depends(editor_user
     artwork.set_mode(book_id,body.mode,credit,body.fit,body.caption,body.caption_url)
     library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
     return artwork.slide(book_id)
+class FrameIn(StrictModel):
+    x:float=Field(ge=0,le=100);y:float=Field(ge=0,le=100);zoom:float=Field(ge=1,le=3)
+class FrameBody(StrictModel):
+    wide:FrameIn|None=None;phone:FrameIn|None=None
+@app.put('/api/library/{book_id}/frame')
+async def library_frame(book_id:str,body:FrameBody,user:dict=Depends(editor_user)):
+    own_or_owner(user,book_id);throttle('art:'+user['id'],30)
+    artwork.set_frame(book_id,body.wide.model_dump() if body.wide else None,body.phone.model_dump() if body.phone else None)
+    library.q('UPDATE library SET updated=? WHERE id=?',(time.time(),book_id))
+    return artwork.slide(book_id)
 @app.get('/api/library/{book_id}/art')
 async def library_art(book_id:str,w:int|None=None,v:str=''):
     found=artwork.image(book_id)

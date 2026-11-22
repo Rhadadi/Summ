@@ -1,4 +1,4 @@
-import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection,VoiceSettings,NarrationEstimate,ElevenVoice}from './types';
+import type{Frame}from'./frame.ts';import type{BookRequest,MailingOverview,RelatedBook,HomeConfig,Review,ArtResult,Account,AppConfig,BookInfo,NarrationStatus,People,PubBook,PubDoc,Chapter,GoogleBookEdition,Guide,Settings,Summary,Overview,SummarySection,VoiceSettings,NarrationEstimate,ElevenVoice}from './types';
 export class ApiError extends Error{constructor(message:string,readonly status:number){super(message);}}
 // The reason the server gave: a sentence, or a list of schema problems turned into one. Never just the bare status code.
 export const detailText=(detail:unknown,status:number)=>typeof detail==='string'?detail:Array.isArray(detail)&&detail.length?detail.slice(0,3).map((d:{loc?:unknown[];msg?:string})=>[...(d.loc||[]).filter(x=>x!=='body'),d.msg||'invalid'].join(' › ')).join('; '):'The server refused this ('+status+').';
@@ -67,6 +67,7 @@ export const deleteNarration=(id:string,language:string)=>call<NarrationStatus>(
 export const summaryKey=(book:string,hash:string,c:Chapter,s:Settings,model='')=>[book,hash,c.id,c.title,c.blocks.map(b=>b.id).join(','),s.depth,s.purpose,s.language,s.review,model,'v2'].join(':');
 export const artSearch=(q:string)=>call<{results:ArtResult[]}>('art/search?q='+encodeURIComponent(q)).then(r=>r.results);
 export const setSlide=(id:string,mode:'none'|'cover'|'art'|'keep',file?:string,fit?:'fill'|'whole',caption?:{text:string;url:string})=>call<NonNullable<PubBook['slide']>>('library/'+id+'/slide',{method:'PUT',body:{mode,file,fit,...(caption?{caption:caption.text,caption_url:caption.url}:{})}});
+export const setFrame=(id:string,wide:Frame|null,phone:Frame|null)=>call<NonNullable<PubBook['slide']>>('library/'+id+'/frame',{method:'PUT',body:{wide,phone}});
 export const researchReview=(body:{title:string;author:string;year:string;language:string;isbn?:string})=>call<Review>('review/research',{body,signal:AbortSignal.timeout(400000)});
 export const uploadFigure=(id:string,name:string,blob:Blob)=>binary('library/'+id+'/figure/'+name,{method:'PUT',headers:{'Content-Type':blob.type||'image/png','X-Summ-Request':'1'},body:blob,signal:AbortSignal.timeout(60000)});
 export const artIdeas=(body:{title:string;author:string;about:string;themes:string[];language:string})=>call<{ideas:{artist:string;title:string;why:string;results:ArtResult[]}[];moods:string[]}>('art/ideas',{body,signal:AbortSignal.timeout(150000)});

@@ -101,3 +101,7 @@
 /* The owner's cluster in the reader's site bar: Edit this page, then the ⋯ menu. */
 .curated-site-owner button.ed-pill.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .curated-site-more.MuiIconButton-root{color:var(--rink);border:1px solid var(--rline);padding:5px}.curated-site-more:hover{color:var(--brand)}
+/* The same framing on the book intro and the chapter strip. The strip keeps the wide framing on every screen (.wide-only); the intro follows the phone framing when there is one. */
+.curated-art.framed{object-fit:cover;object-position:var(--fx) var(--fy)!important;transform:scale(var(--fz))!important;transform-origin:var(--fx) var(--fy)}
+.curated-art.framed.whole{object-fit:contain}
+@media (max-width:899px){.curated-intro-art .curated-art.framed{object-position:var(--pfx,var(--fx)) var(--pfy,var(--fy))!important;transform:scale(var(--pfz,var(--fz)))!important;transform-origin:var(--pfx,var(--fx)) var(--pfy,var(--fy))}}

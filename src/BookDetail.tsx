@@ -14,6 +14,7 @@ import RelatedShelf from'./RelatedShelf';
 import{receptionView}from'./reception-view';
 import{num,rtl,tr}from'./i18n';
 import type{Backdrop}from'./MuseumHero';
+import{frameVars}from'./frame.ts';
 import Inline from'./InlineText';
 import{displayAuthor,displayPainting}from'./persian-display';
 
@@ -104,7 +105,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
   {readOnly&&backdrop?<section className="curated-intro">
    <div className="curated-intro-art">
     {backdrop.whole&&<img className="curated-fill" src={backdrop.url} alt="" aria-hidden="true"/>}
-    <img className={'curated-art'+(backdrop.whole?' whole':'')+(backdrop.blur?' blurred':'')} src={backdrop.url} srcSet={backdrop.srcset} alt="" style={{objectPosition:backdrop.position}}/>
+    <img className={'curated-art'+(backdrop.whole?' whole':'')+(backdrop.blur?' blurred':'')+(backdrop.frame?' framed':'')} src={backdrop.url} srcSet={backdrop.srcset} alt="" style={{objectPosition:backdrop.position,...frameVars(backdrop)}}/>
     <div className="curated-art-shade"/>
     <div className="curated-intro-inner"><div className="curated-intro-copy">
      <span className="curated-eyebrow">{L('Study guide')}</span><span className="curated-goldline"/>

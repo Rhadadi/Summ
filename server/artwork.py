@@ -57,7 +57,23 @@ def set_mode(book_id:str,mode:str,credit:dict|None=None,fit:str|None=None,captio
     if mode=='keep':
         if 'credit' in old:m['credit']=old['credit']
         m['at']=old.get('at',m['at'])
+        # The framing belongs to one picture: it survives a change of fit or caption, never a new picture (or none).
+        for k in ('frame','framePhone'):
+            if k in old:m[k]=old[k]
     if mode=='art' and credit:m['credit']=credit
+    (_dir()/(book_id+'.json')).write_text(json.dumps(m))
+def _frame(f)->dict|None:
+    """A focal point in percent and a zoom, rounded; None for nothing. Callers validate ranges first (the route does)."""
+    if f is None:return None
+    return {'x':round(float(f['x']),1),'y':round(float(f['y']),1),'zoom':round(float(f['zoom']),2)}
+def set_frame(book_id:str,wide:dict|None,phone:dict|None):
+    """Frame the picture for wide screens and, optionally, differently for phones. Only a fixed picture (art, upload) can be framed."""
+    m=meta(book_id);mode=m.get('mode','none')
+    if mode not in ('art','upload') or not (_dir()/book_id).exists():raise accounts.AccountError(422,'Only a painting or an uploaded picture can be framed. The automatic gallery and the cover change or blur.')
+    if wide is None and phone is not None:raise accounts.AccountError(422,'Frame the wide screens first; phones can only differ from that.')
+    for k,v in (('frame',_frame(wide)),('framePhone',_frame(phone))):
+        if v:m[k]=v
+        else:m.pop(k,None)
     (_dir()/(book_id+'.json')).write_text(json.dumps(m))
 def save_upload(book_id:str,data:bytes):
     kind='image/jpeg' if data.startswith(b'\xff\xd8\xff') else 'image/png' if data.startswith(b'\x89PNG') else 'image/webp' if data.startswith(b'RIFF') else None
@@ -77,6 +93,10 @@ def slide(book_id:str)->dict:
     if mode=='art':
         c=m.get('credit',{});out.update({'art':'/api/library/'+book_id+'/art?v='+str(m.get('at',0)),'credit':{k:c.get(k,'') for k in ('title','artist','year','page')}})
     if mode=='upload':out['art']='/api/library/'+book_id+'/art?v='+str(m.get('at',0))
+    # Absent means "as before": no keys, so an unframed book is untouched.
+    if mode in ('art','upload'):
+        for k in ('frame','framePhone'):
+            if m.get(k):out[k]=m[k]
     return out
 def remove(book_id:str):
     for p in (_dir()/book_id,_dir()/(book_id+'.json')):p.unlink(missing_ok=True)

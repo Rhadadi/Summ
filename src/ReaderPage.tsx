@@ -1,7 +1,8 @@
+import{frameVars}from'./frame.ts';
 import{useEffect,useMemo,useRef,useState,type ReactNode}from'react';
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded}from'@mui/icons-material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
 import Inline from'./InlineText';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
@@ -21,7 +22,7 @@ interface Props{
  readOnly?:boolean;backdrop?:Backdrop;
  // Editors see these in the site bar: where they read is where they switch views.
  // onEdit opens the book editor; editing/onEditing switch the inline editing of this page on and off.
- owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void;onAudio?:()=>void;editing?:boolean;onEditing?:()=>void};
+ owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void;onAudio?:()=>void;onBackground?:()=>void;editing?:boolean;onEditing?:()=>void};
  // Inline editing (owners): editSlot(scope) returns the editor for a piece of text, or null to show it as usual; fixed(i) draws a figure or table the editor leaves alone.
  editSlot?:(scope:string,fixed:(i:number,caption?:ReactNode)=>ReactNode)=>ReactNode|null;editBar?:ReactNode;
  // Listen shows only where there is audio: null asks about the overview.
@@ -121,7 +122,7 @@ export default function ReaderPage(p:Props){
    {!curated&&<div className="r2-mobilebar"><IconButton aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><button className="r2-mobile-logo" aria-label="Inkling" onClick={p.onHome}><Lockup/></button></div>}
    {curated&&isChapter&&<div className="curated-chapter-art">
     {p.backdrop!.whole&&<img className="curated-fill" src={p.backdrop!.url} alt="" aria-hidden="true"/>}
-    <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position}}/>
+    <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')+(p.backdrop!.frame?' framed wide-only':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position,...frameVars(p.backdrop)}}/>
     <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
    </div>}
    <div className="r2-col">
@@ -165,7 +166,7 @@ export default function ReaderPage(p:Props){
    <img src={zoom.src} alt={zoom.alt} onClick={e=>e.stopPropagation()}/>
    {zoom.alt&&<p onClick={e=>e.stopPropagation()} dir="auto">{zoom.alt}</p>}
   </div>}
-  <Menu anchorEl={ownerMenu} open={!!ownerMenu} onClose={()=>setOwnerMenu(null)} slotProps={{paper:{dir:isRtl(lang)?'rtl':'ltr'}}}>{p.owner?.onEdit&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onEdit!();}}><ListItemIcon><EditOutlined fontSize="small"/></ListItemIcon>{L('Open in the book editor')}</MenuItem>}{p.owner?.onAudio&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onAudio!();}}><ListItemIcon><GraphicEqRounded fontSize="small"/></ListItemIcon>{L('Audio…')}</MenuItem>}{(p.owner?.onEdit||p.owner?.onAudio)&&<Divider/>}<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onToggle();}}><ListItemIcon><VisibilityOutlined fontSize="small"/></ListItemIcon>{L('View as visitor')}</MenuItem></Menu>
+  <Menu anchorEl={ownerMenu} open={!!ownerMenu} onClose={()=>setOwnerMenu(null)} slotProps={{paper:{dir:isRtl(lang)?'rtl':'ltr'}}}>{p.owner?.onEdit&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onEdit!();}}><ListItemIcon><EditOutlined fontSize="small"/></ListItemIcon>{L('Open in the book editor')}</MenuItem>}{p.owner?.onAudio&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onAudio!();}}><ListItemIcon><GraphicEqRounded fontSize="small"/></ListItemIcon>{L('Audio…')}</MenuItem>}{p.owner?.onBackground&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onBackground!();}}><ListItemIcon><WallpaperRounded fontSize="small"/></ListItemIcon>{L('Adjust background…')}</MenuItem>}{(p.owner?.onEdit||p.owner?.onAudio||p.owner?.onBackground)&&<Divider/>}<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onToggle();}}><ListItemIcon><VisibilityOutlined fontSize="small"/></ListItemIcon>{L('View as visitor')}</MenuItem></Menu>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   {phone?<Drawer anchor="bottom" open={!!look} onClose={()=>setLook(null)} slotProps={{paper:{className:'look-sheet'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Drawer>
   :<Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Popover>}

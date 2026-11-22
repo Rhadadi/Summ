@@ -450,3 +450,30 @@ class NarrationTests(RolesTest):
             columns={r[1] for r in accounts._db().execute('PRAGMA table_info(narration)')}
         self.assertTrue({'engine','type','settings'}<=columns)
 if __name__=='__main__':unittest.main()
+
+class FrameTests(RolesTest):
+    PNG=b'\x89PNG'+b'0'*600
+    def test_framing_the_background_validates_resets_and_is_editor_only(self):
+        owner,_=self.owner();bid=owner.post('/api/library',json={'doc':doc(),'visibility':'public'}).json()['id'];url='/api/library/'+bid+'/frame'
+        # the cover blurs and the automatic gallery changes: neither can be framed
+        owner.put('/api/library/'+bid+'/slide',json={'mode':'cover'})
+        self.assertEqual(owner.put(url,json={'wide':{'x':30,'y':20,'zoom':1.5}}).status_code,422)
+        self.assertEqual(owner.put('/api/library/'+bid+'/background',content=self.PNG).json()['mode'],'upload')
+        # ranges are checked; phones cannot be framed without wide screens
+        for bad in ({'x':101,'y':0,'zoom':1},{'x':0,'y':-1,'zoom':1},{'x':0,'y':0,'zoom':0.9},{'x':0,'y':0,'zoom':3.1},{'x':0,'y':0}):
+            self.assertEqual(owner.put(url,json={'wide':bad}).status_code,422,bad)
+        self.assertEqual(owner.put(url,json={'wide':None,'phone':{'x':1,'y':1,'zoom':1}}).status_code,422)
+        got=owner.put(url,json={'wide':{'x':12.34,'y':80,'zoom':1.556},'phone':{'x':50,'y':10,'zoom':2}}).json()
+        self.assertEqual(got['frame'],{'x':12.3,'y':80.0,'zoom':1.56});self.assertEqual(got['framePhone'],{'x':50.0,'y':10.0,'zoom':2.0})
+        anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(anon.close)
+        self.assertEqual(anon.get('/api/library').json()['books'][0]['slide']['frame']['zoom'],1.56)
+        # a change of fit or caption keeps the framing; a new picture, or none, drops it
+        self.assertEqual(owner.put('/api/library/'+bid+'/slide',json={'mode':'keep','fit':'whole'}).json()['frame']['x'],12.3)
+        self.assertNotIn('frame',owner.put('/api/library/'+bid+'/background',content=self.PNG+b'1').json())
+        owner.put(url,json={'wide':{'x':5,'y':5,'zoom':2}})
+        self.assertEqual(owner.put(url,json={'wide':None,'phone':None}).json()['mode'],'upload');self.assertNotIn('frame',anon.get('/api/library').json()['books'][0]['slide'])
+        owner.put(url,json={'wide':{'x':5,'y':5,'zoom':2}});owner.put('/api/library/'+bid+'/slide',json={'mode':'none'})
+        self.assertEqual(owner.put(url,json={'wide':{'x':5,'y':5,'zoom':2}}).status_code,422)
+        # readers and visitors cannot frame
+        self.assertEqual(self.reader().put(url,json={'wide':{'x':5,'y':5,'zoom':2}}).status_code,403)
+        self.assertIn(anon.put(url,json={'wide':{'x':5,'y':5,'zoom':2}}).status_code,(401,403))
