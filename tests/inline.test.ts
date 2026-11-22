@@ -1,7 +1,7 @@
 import assert from'node:assert/strict';
 import test from'node:test';
 import{readFileSync}from'node:fs';
-import{clearMarks,concatSpans,hasMark,parseInline,plainInline,serializeInline,snapToWords,splitSpans,spansToHtml,toggleMark}from'../src/inline.ts';
+import{wordAt,clearMarks,concatSpans,hasMark,parseInline,plainInline,serializeInline,snapToWords,splitSpans,spansToHtml,toggleMark}from'../src/inline.ts';
 import type{Span}from'../src/inline.ts';
 
 const fixtures=JSON.parse(readFileSync(new URL('./fixtures/inline.json',import.meta.url),'utf8')) as{cases:{in:string;spans:Span[];plain:string;out:string}[]};
@@ -62,4 +62,9 @@ test('random formatting always reads back the same',()=>{
   assert.equal(back.map(x=>x.text).join(''),text,'text of '+s);
   assert.equal(serializeInline(back),s,'stable '+s);
  }
+});
+test('the word under the caret',()=>{
+ assert.deepEqual(wordAt('one two three',5),[4,7]);assert.deepEqual(wordAt('one two three',7),[4,7]);assert.deepEqual(wordAt('one two',3),[0,3]);
+ assert.deepEqual(wordAt('a  b',2),[2,2]);
+ const fa='می‌خواهم این';assert.deepEqual(wordAt(fa,3),[0,8]);
 });

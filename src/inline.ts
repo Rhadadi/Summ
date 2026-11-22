@@ -91,6 +91,15 @@ export function snapToWords(text:string,start:number,end:number):[number,number]
  return[start,end];
 }
 
+// The word the caret is in (letters, digits and the Persian half-space): what Mod+B formats when nothing is selected.
+export function wordAt(text:string,pos:number):[number,number]{
+ const w=(i:number)=>i>=0&&i<text.length&&(WORD.test(text[i])||text[i]==='\u200c');
+ let a=pos,z=pos;
+ while(w(a-1))a--;while(w(z))z++;
+ while(a<z&&text[a]==='\u200c')a++;while(z>a&&text[z-1]==='\u200c')z--;
+ return[a,z];
+}
+
 export function spansToHtml(sp:Span[]):string{
  const esc=(t:string)=>t.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
  return sp.map(x=>{let h=esc(x.text);if(x.i)h='<em>'+h+'</em>';if(x.b)h='<strong>'+h+'</strong>';return h;}).join('');

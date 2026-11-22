@@ -1,0 +1,45 @@
+/* Editing a published book on the reading page. Owners only; loaded with InlineEditor. */
+.ed-edit{outline:1px dashed transparent;outline-offset:6px;border-radius:4px;cursor:text;min-height:1.2em;transition:outline-color .15s}
+.ed-edit:hover{outline-color:color-mix(in srgb,var(--rink,#1c2528) 30%,transparent)}
+.ed-edit:focus{outline:2px solid var(--brand);outline-offset:6px}
+.ed-edit:empty::before{content:attr(data-ph);color:var(--rmuted,#6b777b);pointer-events:none}
+.ed-caption{display:block}.ed-title{display:inline-block;min-width:3ch;max-width:100%}
+.curated-chapter-art .ed-edit:hover{outline-color:rgba(255,248,236,.5)}.curated-chapter-art .ed-edit:focus{outline-color:#fff8ec}
+.r2-quote .ed-edit.ed-text{display:block;margin:0}.r2-quote .ed-heading{margin-top:0}
+.ed-item{position:relative}.ed-ul{margin:8px 0;padding-inline-start:22px}.ed-ul .ed-item{margin:0 0 10px}
+/* A block changed since the last save carries a thin bar in the brand colour on its inline-start side. */
+.ed-changed::before{content:'';position:absolute;inset-block:3px;inset-inline-start:-16px;width:2px;border-radius:2px;background:var(--brand)}
+.ed-handle.MuiIconButton-root{position:absolute;top:0;inset-inline-start:-46px;opacity:0;color:var(--rmuted,#6b777b);font-size:20px;transition:opacity .12s}
+.ed-item:hover>.ed-handle,.ed-item:focus-within>.ed-handle,.ed-handle:focus-visible{opacity:1}
+.ed-hint{margin:6px 0 18px;color:var(--rmuted,#6b777b);font:13px/1.5 var(--sans,sans-serif)}
+.r2.editing .r2-col{padding-inline:max(24px,var(--ed-gutter,0px))}
+@media(min-width:900px){.r2.editing{--ed-gutter:52px}}
+@media(hover:none),(max-width:899px){.ed-handle.MuiIconButton-root{inset-inline-start:auto;inset-inline-end:-6px;top:-24px;background:var(--rside,#f6f6f4);border:1px solid var(--rline,#dfe5e6);width:40px;height:40px;min-width:40px;min-height:40px;opacity:0}.ed-item:focus-within>.ed-handle{opacity:1}}
+
+/* The edit bar: sticky under the site bar on a desktop, docked above the keyboard on a phone. */
+.ed-bar{position:sticky;top:78px;z-index:9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;margin:0 0 26px;padding:8px 10px 8px 16px;background:var(--rside,#f6f6f4);color:var(--rink,#1c2528);border:1px solid var(--rline,#dfe5e6);border-radius:14px;box-shadow:0 6px 22px rgba(0,0,0,.08);font:14px var(--sans,sans-serif)}
+.ed-bar-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;min-width:0;flex:1 1 280px}.ed-bar-main strong{font-weight:600;white-space:nowrap}
+.ed-status{color:var(--rmuted,#6b777b);font-size:13px}.ed-more{opacity:.85}
+.ed-status.dirty{color:#9a6a00}.ed-status.ok{color:#2f7a3d}.ed-status.warn{color:#b3402b}
+.look-night .ed-status.dirty{color:#e6b84f}.look-night .ed-status.ok{color:#8bd09a}.look-night .ed-status.warn{color:#f08b76}
+.ed-bar-actions{display:flex;align-items:center;gap:4px}.ed-bar .MuiButton-root{text-transform:none;font:600 14px var(--sans,sans-serif);white-space:nowrap}
+.ed-help{flex-basis:100%;margin:0;color:var(--rmuted,#6b777b);font-size:12.5px;line-height:1.6}
+.ed-restore{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin:0 0 24px;padding:10px 12px 10px 16px;border:1px solid var(--rline,#dfe5e6);border-radius:14px;background:var(--brand-tint,#d9ecef);color:var(--rink,#1c2528);font:14px/1.6 var(--sans,sans-serif)}
+.ed-restore-actions{display:flex;gap:4px}.ed-restore .MuiButton-root{text-transform:none;font-weight:600}
+
+/* The selection toolbar: a popper above the selection on a desktop, docked above the keyboard on a phone. */
+.ed-tools-paper.MuiPaper-root{border-radius:12px;border:1px solid var(--line,#dfe5e6)}
+.ed-tools{display:flex;align-items:center;gap:2px;padding:4px;background:var(--surface,#fff);color:var(--ink,#1c2528);border-radius:12px;font-family:var(--sans,sans-serif)}
+.ed-tool{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:9px;background:none;color:inherit;cursor:pointer}
+.ed-tool:hover:not(:disabled){background:var(--surface-tint,#e9eded)}.ed-tool.on{background:var(--primary-container,#d9ecef);color:var(--primary,#256673)}.ed-tool:disabled{opacity:.35;cursor:default}
+.ed-tool:focus-visible{outline:2px solid var(--primary,#256673);outline-offset:-2px}
+.ed-tools .sep{width:1px;height:22px;margin:0 4px;background:var(--line,#dfe5e6)}
+.ed-tools.docked{position:fixed;inset-inline:0;bottom:calc(var(--ed-kb,0px) + var(--ed-bar-h,57px));z-index:1210;justify-content:center;gap:0;padding:6px 4px;border-radius:14px 14px 0 0;border-top:1px solid var(--line,#dfe5e6);box-shadow:0 -6px 20px rgba(0,0,0,.1)}
+.ed-tools.docked .ed-tool{width:44px;height:44px}
+@media(max-width:699px){
+ .ed-bar{position:fixed;inset-inline:0;top:auto;bottom:var(--ed-kb,0px);z-index:1200;flex-wrap:nowrap;margin:0;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px)) 14px;border-radius:16px 16px 0 0;border-bottom:0}
+ .ed-bar-main{flex:1 1 0}.ed-bar-main strong,.ed-help,.ed-more,.ed-discard{display:none}.ed-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ed-bar .MuiIconButton-root{min-width:40px;min-height:40px}.ed-bar .MuiButton-root{min-height:40px}.ed-bar .MuiButton-startIcon{margin:0}.ed-done-label{display:none}
+ .ed-bar-actions{flex:none}.ed-bar .MuiIconButton-root{padding:5px}
+ .r2.editing .r2-col{padding-bottom:180px}
+}
+@media(prefers-reduced-motion:reduce){.ed-edit,.ed-handle.MuiIconButton-root{transition:none}}

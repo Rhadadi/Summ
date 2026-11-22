@@ -55,7 +55,8 @@ test('merging joins the text (marks included), unites the pages and tells where 
 test('empty paragraphs are dropped before saving and the checks name what is wrong',()=>{
  const d=doc();d.versions[0].chapters.c1.paragraphs.push(para('  '));
  assert.ok(editorProblems(d).includes('Finish or remove empty paragraphs before saving.'));
- const clean=dropEmpty(d);assert.equal(clean.versions[0].chapters.c1.paragraphs.length,2);assert.deepEqual(editorProblems(clean),[]);
+ d.versions[0].chapters.c2.paragraphs[0]={text:'سه',heading:' '};
+ const clean=dropEmpty(d);assert.equal('heading' in clean.versions[0].chapters.c2.paragraphs[0],false);assert.equal(clean.versions[0].chapters.c1.paragraphs.length,2);assert.deepEqual(editorProblems(clean),[]);
  const bad=doc();bad.title={fa:' '};bad.chapters=[];assert.deepEqual(editorProblems(bad).slice(0,2),['Add a title.','Keep at least one chapter.']);
 });
 test('undo and redo walk whole snapshots, capped at the history size',()=>{

@@ -80,8 +80,10 @@ export function scopeName(doc:PubDoc,vk:string,scope:string):string{
 }
 // Empty paragraphs are dropped before saving (the server refuses them); figures and tables are never empty.
 export function dropEmpty(doc:PubDoc):PubDoc{
- const keep=(list?:PubPara[])=>list?.filter(p=>p.text.trim()||p.image||p.table);
- const clean=(list?:PubPara[])=>list&&keep(list)!.length!==list.length?keep(list):list;
+ // An empty heading (added, never typed in) is not a heading.
+ const tidy=(p:PubPara):PubPara=>p.heading!==undefined&&!p.heading.trim()?(({heading:_,...rest})=>rest)(p):p;
+ const keep=(list?:PubPara[])=>list?.filter(p=>p.text.trim()||p.image||p.table).map(tidy);
+ const clean=(list?:PubPara[])=>list&&(keep(list)!.length!==list.length||list.some((p,i)=>tidy(p)!==p))?keep(list):list;
  return{...doc,versions:doc.versions.map(v=>({...v,
   overview:v.overview&&{...v.overview,paragraphs:clean(v.overview.paragraphs)!,...(v.overview.takeaways?{takeaways:clean(v.overview.takeaways)}:{})},
   guide:v.guide&&{...v.guide,sections:v.guide.sections.map(s=>({...s,items:clean(s.items)!}))},

@@ -1,7 +1,7 @@
-import{useEffect,useMemo,useRef,useState}from'react';
+import{useEffect,useMemo,useRef,useState,type ReactNode}from'react';
 import{sized,srcSet}from'./img';
-import{Alert,Button,CircularProgress,Drawer,IconButton,LinearProgress,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded}from'@mui/icons-material';
+import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded}from'@mui/icons-material';
 import{Lockup}from'./Shell';
 import Inline from'./InlineText';
 import{enFonts,faFonts,lastPlace,readingStyle,savePlace,useReading,type Reading}from'./reading';
@@ -20,7 +20,10 @@ interface Props{
  onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;cover?:string;
  readOnly?:boolean;backdrop?:Backdrop;
  // Editors see these in the site bar: where they read is where they switch views.
- owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void};
+ // onEdit opens the book editor; editing/onEditing switch the inline editing of this page on and off.
+ owner?:{asVisitor:boolean;onToggle:()=>void;onEdit?:()=>void;editing?:boolean;onEditing?:()=>void};
+ // Inline editing (owners): editSlot(scope) returns the editor for a piece of text, or null to show it as usual; fixed(i) draws a figure or table the editor leaves alone.
+ editSlot?:(scope:string,fixed:(i:number,caption?:ReactNode)=>ReactNode)=>ReactNode|null;editBar?:ReactNode;
  // Listen shows only where there is audio: null asks about the overview.
  canListen?:(chapterId:string|null)=>boolean;
 }
@@ -31,7 +34,7 @@ export default function ReaderPage(p:Props){
  const[zoom,setZoom]=useState<{src:string;alt:string}|null>(null);
  const[view,setView]=useState<'summary'|'original'>('summary'),[list,setList]=useState(false),[more,setMore]=useState(false);
  const[opts,setOpts]=useState<HTMLElement|null>(null),[depthMenu,setDepthMenu]=useState<HTMLElement|null>(null);
- const top=useRef<HTMLDivElement>(null);
+ const top=useRef<HTMLDivElement>(null),[ownerMenu,setOwnerMenu]=useState<HTMLElement|null>(null);
  const[reading,setReading]=useReading(),[look,setLook]=useState<HTMLElement|null>(null),phone=useMediaQuery('(max-width:699px)');
  // Reopening a chapter returns to where the reader stopped; moving on starts at the top.
  useEffect(()=>{
@@ -69,11 +72,15 @@ export default function ReaderPage(p:Props){
   const shown=(x.pages||[]).filter(n=>!found.some(b=>b.page===n));
   return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
  }
- function paragraphs(items:SummaryParagraph[],c?:Chapter){
-  return items.map((x,i)=>x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto"><Inline text={x.text}/></figcaption></figure>
+ function block(x:SummaryParagraph,i:number,c?:Chapter,caption?:ReactNode){
+  return x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{caption??<Inline text={x.text}/>}</figcaption></figure>
    :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}<Inline text={x.text}/>{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
-   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto"><Inline text={x.text}/>{refs(x,c)}</p></div>);
+   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto"><Inline text={x.text}/>{refs(x,c)}</p></div>;
+ }
+ // scope names the list for the inline editor (see inline-draft.ts); without one, or when the editor is off, the list reads as always.
+ function paragraphs(items:SummaryParagraph[],c?:Chapter,scope?:string){
+  return(scope&&p.editSlot?.(scope,(i,cap)=>block(items[i],i,c,cap)))||items.map((x,i)=>block(x,i,c));
  }
  // Original text reads as a book page: headings, flowing paragraphs, page numbers in the margin, notes at the end.
  function original(c:Chapter){
@@ -102,12 +109,12 @@ export default function ReaderPage(p:Props){
   {back.length>0&&<div className="r2-back-list">{back.map(row)}</div>}
   {hidden>0&&<button className="more-toggle" aria-expanded={more} onClick={()=>setMore(!more)}>{L(more?'Hide':'Show')} {L('front matter, notes and index')}</button>}
  </nav>;
- const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined;
+ const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined,guideAt=guideSection?report!.guide!.sections.indexOf(guideSection):-1;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
  const curated=p.readOnly&&!!p.backdrop;
- return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
+ return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
-  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{!p.owner.asVisitor&&p.owner.onEdit&&<button onClick={p.owner.onEdit}><EditOutlined/><span>{L('Edit book')}</span></button>}<button onClick={p.owner.onToggle}>{p.owner.asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(p.owner.asVisitor?'Back to editing':'View as visitor')}</span></button></span>}<span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
@@ -115,29 +122,30 @@ export default function ReaderPage(p:Props){
    {curated&&isChapter&&<div className="curated-chapter-art">
     {p.backdrop!.whole&&<img className="curated-fill" src={p.backdrop!.url} alt="" aria-hidden="true"/>}
     <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position}}/>
-    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
+    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
    </div>}
    <div className="r2-col">
+   {p.editBar}
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     {!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1>{L('Overview')}</h1>
-    <div className="r2-box"><strong>{L('Key takeaways')}</strong><ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto"><Inline text={t.text}/></li>)}</ul></div>
-    {paragraphs(report.overview.paragraphs)}
+    <div className="r2-box"><strong>{L('Key takeaways')}</strong>{p.editSlot?.('ov:t',()=>null)||<ul>{report.overview.takeaways.map((t,i)=><li key={i} dir="auto"><Inline text={t.text}/></li>)}</ul>}</div>
+    {paragraphs(report.overview.paragraphs,undefined,'ov:p')}
    </div>}
-   {guideSection&&<div dir={rtl(report?.language)}>{!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1 dir="auto">{L(guideSection.title)}</h1>{paragraphs(guideSection.items)}</div>}
+   {guideSection&&<div dir={rtl(report?.language)}>{!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1 dir="auto">{p.editSlot?.('gt:'+guideAt,()=>null)||L(guideSection.title)}</h1>{paragraphs(guideSection.items,undefined,'g:'+guideAt)}</div>}
    {isChapter&&<>
     {!curated&&<div className="r2-bar"><span className="r2-chip">{index>=0&&<button className="r2-step" disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{lang==='fa'||lang==='ar'?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button>}<span>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</span>{index>=0&&<button className="r2-step" disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{lang==='fa'||lang==='ar'?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button>}</span><span className="grow"/>
      {!p.readOnly&&<div className="r2-switch" role="group" aria-label="View"><button aria-pressed={view==='summary'} className={view==='summary'?'on':''} onClick={()=>setView('summary')}>{L('Summary')}</button><button aria-pressed={view==='original'} className={view==='original'?'on':''} onClick={()=>setView('original')}>{L('Original')}</button></div>}
      {summary&&(p.canListen?.(chapter.id)??true)&&<button className="r2-pill" aria-label={L('Listen')} onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/><span>{L('Listen')}</span></button>}
      <IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton>
     </div>}
-    {!curated&&<h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{chapterTitle(data,chapter)}</h1>}
+    {!curated&&<h1 dir="auto" className={chapterTitle(data,chapter).length>48?'long':undefined}>{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1>}
     {view==='summary'&&(summary?<>
      {!p.readOnly&&<div className="r2-meta">{spent!=null&&<span>{money(spent)}</span>}<span className="grow"/>
       {!p.readOnly&&summary.model!=='imported'&&<><Button size="small" onClick={e=>setDepthMenu(e.currentTarget)} endIcon={<ExpandMoreRounded/>}>{depthLabels[settings.depth]}</Button>
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
       <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>}
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
-     <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter)}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter)}</>}</div></>
+     <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter,'ch:'+chapter.id+':p')}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter,'ch:'+chapter.id+':r')}</>}</div></>
     :p.readOnly?<div className="r2-box"><strong>{L('This chapter isn’t part of the published summary')}</strong><p>{L('Pick another chapter from the list.')}</p></div>
     :<div className="r2-box" dir="ltr">
      <strong>This chapter isn’t summarized yet</strong>
@@ -157,6 +165,7 @@ export default function ReaderPage(p:Props){
    <img src={zoom.src} alt={zoom.alt} onClick={e=>e.stopPropagation()}/>
    {zoom.alt&&<p onClick={e=>e.stopPropagation()} dir="auto">{zoom.alt}</p>}
   </div>}
+  <Menu anchorEl={ownerMenu} open={!!ownerMenu} onClose={()=>setOwnerMenu(null)} slotProps={{paper:{dir:isRtl(lang)?'rtl':'ltr'}}}>{p.owner?.onEdit&&<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onEdit!();}}><ListItemIcon><EditOutlined fontSize="small"/></ListItemIcon>{L('Open in the book editor')}</MenuItem>}{p.owner?.onEdit&&<Divider/>}<MenuItem onClick={()=>{setOwnerMenu(null);p.owner!.onToggle();}}><ListItemIcon><VisibilityOutlined fontSize="small"/></ListItemIcon>{L('View as visitor')}</MenuItem></Menu>
   <Menu anchorEl={depthMenu} open={!!depthMenu} onClose={()=>setDepthMenu(null)}>{(Object.keys(depthLabels) as Depth[]).map(d=><MenuItem key={d} selected={d===settings.depth} onClick={()=>{p.onPreferences({depth:d});setDepthMenu(null);}}>{depthLabels[d]}</MenuItem>)}</Menu>
   {phone?<Drawer anchor="bottom" open={!!look} onClose={()=>setLook(null)} slotProps={{paper:{className:'look-sheet'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Drawer>
   :<Popover open={!!look} anchorEl={look} onClose={()=>setLook(null)} disableRestoreFocus disableScrollLock slotProps={{paper:{className:'look-pop'}}}><ReadingPanel lang={lang} reading={reading} onChange={setReading} onClose={()=>setLook(null)}/></Popover>}

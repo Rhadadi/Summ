@@ -98,3 +98,6 @@
 
 /* Without audio the book page offers only Start reading. */
 @media(max-width:560px){.curated-actions.solo{grid-template-columns:minmax(0,1fr)}}
+/* The owner's cluster in the reader's site bar: Edit this page, then the ⋯ menu. */
+.curated-site-owner button.ed-pill.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.curated-site-more.MuiIconButton-root{color:var(--rink);border:1px solid var(--rline);padding:5px}.curated-site-more:hover{color:var(--brand)}
