@@ -51,7 +51,8 @@ export function useReading(){
 export function readingStyle(r:Reading):Record<string,string>{
  const fa=faFonts.find(f=>f.id===r.fa)||faFonts.find(f=>f.id===readingDefaults.fa)!,en=enFonts.find(f=>f.id===r.en)||enFonts[0];
  return{'--read-size':r.size+'px','--read-lh':String({tight:1.6,normal:1.85,airy:2.1}[r.leading]),'--read-width':{narrow:'620px',medium:'760px',wide:'920px'}[r.width],
-  '--read-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
+  // the chosen font is for the summary text itself; titles, contents and chapter banners keep the house faces
+  '--read-font':en.family+',"Nazli","Vazirmatn Variable",Georgia,serif','--read-text-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
 }
 // Where the reader stopped in each book: the chapter and how far down it.
 const POS='inkling-place:';

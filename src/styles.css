@@ -391,11 +391,11 @@ body{background:var(--bg);color:var(--ink)}
 .r2-tools{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:6px}
 .r2-kicker{color:var(--rmuted)}
 .r2-main h1{font:700 clamp(28px,3.4vw,40px)/1.25 var(--read-font,var(--serif));letter-spacing:-.01em;margin-bottom:28px}
-.r2-p p,.r2-main .text-p p{font:400 var(--read-size,20px)/var(--read-lh,1.85) var(--read-font,var(--serif));text-align:var(--read-align,start);color:var(--rink)}
-.r2-p h2{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-font,var(--serif));margin-top:34px}
-.r2-quote{font:italic 400 calc(var(--read-size,20px)*1.08)/1.7 var(--read-font,var(--serif))}
+.r2-p p,.r2-main .text-p p{font:400 var(--read-size,20px)/var(--read-lh,1.85) var(--read-text-font,var(--read-font,var(--serif)));text-align:var(--read-align,start);color:var(--rink)}
+.r2-p h2{font:600 calc(var(--read-size,20px)*1.1)/1.4 var(--read-text-font,var(--read-font,var(--serif)));margin-top:34px}
+.r2-quote{font:italic 400 calc(var(--read-size,20px)*1.08)/1.7 var(--read-text-font,var(--read-font,var(--serif)))}
 [dir=rtl] .r2-quote{font-style:normal}
-.r2-box li{font:400 calc(var(--read-size,20px)*.95)/1.7 var(--read-font,var(--serif))}
+.r2-box li{font:400 calc(var(--read-size,20px)*.95)/1.7 var(--read-text-font,var(--read-font,var(--serif)))}
 .r2-main .doc-pager{margin-top:56px}
 .look-pop{width:min(380px,94vw);max-height:80vh}
 .look{display:grid;gap:10px;padding:18px}.look>label{margin-top:6px;font:600 12px -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -786,7 +786,6 @@ a.rx-score:hover{border-color:var(--brand);transform:translateY(-2px)}
 .tn-add{border:1px solid color-mix(in srgb,var(--brand) 45%,transparent)!important;color:var(--brand)!important}
 .tn-add:hover{background:var(--brand)!important;color:#fff!important}
 .tn-count{margin-inline-start:16px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.shell[lang=fa] .tn-link,.shell[lang=fa] .acct-btn{font-family:"Vazirmatn Variable",-apple-system,BlinkMacSystemFont,sans-serif}
 .acct-btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:4px 8px 4px 4px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:500 14px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .shell[dir=rtl] .acct-btn{padding:4px 4px 4px 8px}
 .acct-btn:hover,.acct-btn[aria-expanded=true]{border-color:var(--brand);box-shadow:0 2px 10px rgba(0,0,0,.08)}
