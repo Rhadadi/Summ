@@ -2,7 +2,7 @@
 // (Anthropic, OpenAI or Google), never to the Inkling server.
 import{useEffect,useState}from'react';
 export type Provider='anthropic'|'openai'|'gemini';
-export interface AiSettings{provider:Provider;keys:Partial<Record<Provider,string>>;models:Partial<Record<Provider,string>>}
+export interface AiSettings{chosen?:boolean;provider:Provider|'account';keys:Partial<Record<Provider,string>>;models:Partial<Record<Provider,string>>}
 export const PROVIDERS:{id:Provider;name:string;keyHint:string;keyUrl:string;models:{id:string;name:string;note:string}[]}[]=[
  {id:'anthropic',name:'Claude',keyHint:'sk-ant-…',keyUrl:'https://platform.claude.com/settings/keys',models:[
   {id:'claude-opus-5-5',name:'Claude Opus 5.5',note:'Best answers'},
@@ -17,8 +17,18 @@ const KEY='inkling-ai-v1',EVENT='inkling-ai';
 export const defaults:AiSettings={provider:'anthropic',keys:{},models:{}};
 export function loadAi():AiSettings{try{const s=JSON.parse(localStorage.getItem(KEY)||'null');return s?{...defaults,...s,keys:s.keys||{},models:s.models||{}}:{...defaults};}catch{return{...defaults};}}
 export function saveAi(s:AiSettings){try{localStorage.setItem(KEY,JSON.stringify(s));}catch{/* private mode */}window.dispatchEvent(new Event(EVENT));}
-export const modelOf=(s:AiSettings,p=s.provider)=>s.models[p]||PROVIDERS.find(x=>x.id===p)!.models[0].id;
-export const ready=(s:AiSettings)=>!!s.keys[s.provider]?.trim();
+export const modelOf=(s:AiSettings,p:Provider=s.provider==='account'?'gemini':s.provider)=>s.models[p]||PROVIDERS.find(x=>x.id===p)!.models[0].id;
+export const ready=(s:AiSettings)=>s.provider!=='account'&&!!s.keys[s.provider]?.trim();
+/** How a question is answered: through the server with the Gemini key saved in the reader's account (the default when
+ *  there is one), or with a key kept in this browser when the reader picked that provider. */
+export type Route={kind:'browser';provider:Provider;key:string;model:string;name:string}|{kind:'account';model:string;name:string};
+const accountRoute=(model:string):Route=>({kind:'account',model,name:model.replace(/^gemini-/,'Gemini ').replace(/-latest$/,'').replace(/-/g,' ')});
+export function route(s:AiSettings,account:{gemini:{model:string}|null}):Route|null{
+ if(account.gemini&&(s.provider==='account'||!s.chosen))return accountRoute(account.gemini.model);
+ if(s.provider!=='account'){const key=s.keys[s.provider]?.trim();if(key){const p=PROVIDERS.find(x=>x.id===s.provider)!,m=modelOf(s);return{kind:'browser',provider:s.provider,key,model:m,name:p.models.find(x=>x.id===m)?.name||m};}}
+ if(account.gemini)return accountRoute(account.gemini.model);
+ return null;
+}
 export function useAi():[AiSettings,(s:AiSettings)=>void]{
  const[s,set]=useState(loadAi);
  useEffect(()=>{const on=()=>set(loadAi());window.addEventListener(EVENT,on);window.addEventListener('storage',on);return()=>{window.removeEventListener(EVENT,on);window.removeEventListener('storage',on);};},[]);

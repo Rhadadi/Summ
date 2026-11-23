@@ -22,12 +22,12 @@ export default function StudyTools({lang,paragraphs,book,chapter}:Props){
   {terms.length>0&&<div className="study-block"><h2><LightbulbOutlined/>{L('Key concepts')}</h2><ul className="study-terms">{terms.map(t=><li key={t} dir="auto">{t}</li>)}</ul></div>}
   {checks.length>0&&<details className="study-block study-fold"><summary><h2><QuizOutlined/>{L('Check your understanding')}<ExpandMoreRounded className="study-chev"/></h2></summary><p className="study-help">{L('Answer in your head first, then open the answer.')}</p>
    {checks.map((c,i)=><details key={i} className="study-q"><summary dir="auto">{c.question}</summary><p dir="auto">{c.answer}</p></details>)}</details>}
-  <div className="study-block"><h2><EditNoteRounded/>{L('In your own words')}</h2>
+  <details className="study-block study-fold"><summary><h2><EditNoteRounded/>{L('In your own words')}{text.trim()&&<i className="study-has" aria-label={L('Saved in your notebook')}/>}<ExpandMoreRounded className="study-chev"/></h2></summary>
    <p className="study-help">{L('Write the chapter’s main idea in two or three sentences. It stays on this device, in your notebook.')}</p>
    <VoiceNote lang={lang} meta={{bookId:book.id,slug:book.slug,bookTitle:book.title,chapterId:chapter.id,chapterTitle:chapter.title,lang}} onTranscript={t=>{const v=current.current.trim();change(v?v+'\n\n'+t:t);}}>
     <textarea dir={text.trim()?'auto':lang==='fa'||lang==='ar'?'rtl':'ltr'} rows={4} value={text} onChange={e=>change(e.target.value)} aria-label={L('In your own words')} placeholder={L('The main idea of this chapter is…')}/>
    </VoiceNote>
    <div className="study-foot"><span role="status">{state==='saving'?L('Saving…'):state==='saved'?L('Saved in your notebook'):''}</span><a href="#/notebook">{L('Open the notebook')}</a></div>
-  </div>
+  </details>
  </section>;
 }

@@ -70,6 +70,15 @@ export async function transcribe(blob:Blob,lang:string,key:string):Promise<strin
  return String(j.text||'').trim();
 }
 
+/** The same, through the Inkling server with the ElevenLabs key saved in the reader's account. */
+export async function transcribeWithAccount(blob:Blob,lang:string):Promise<string>{
+ let r:Response;
+ try{r=await fetch('/api/voice/transcribe?lang='+encodeURIComponent(lang||''),{method:'POST',credentials:'same-origin',headers:{'Content-Type':blob.type||'audio/webm','X-Summ-Request':'1'},body:blob});}
+ catch(e){throw new VoiceError((e as Error).message,'network');}
+ let j:{text?:string;detail?:unknown}={};try{j=await r.json();}catch{/* not JSON */}
+ if(!r.ok)throw new VoiceError(typeof j.detail==='string'?j.detail:String(r.status),[401,412,422].includes(r.status)?'key':r.status===429?'limit':'other');
+ return String(j.text||'').trim();
+}
 /** A recorder for one note: picks a format the browser can make and ElevenLabs can read. */
 export function pickType(){
  for(const t of['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus'])if(MediaRecorder.isTypeSupported?.(t))return t;

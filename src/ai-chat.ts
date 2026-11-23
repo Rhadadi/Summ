@@ -1,16 +1,25 @@
 // Streams one answer from the reader's chosen provider, straight from the browser with the reader's own key.
 // Claude goes through Anthropic's SDK; ChatGPT and Gemini through their own HTTP APIs.
 import Anthropic from'@anthropic-ai/sdk';
-import{modelOf,type AiSettings}from'./ai-settings';
+import type{Route}from'./ai-settings';
 export interface Turn{role:'user'|'assistant';text:string}
 export class ChatError extends Error{constructor(message:string,public kind:'key'|'limit'|'network'|'refused'|'other'='other'){super(message);}}
 
-export async function streamAnswer(s:AiSettings,system:string,turns:Turn[],onText:(delta:string)=>void,signal:AbortSignal):Promise<string>{
- const key=(s.keys[s.provider]||'').trim(),model=modelOf(s);
- if(!key)throw new ChatError('No API key','key');
- if(s.provider==='anthropic')return claude(key,model,system,turns,onText,signal);
- if(s.provider==='openai')return openai(key,model,system,turns,onText,signal);
- return gemini(key,model,system,turns,onText,signal);
+export async function streamAnswer(r:Route,system:string,turns:Turn[],onText:(delta:string)=>void,signal:AbortSignal):Promise<string>{
+ if(r.kind==='account')return account(system,turns,onText,signal);
+ if(r.provider==='anthropic')return claude(r.key,r.model,system,turns,onText,signal);
+ if(r.provider==='openai')return openai(r.key,r.model,system,turns,onText,signal);
+ return gemini(r.key,r.model,system,turns,onText,signal);
+}
+// Through the Inkling server, which answers with the Gemini key saved in the reader's account (it never reaches the browser).
+async function account(system:string,turns:Turn[],onText:(d:string)=>void,signal:AbortSignal){
+ const r=await send('/api/companion/chat',{method:'POST',signal,credentials:'same-origin',headers:{'Content-Type':'application/json','X-Summ-Request':'1'},body:JSON.stringify({system,turns:turns.map(t=>({role:t.role,text:t.text}))})});
+ if(!r.ok){let detail='';try{const j=await r.json();detail=typeof j.detail==='string'?j.detail:'';}catch{/* not JSON */}
+  throw new ChatError(detail||String(r.status),[401,412,422].includes(r.status)?'key':r.status===429?'limit':'other');}
+ let out='';
+ await events(r,d=>{let j:{text?:string;refused?:boolean;error?:string};try{j=JSON.parse(d);}catch{return;}
+  if(j.text){out+=j.text;onText(j.text);}if(j.refused)throw new ChatError('refused','refused');if(j.error)throw new ChatError(j.error,'network');});
+ return out;
 }
 
 async function claude(key:string,model:string,system:string,turns:Turn[],onText:(d:string)=>void,signal:AbortSignal):Promise<string>{

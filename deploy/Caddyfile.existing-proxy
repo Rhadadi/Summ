@@ -7,7 +7,7 @@ booksumm.duckdns.org {
   header {
     X-Content-Type-Options nosniff
     Referrer-Policy strict-origin-when-cross-origin
-    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Permissions-Policy "camera=(), microphone=(self), geolocation=()"
     -Server
   }
   reverse_proxy 127.0.0.1:9010

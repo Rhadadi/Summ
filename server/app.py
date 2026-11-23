@@ -12,10 +12,10 @@ from fastapi import BackgroundTasks,Depends,FastAPI,HTTPException,Query,Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from fastapi.responses import FileResponse,JSONResponse,Response
+from fastapi.responses import FileResponse,JSONResponse,Response,StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,companion,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -28,6 +28,7 @@ async def lifespan(_:FastAPI):
 app=FastAPI(title='Inkling processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
+MAX_VOICE=2_000_000  # a five-minute voice note at 32 kbit/s is about 1.2 MB; the proxy allows 2 MB
 hits:dict[str,deque]=defaultdict(deque)
 @app.middleware('http')
 async def body_limit(request:Request,call_next):
@@ -41,6 +42,8 @@ async def body_limit(request:Request,call_next):
             limit=drafts.MAX_COVER
         elif request.url.path.startswith('/api/drafts'):
             limit=drafts.MAX_STATE+100_000
+        elif request.url.path=='/api/voice/transcribe':
+            limit=MAX_VOICE
         else:
             limit=4_100_000 if request.url.path=='/api/library' and request.method=='POST' else 1_500_000
         async for chunk in request.stream():
@@ -462,6 +465,38 @@ class VoiceKeyRequest(StrictModel):
     voice:str=Field(default='',max_length=64,pattern=r'^[A-Za-z0-9]*$')
 def eleven_creds(user:dict,bucket:str)->tuple[str,str]|None:
     throttle(bucket+':'+user['id'],10);return accounts.service_credentials(user['id'],'elevenlabs')
+# The study companion and voice-note transcripts for any signed-in reader, with the keys they saved in Account.
+class ChatTurn(StrictModel):
+    role:Literal['user','assistant']
+    text:str=Field(min_length=1,max_length=20_000)
+class ChatRequest(StrictModel):
+    system:str=Field(min_length=1,max_length=80_000)
+    turns:list[ChatTurn]=Field(min_length=1,max_length=40)
+def _upstream(error:companion.Failed,service:str)->HTTPException:
+    if error.status in (400,401,403):return HTTPException(422,f'{service} did not accept the key saved in Account: {error.message}')
+    if error.status in (402,429):return HTTPException(429,f'{service} says the limit is reached. Try again later.')
+    return HTTPException(502,f'{service} could not answer: {error.message}')
+@app.post('/api/companion/chat')
+async def companion_chat(body:ChatRequest,user:dict=Depends(current_user)):
+    throttle('chat:'+user['id'],20)
+    creds=accounts.credentials(user['id'])
+    if not creds:raise HTTPException(412,'Add your Gemini key in Account to use the study companion with it.')
+    try:client,response=await companion.open_chat(body.system,[t.model_dump() for t in body.turns],creds[0],creds[1])
+    except companion.Failed as e:raise _upstream(e,'Google') from None
+    except httpx.HTTPError:raise HTTPException(502,'Google could not be reached. Try again.') from None
+    return StreamingResponse(companion.pieces(client,response),media_type='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
+@app.post('/api/voice/transcribe')
+async def voice_transcribe(request:Request,lang:str=Query('',pattern=r'^[a-z]{0,3}$'),user:dict=Depends(current_user)):
+    creds=eleven_creds(user,'stt')
+    if not creds:raise HTTPException(412,'Add your ElevenLabs key in Account to transcribe voice notes with it.')
+    kind=request.headers.get('content-type','').split(';')[0].strip().lower()
+    if not kind.startswith('audio/'):raise HTTPException(415,'Send the recording as audio.')
+    audio_bytes=await request.body()
+    if len(audio_bytes)<500:raise HTTPException(422,'The recording is empty.')
+    try:text=await companion.transcribe(audio_bytes,kind,lang,creds[0])
+    except companion.Failed as e:raise _upstream(e,'ElevenLabs') from None
+    except httpx.HTTPError:raise HTTPException(502,'ElevenLabs could not be reached. Try again.') from None
+    return {'text':text}
 @app.get('/api/me/voices')
 async def my_voices(user:dict=Depends(editor_user)):
     """The voices of the editor's own ElevenLabs account, fetched here with the stored key (which never leaves the server)."""

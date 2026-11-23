@@ -10,7 +10,8 @@ import AiKeyForm from'./AiKeyForm';
 import AiLaunch from'./AiLaunch';
 import{MODES,systemPrompt,type ChapterContext,type Mode}from'./ai-prompt';
 import{ChatError,streamAnswer,type Turn}from'./ai-chat';
-import{PROVIDERS,loadAi,modelOf,ready,shortcutLabel,useAi}from'./ai-settings';
+import{route,shortcutLabel,useAi}from'./ai-settings';
+import{useAccountKeys}from'./account-keys';
 import{tr}from'./i18n';
 
 const kept=new Map<string,{mode:Mode;turns:Turn[]}>();
@@ -33,7 +34,7 @@ interface Props{open:boolean;onOpen:()=>void;onClose:()=>void;lang:string;contex
 export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,quote,quoteId,armed}:Props){
  const L=(t:string)=>tr(lang,t),fa=lang==='fa';
  const phone=useMedia('(max-width:699px)'),fine=useMedia('(pointer:fine)');
- const[ai]=useAi(),[setup,setSetup]=useState(()=>!ready(loadAi()));
+ const[ai]=useAi(),acct=useAccountKeys(),way=route(ai,acct),[setup,setSetup]=useState(false);
  const start=kept.get(chapterKey);
  const[mode,setMode]=useState<Mode>(start?.mode||'explain'),[turns,setTurns]=useState<Turn[]>(start?.turns||[]),[draft,setDraft]=useState(''),[passage,setPassage]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const[menu,setMenu]=useState(false),[unread,setUnread]=useState(false),[tall,setTall]=useState(false),[dragH,setDragH]=useState<number|null>(null),[pos,setPos]=useState<Pos|null>(savedPos);
@@ -50,7 +51,7 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
   if(quote)setPassage(quote);
   if(fine||quote)setTimeout(()=>box.current?.focus(),60);
  },[open,quote,quoteId,fine]);
- useEffect(()=>{if(open&&!ready(loadAi()))setSetup(true);},[open]);
+ useEffect(()=>{if(open&&acct.loaded&&!way)setSetup(true);},[open,acct.loaded,way]);
  useEffect(()=>{list.current?.scrollTo({top:list.current.scrollHeight});},[turns,busy,open]);
  useEffect(()=>()=>abort.current?.abort(),[]);
  // a tap or click anywhere else, or Esc, tucks it away
@@ -79,7 +80,7 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
  async function ask(){
   const q=draft.trim();
   if(busy||(!q&&!passage&&mode!=='quiz'))return;
-  if(!ready(ai)){setSetup(true);return;}
+  if(!way){setSetup(true);return;}
   const text=withPassage(passage,q||(mode==='quiz'&&!passage?(fa?'از من بپرس.':'Quiz me.'):''),fa);
   const history:Turn[]=[...turns,{role:'user',text}];
   setTurns([...history,{role:'assistant',text:''}]);setDraft('');setPassage('');setError('');setBusy(true);setMenu(false);setSetup(false);
@@ -87,7 +88,7 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
   const ctl=new AbortController();abort.current=ctl;
   let answer='';
   try{
-   await streamAnswer(ai,systemPrompt(context,mode),history,d=>{answer+=d;setTurns([...history,{role:'assistant',text:answer}]);},ctl.signal);
+   await streamAnswer(way,systemPrompt(context,mode),history,d=>{answer+=d;setTurns([...history,{role:'assistant',text:answer}]);},ctl.signal);
    if(!answer.trim())throw new ChatError('empty','other');
    if(!shown.current)setUnread(true);
   }catch(e){
@@ -129,7 +130,6 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
 
  if(!open)return <AiLaunch label={L(unread?'New answer':busy?'Thinking…':'Ask AI')+' ('+shortcutLabel()+')'} text={armed?L('Ask'):undefined} onClick={onOpen} busy={busy} unread={unread}/>;
 
- const model=PROVIDERS.find(p=>p.id===ai.provider)!.models.find(m=>m.id===modelOf(ai));
  const paras=(t:string)=>t.split(/\n{2,}/).map((block,i)=>{
   const lines=block.split('\n');
   if(lines.every(l=>/^\s*([-*•]|\d+[.)])\s+/.test(l)))return <ul key={i}>{lines.map((l,j)=><li key={j}><Inline text={l.replace(/^\s*([-*•]|\d+[.)])\s+/,'')}/></li>)}</ul>;
@@ -147,12 +147,12 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
    {turns.map((t,i)=><div key={i} className={'ai-msg '+t.role} dir="auto">{t.role==='assistant'?(t.text?paras(t.text):<span className="ai-typing" aria-label={L('Thinking…')}><i/><i/><i/></span>):asked(t.text)}</div>)}
    {error&&<p className="ai-error" role="alert">{error}</p>}
   </div>}
-  {setup&&<div className="ai-setup"><AiKeyForm lang={lang} compact/>{ready(ai)&&<button className="ai-done" onClick={()=>{setSetup(false);box.current?.focus();}}>{L('Done')}</button>}</div>}
+  {setup&&<div className="ai-setup"><AiKeyForm lang={lang} compact account={acct.gemini}/>{way&&<button className="ai-done" onClick={()=>{setSetup(false);box.current?.focus();}}>{L('Done')}</button>}</div>}
   {menu&&<div className="ai-menu" role="menu">
    {MODES.map(m=><button key={m.id} role="menuitemradio" aria-checked={mode===m.id} onClick={()=>{setMode(m.id);setMenu(false);if(fine)box.current?.focus();}}><CheckRounded className={mode===m.id?'':'off'}/>{fa?m.fa:m.en}</button>)}
    <hr/>
    {turns.length>0&&<button role="menuitem" onClick={()=>{abort.current?.abort();setTurns([]);setError('');setMenu(false);}}><span className="ai-mi"/>{L('New conversation')}</button>}
-   <button role="menuitem" onClick={()=>{setSetup(!setup);setMenu(false);}}><span className="ai-mi"/>{L('AI settings')}<small dir="ltr">{model?.name||modelOf(ai)}</small></button>
+   <button role="menuitem" onClick={()=>{setSetup(!setup);setMenu(false);}}><span className="ai-mi"/>{L('AI settings')}<small dir="ltr">{way?way.name+(way.kind==='account'?' · '+L('account'):''):''}</small></button>
   </div>}
   {passage&&<div className="ai-passage" dir="auto"><q>{passage}</q><button type="button" aria-label={L('Remove passage')} onClick={()=>{setPassage('');if(fine)box.current?.focus();}}><CloseRounded/></button></div>}
   <form className="ai-input" onSubmit={e=>{e.preventDefault();if(busy)abort.current?.abort();else void ask();}}>

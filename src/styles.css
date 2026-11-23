@@ -1025,3 +1025,4 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 .vn-err{margin:6px 0 0;color:#d9534f;font-size:13px}
 .nb-note .vn-clips{margin-top:6px}
 .study textarea{box-sizing:border-box}[dir=ltr] .study-field.recording textarea{padding-right:104px}[dir=rtl] .study-field.recording textarea{padding-left:104px}
+.study-has{width:7px;height:7px;border-radius:50%;background:var(--brand);display:inline-block;margin-inline-start:2px}
