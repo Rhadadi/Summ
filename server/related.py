@@ -121,6 +121,13 @@ async def cached(book_id:str,title:str,author:str,categories:list[str],picks:lis
 def _surname(author:str)->str:
     a=(author or '').strip()
     return _norm(a.split(',')[0] if ',' in a else (a.split() or [''])[-1])
+def _library_card(b:dict,reason:str,subject:str='')->dict:
+    r=b.get('rating') or {}
+    return {'title':b['title'],'author':b.get('author',''),'year':str(b.get('year') or ''),'cover':b.get('cover'),'url':None,'slug':b['slug'],
+        'rating':round(r['rating'],1) if r.get('rating') else None,'count':r.get('count') or 0,'why':'','source':'library','reason':reason,'subject':subject,'titles':b.get('titles') or {},'localAuthor':(b.get('authorNames') or {}).get('fa','')}
+def _names(b:dict)->set[str]:
+    """Every title a library book is known by (each language, and the original), shortened to the main title."""
+    return {_short(t) for t in [b.get('title','')]+list((b.get('titles') or {}).values())+list(b.get('originalTitles') or []) if t}-{''}
 def in_library(me:dict,picks:list[dict],books:list[dict])->list[dict]:
     """Other public books of this library that go with this one, scored from data we already have (no external calls).
     me is {id,author,tags}; each book carries slug, titles, title, author, tags, cover, rating."""
@@ -136,11 +143,23 @@ def in_library(me:dict,picks:list[dict],books:list[dict])->list[dict]:
         score+=min(len(shared),4)
         if score<2:continue
         r=b.get('rating') or {}
-        out.append({'score':score,'rating_value':r.get('rating') or 0,'card':{'title':b['title'],'author':b.get('author',''),'year':str(b.get('year') or ''),'cover':b.get('cover'),'url':None,'slug':b['slug'],
-            'rating':round(r['rating'],1) if r.get('rating') else None,'count':r.get('count') or 0,'why':'','source':'library','reason':reason,'subject':shared[0] if shared else '','titles':b.get('titles') or {},'localAuthor':(b.get('authorNames') or {}).get('fa','')}})
+        out.append({'score':score,'rating_value':r.get('rating') or 0,'card':_library_card(b,reason,shared[0] if shared else '')})
     out.sort(key=lambda x:(-x['score'],-x['rating_value']))
     return [x['card'] for x in out[:4]]
-def combine(local:list[dict],external:list[dict],limit:int=8)->list[dict]:
-    """Books of this library first, then the external ones that are not already among them."""
+def combine(local:list[dict],external:list[dict],limit:int=8,books:list[dict]|None=None,me:str='')->list[dict]:
+    """Books of this library first, then the external ones that are not already among them. A suggestion that is in fact
+    a book of this library (say "Staring at the Sun", suggested beside "Midlife") becomes that book's card, linked to its page,
+    with the suggestion's reason kept; it is never offered as a book to request."""
     have={_short(t) for c in local for t in [c['title']]+list(c.get('titles',{}).values())}
-    return (local+[c for c in external if _short(c['title']) not in have])[:limit]
+    known={n:b for b in (books or []) if b.get('id')!=me for n in _names(b)}
+    out=list(local)
+    for c in external:
+        k=_short(c['title'])
+        if k in have:continue
+        b=known.get(k)
+        if b:
+            card=_library_card(b,'pick');card['why']=c.get('why','')
+            out.append(card);have|=_names(b);continue
+        if b is None and me and any(k in _names(x) for x in (books or []) if x.get('id')==me):continue  # the book itself
+        out.append(c);have.add(k)
+    return out[:limit]

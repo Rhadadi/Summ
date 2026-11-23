@@ -66,6 +66,13 @@ class InLibraryTests(RolesTest):
     def test_combine_puts_library_first_and_drops_duplicates(self):
         local=[{'title':'In Lib','titles':{'en':'In Lib'}}];ext=[{'title':'In Lib'},{'title':'Elsewhere'}]
         self.assertEqual([c['title'] for c in related.combine(local,ext)],['In Lib','Elsewhere'])
+    def test_a_suggestion_that_is_a_library_book_links_to_it_and_the_book_itself_is_dropped(self):
+        books=[{'id':'1','slug':'midlife','title':'میانسالی','titles':{'fa':'میانسالی'},'originalTitles':['Midlife: A Philosophical Guide']},
+               {'id':'2','slug':'staring-at-the-sun','title':'خیره به خورشید','titles':{'fa':'خیره به خورشید'},'originalTitles':['Staring at the Sun: Overcoming the Terror of Death'],'rating':{'rating':4.1,'count':900}}]
+        ext=[{'title':'Staring at the Sun: Overcoming the Terror of Death','why':'Death and meaning','source':'recommended'},{'title':'Midlife','why':'itself'},{'title':'Four Thousand Weeks'}]
+        out=related.combine([],ext,books=books,me='1')
+        self.assertEqual([(c['title'],c.get('slug'),c.get('source')) for c in out],[('خیره به خورشید','staring-at-the-sun','library'),('Four Thousand Weeks',None,None)])
+        self.assertEqual(out[0]['why'],'Death and meaning')
 class EndpointTests(RolesTest):
     def test_tags_in_the_listing_and_refresh_is_for_the_book_owner_only(self):
         owner,_=self.owner()

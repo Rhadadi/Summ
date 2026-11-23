@@ -572,8 +572,12 @@ async def related_books(book:dict,lang:str,force:bool=False)->list[dict]:
     suggest=(lambda:reviews.suggest_books(title,doc.get('author',''),lang,creds,GEMINI)) if creds else None
     localize=(lambda items:reviews.localize_books(items,lang,creds,GEMINI)) if creds and lang!='en' else None
     external=await related.cached(book['id'],title,doc.get('author',''),info.get('categories') or [],picks,suggest,lang,localize,force)
-    local=related.in_library({'id':book['id'],'author':doc.get('author',''),'tags':book.get('tags') or []},picks,library.listing())
-    return related.combine(local,external)
+    books=library.listing()
+    for b in books:  # the original-language title too, so an English suggestion finds a book published in Persian
+        try:b['originalTitles']=[t for t in (library.get(b['id'])['doc'].get('title') or {}).values() if t]
+        except Exception:b['originalTitles']=[]  # noqa: BLE001
+    local=related.in_library({'id':book['id'],'author':doc.get('author',''),'tags':book.get('tags') or []},picks,books)
+    return related.combine(local,external,books=books,me=book['id'])
 async def warm_related(book_id:str):
     """After a publish the lists are recomputed in the background, so the first reader does not wait for Open Library."""
     try:
@@ -815,12 +819,13 @@ class BookRequest(StrictModel):
     email:str=Field(default='',max_length=254);lang:str=Field(default='fa',max_length=8);website:str=Field(default='',max_length=200)
 async def maybe_user(request:Request)->dict|None:return accounts.session_user(request.cookies.get(COOKIE,''))
 @app.post('/api/requests')
-async def request_book(body:BookRequest,request:Request):
+async def request_book(body:BookRequest,request:Request,tasks:BackgroundTasks):
     throttle('req:'+client_ip(request),5)
     if body.website:return {'ok':True}  # a hidden field only robots fill in
     user=await maybe_user(request)
-    try:await asyncio.to_thread(mailing.add_request,body.title,body.author,body.note,body.email or (user or {}).get('email',''),user['id'] if user else None,body.lang)
+    try:rid=await asyncio.to_thread(mailing.add_request,body.title,body.author,body.note,body.email or (user or {}).get('email',''),user['id'] if user else None,body.lang)
     except accounts.AccountError as e:raise HTTPException(e.status,e.detail) from None
+    tasks.add_task(mailing.notify_owner,rid)  # the owner hears at once; the answer does not wait for the mail server
     return {'ok':True}
 @app.get('/api/requests')
 async def requests_list(user:dict=Depends(owner_user)):return {'requests':mailing.requests_list()}
