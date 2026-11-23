@@ -4,7 +4,9 @@ import{useEffect,useState}from'react';
 export interface Reading{size:number;leading:'tight'|'normal'|'airy';width:'narrow'|'medium'|'wide';theme:'paper'|'white'|'sepia'|'night';fa:string;en:string;justify:boolean;zen:boolean}
 export const readingDefaults:Reading={size:20,leading:'airy',width:'wide',theme:'paper',fa:'scheherazade',en:'literata',justify:false,zen:false};
 // Every font ships with the site under a free licence, so each reader sees the same choices.
-export interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>}
+// local: names the reader's installed copy (its own names) instead of a file the site serves; offered only where present.
+// lh: line spacing for this font, as a share of the chosen spacing (Nastaliq needs more room between lines).
+export interface Font{id:string;label:string;family:string;load?:()=>Promise<unknown>;local?:string[];lh?:number}
 export const faFonts:Font[]=[
  {id:'vazirmatn',label:'Vazirmatn · وزیرمتن',family:'"Vazirmatn Variable"'},
  {id:'nazli',label:'Nazli · نازلی (بر پایهٔ نازنین)',family:'"Nazli"'},
@@ -21,6 +23,9 @@ export const faFonts:Font[]=[
  {id:'scheherazade',label:'Scheherazade · شهرزاد',family:'"Zekr Scheherazade"',load:()=>import('./fonts/zekr.css')},
  {id:'kfgqpc-naskh',label:'KFGQPC Naskh · نسخ عثمان طه',family:'"Zekr Naskh"',load:()=>import('./fonts/zekr.css')},
  {id:'noto-sans',label:'Noto Sans Arabic · نوتو',family:'"Zekr Noto Sans"',load:()=>import('./fonts/zekr.css')},
+ // Nastaliq, from the reader's own device only: IranNastaliq's licence forbids copying or distributing it, so it is not
+ // among the files the site sends (see fonts/irannastaliq-local.css).
+ {id:'irannastaliq',label:'IranNastaliq · ایران‌نستعلیق',family:'"IranNastaliq Installed"',load:()=>import('./fonts/irannastaliq-local.css'),local:['IranNastaliq','IranNastaliq-Web','IranNastaliqWeb','Iran Nastaliq'],lh:1.22},
 ];
 export const enFonts:Font[]=[
  {id:'literata',label:'Literata',family:'"Literata Variable"'},
@@ -52,7 +57,7 @@ export function readingStyle(r:Reading):Record<string,string>{
  const fa=faFonts.find(f=>f.id===r.fa)||faFonts.find(f=>f.id===readingDefaults.fa)!,en=enFonts.find(f=>f.id===r.en)||enFonts[0];
  return{'--read-size':r.size+'px','--read-lh':String({tight:1.6,normal:1.85,airy:2.1}[r.leading]),'--read-width':{narrow:'620px',medium:'760px',wide:'920px'}[r.width],
   // the chosen font is for the summary's body text only; titles, headings, contents and banners are Vazirmatn, as on every other page
-  '--read-font':en.family+',"Vazirmatn Variable",Georgia,serif','--read-text-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start'};
+  '--read-font':en.family+',"Vazirmatn Variable",Georgia,serif','--read-text-font':en.family+','+fa.family+',"Vazirmatn Variable",Georgia,serif','--read-align':r.justify?'justify':'start','--read-fa-lh':String(fa.lh||1)};
 }
 // Where the reader stopped in each book: the chapter and how far down it.
 const POS='inkling-place:';
@@ -61,3 +66,11 @@ export const lastPlace=(bookId:string):{chapterId:string;y:number}|null=>{try{co
 
 /** Every font's file, so a chooser can show each one in its own face. */
 export const loadAllFonts=()=>{for(const f of [...faFonts,...enFonts])f.load?.();};
+// Whether this device has a font the site only names (Font.local). The answer stays on the device.
+const seen=new Map<string,Promise<boolean>>();
+export function installed(f:Font):Promise<boolean>{
+ if(!f.local)return Promise.resolve(true);
+ if(!seen.has(f.id))seen.set(f.id,typeof FontFace==='undefined'?Promise.resolve(false)
+  :new FontFace('probe-'+f.id,f.local.map(n=>`local("${n}")`).join(',')).load().then(()=>true,()=>false));
+ return seen.get(f.id)!;
+}
