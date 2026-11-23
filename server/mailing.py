@@ -24,6 +24,27 @@ def add_request(title:str,author:str,note:str,email:str,user_id:str|None,lang:st
     if n>=8:raise accounts.AccountError(429,'You have sent several requests today. Please try again tomorrow.')
     with accounts._lock:
         db=accounts._db();cur=db.execute('INSERT INTO book_requests(title,author,note,email,user_id,lang,created) VALUES(?,?,?,?,?,?,?)',(title.strip(),author.strip(),note.strip(),email,user_id,_lang(lang),time.time()));return cur.lastrowid
+async def notify_owner(request_id:int)->bool:
+    """Tell the site owner about a new request at once (the Requests page still lists every one). Quietly does nothing when
+    mail is not set up or no owner address is configured; a failure is logged, never shown to the person who asked."""
+    owner=os.getenv('SUMM_OWNER_EMAIL','').strip()
+    rows=q('SELECT title,author,note,email,lang,(SELECT COUNT(*) FROM book_requests x WHERE lower(x.title)=lower(r.title)) FROM book_requests r WHERE id=?',(request_id,))
+    if not owner or not rows or not mailer.configured():return False
+    title,author,note,email,lang,same=rows[0];e=_html.escape
+    link=mailer.public_url()+'/#/mailing'
+    lines=[('Title',title),('Author',author),('Note',note),('From',email or 'no address left'),('Page language','Persian' if lang=='fa' else 'English')]
+    if same>1:lines.append(('Asked',f'{same} times in all'))
+    subject=f'Book request: {title}'+(f' — {author}' if author else '')
+    text='Someone asked for a summary on Inkling.\n\n'+'\n'.join(f'{k}: {v}' for k,v in lines if v)+f'\n\nAll requests: {link}\n'
+    page=('<div style="font:15px/1.7 -apple-system,Segoe UI,Vazirmatn,sans-serif;color:#1c2528;max-width:560px">'
+        '<p>Someone asked for a summary on Inkling.</p><table style="border-collapse:collapse">'
+        +''.join(f'<tr><td style="padding:4px 14px 4px 0;color:#5d686c;vertical-align:top">{e(k)}</td><td dir="auto" style="padding:4px 0">{e(str(v))}</td></tr>' for k,v in lines if v)
+        +f'</table><p><a href="{e(link)}" style="color:#256673;font-weight:600">Open the requests page</a></p></div>')
+    try:
+        headers={'Reply-To':email} if email else None
+        await mailer.deliver(owner,subject,text,page,headers);return True
+    except Exception as err:  # noqa: BLE001 - the request is saved either way
+        print('mail: request notice failed:',repr(err)[:300],flush=True);return False
 def requests_list()->list[dict]:
     rows=q('SELECT r.id,r.title,r.author,r.note,r.email,r.status,r.book_id,r.told,r.created,(SELECT COUNT(*) FROM book_requests x WHERE lower(x.title)=lower(r.title)) FROM book_requests r ORDER BY (r.status=\'new\') DESC,r.created DESC LIMIT 300')
     return [{'id':i,'title':t,'author':a,'note':n,'email':e,'status':s,'bookId':b,'told':bool(told),'created':c,'same':same} for i,t,a,n,e,s,b,told,c,same in rows]

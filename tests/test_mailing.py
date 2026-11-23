@@ -11,6 +11,15 @@ class MailingTests(RolesTest):
         self.anon=TestClient(app,headers={'X-Summ-Request':'1'});self.addCleanup(self.anon.close)
     def tearDown(self):self.cfg.stop();self.mail.stop();super().tearDown()
     def publish(self,c,**over):return c.post('/api/library',json={'doc':doc(**over),'visibility':'public'}).json()
+    def test_the_owner_is_emailed_about_each_request(self):
+        with patch.dict(os.environ,{'SUMM_OWNER_EMAIL':'owner@example.com'}):
+            self.assertEqual(self.anon.post('/api/requests',json={'title':'When Nietzsche Wept','author':'Yalom','note':'<b>soon</b>','email':'fan@example.com'}).status_code,200)
+        to,subject,text,html,headers=self.sent.await_args.args
+        self.assertEqual(to,'owner@example.com');self.assertIn('When Nietzsche Wept',subject);self.assertIn('fan@example.com',text);self.assertIn('/#/mailing',text)
+        self.assertIn('&lt;b&gt;soon',html);self.assertEqual(headers,{'Reply-To':'fan@example.com'})
+    def test_no_owner_address_means_no_notice(self):
+        with patch.dict(os.environ,{'SUMM_OWNER_EMAIL':''}):self.anon.post('/api/requests',json={'title':'Quiet'})
+        self.sent.assert_not_awaited()
     def test_anyone_can_ask_for_a_book_and_only_the_owner_reads_the_list(self):
         self.assertEqual(self.anon.post('/api/requests',json={'title':'The Odyssey','author':'Homer','note':'please','email':'fan@example.com'}).status_code,200)
         self.assertEqual(self.anon.get('/api/requests').status_code,401)
@@ -26,7 +35,8 @@ class MailingTests(RolesTest):
         rid=mailing.requests_list()[0]['id']
         self.assertEqual(owner.put('/api/requests/'+str(rid),json={'status':'done','book_id':book['id']}).json()['told'],True)
         self.assertEqual(self.sent.await_args.args[0],'fan@example.com')
-        owner.put('/api/requests/'+str(rid),json={'status':'done','book_id':book['id']});self.assertEqual(self.sent.await_count,1)  # told only once
+        owner.put('/api/requests/'+str(rid),json={'status':'done','book_id':book['id']})
+        self.assertEqual(sum(1 for c in self.sent.await_args_list if c.args[0]=='fan@example.com'),1)  # told only once (the owner's notice is separate)
     def test_a_plain_address_must_confirm_before_it_is_on_the_list(self):
         r=self.anon.post('/api/mailing/subscribe',json={'email':'Reader@Example.com','lang':'fa'});self.assertEqual(r.json()['status'],'pending')
         token=accounts.query('SELECT token FROM subscribers')[0][0];self.assertEqual(mailing.overview()['active'],0)
