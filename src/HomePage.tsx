@@ -11,7 +11,7 @@ import Cover from'./Cover';
 import MuseumHero,{galleryBackdrop,type Slide}from'./MuseumHero';
 import{bookBackdrop,homeBooks}from'./bookBackdrop';
 import{wallBooks}from'./home-order.ts';
-import{tr,num}from'./i18n';
+import{tr,num,digits}from'./i18n';
 import{publicTitle}from'./discovery';
 import{art}from'./art';
 import CategoryChips from'./CategoryChips';
@@ -42,7 +42,7 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
  const oneLiner=(t:string)=>{const m=t.match(/^.{40,170}?[.!?؟。](?=\s|$)/);return m?m[0]:t.length>170?t.slice(0,t.lastIndexOf(' ',160))+'…':t;};
  const names:Record<string,string>={en:'English',fa:'Persian',ar:'Arabic',de:'German',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'};
  // The editor chooses: a painting picked for the book, its cover alone, or (by default) the next gallery painting.
- const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:bookBackdrop(b,i),eyebrow:'',title:first(b),by:(lang==='fa'?authorFor(b,lang):displayName(b.author))+(b.year?' · '+b.year:''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
+ const slides:Slide[]=books_.length?books_.slice(0,12).map((b,i):Slide=>({key:b.id,seconds:setting(b.id)?.seconds||undefined,backdrop:bookBackdrop(b,i),eyebrow:'',title:first(b),by:(lang==='fa'?authorFor(b,lang):displayName(b.author))+(b.year?' · '+digits(lang,String(b.year)):''),text:oneLiner(b.blurb||(lang==='fa'?'ایده‌های اصلی کتاب را در خلاصهٔ فصل‌ها بخوانید.':'Explore the book through its chapter summaries.')),cover:b.cover,rtl:/[؀-ۿ]/.test(first(b)),score:config?.stars===false?undefined:(b.rating||undefined),facts:[num(lang,b.chapters)+' '+L('chapters'),b.languages.map(l=>l==='fa'?'فارسی':names[l]||l).join(' · ')],actions:[{label:L('Read the summary'),primary:true,onClick:()=>onOpenPublished(b)},{label:L('See the library'),onClick:()=>navigate('/library')}]}))
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}

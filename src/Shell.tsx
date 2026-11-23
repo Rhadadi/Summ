@@ -18,7 +18,7 @@ export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;clas
   <path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill="#fff"/>
   <path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill="#fff"/>
   <path d="M640 98L651 109L640 120L629 109Z" fill="#ffc93c"/>
-  <text x="530" y="124" textAnchor="end" fontFamily={fa} fontSize="92" fontWeight="800" fill="currentColor">اینکلینگ</text>
+  <text x="530" y="124" textAnchor="end" fontFamily={fa} fontSize="92" fontWeight="800" fill="currentColor">اینک لینگ</text>
   <text x="530" y="176" textAnchor="end" fontFamily={fa} fontSize="46" fontWeight="800" letterSpacing="-1"><tspan fill="var(--brand)">ink</tspan><tspan fill="currentColor">ling</tspan></text>
   {tagline&&<text x="530" y="212" textAnchor="end" fontFamily={fa} fontSize="20" fill="currentColor" opacity=".7">خلاصهٔ کتاب‌ها به فارسی</text>}
  </svg>;

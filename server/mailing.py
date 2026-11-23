@@ -68,7 +68,7 @@ def delete_request(request_id:int):q('DELETE FROM book_requests WHERE id=?',(req
 def _unsub_url(token:str)->str:return mailer.public_url()+'/mail/unsubscribe/'+token
 def _confirm_mail(email:str,token:str,lang:str)->tuple[str,str,str]:
     fa=lang=='fa';link=mailer.public_url()+'/mail/confirm/'+token;e=_html.escape
-    subject='تأیید عضویت در خبرنامهٔ اینکلینگ' if fa else 'Confirm your Inkling updates'
+    subject='تأیید عضویت در خبرنامهٔ اینک لینگ' if fa else 'Confirm your Inkling updates'
     lead='برای دریافت خبر هر کتاب تازه، عضویت خود را تأیید کنید.' if fa else 'One tap and you will hear about every new book as it arrives.'
     button='تأیید عضویت' if fa else 'Yes, keep me posted'
     foot='اگر شما این درخواست را نداده‌اید، این پیام را نادیده بگیرید؛ چیزی برایتان ارسال نخواهد شد.' if fa else 'If this was not you, ignore this message and nothing will be sent.'
@@ -120,10 +120,10 @@ def remove_subscriber(email:str):q('DELETE FROM subscribers WHERE email=?',(emai
 # ---- the email itself
 def _shell(fa:bool,title:str,preheader:str,body:str,unsubscribe:str|None)->str:
     e=_html.escape;d='rtl' if fa else 'ltr';align='right' if fa else 'left'
-    brand='اینکلینگ' if fa else 'Inkling';tag='کتاب‌هایی که ارزش خواندن دارند، در چند دقیقه' if fa else 'Books worth reading, in minutes'
+    brand='اینک لینگ' if fa else 'Inkling';tag='کتاب‌هایی که ارزش خواندن دارند، در چند دقیقه' if fa else 'Books worth reading, in minutes'
     request='کتابی در ذهن دارید؟ بخواهید' if fa else 'Have a book in mind? Ask for it'
     leave=('لغو عضویت' if fa else 'Unsubscribe') if unsubscribe else ''
-    why='این پیام را دریافت می‌کنید چون عضو خبرنامهٔ اینکلینگ هستید.' if fa else 'You are receiving this because you subscribed to Inkling updates.'
+    why='این پیام را دریافت می‌کنید چون عضو خبرنامهٔ اینک لینگ هستید.' if fa else 'You are receiving this because you subscribed to Inkling updates.'
     if not unsubscribe:why='این پیام را به‌دلیل درخواست شما برای این کتاب دریافت کرده‌اید.' if fa else 'You are receiving this because you asked for this book.'
     site=mailer.public_url()
     return (f'<!doctype html><html lang="{"fa" if fa else "en"}" dir="{d}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>{e(title)}</title></head>'
@@ -158,7 +158,7 @@ def compose_book(book:dict,lang:str,unsubscribe:str|None,mode:str='new')->tuple[
     url=f"{site}/b/{quote(book['slug'])}";blurb=_blurb_for(doc,lang,book.get('blurb',''));ideas=_takeaways(doc,lang)
     langs=book.get('languages') or [];audio=bool(q("SELECT 1 FROM narration WHERE book_id=? AND status='done'",(book['id'],)))
     eyebrow={'new':('تازه در کتابخانه','NEW IN THE LIBRARY'),'request':('کتابی که خواسته بودید آماده است','THE BOOK YOU ASKED FOR IS HERE')}[mode][0 if fa else 1]
-    subject=('«'+title+'» حالا در اینکلینگ' if mode=='new' else '«'+title+'» که خواسته بودید، آماده است') if fa else (('New on Inkling: '+title) if mode=='new' else 'You asked for it: '+title+' is on Inkling')
+    subject=('«'+title+'» حالا در اینک لینگ' if mode=='new' else '«'+title+'» که خواسته بودید، آماده است') if fa else (('New on Inkling: '+title) if mode=='new' else 'You asked for it: '+title+' is on Inkling')
     names={'en':'English','fa':'فارسی','ar':'العربية','de':'Deutsch','es':'Español','fr':'Français','tr':'Türkçe','zh':'中文'}
     chips=[names.get(l,l) for l in langs]
     if audio:chips.append('🎧 نسخهٔ صوتی' if fa else '🎧 Audio narration')

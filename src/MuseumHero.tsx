@@ -1,7 +1,8 @@
 import{useEffect,useRef,useState}from'react';
 import{ArrowBackRounded,ArrowForwardRounded,StarRounded,StarHalfRounded,StarBorderRounded}from'@mui/icons-material';
 import{useMediaQuery}from'@mui/material';
-import{tr,num}from'./i18n';
+import{tr,num,digits}from'./i18n';
+import{displayPainting}from'./persian-display';
 import{artSrcSet,artUrl,type Art}from'./art';
 import{sized,srcSet}from'./img';
 import{frameCrop,frameVars,type Frame}from'./frame.ts';
@@ -78,7 +79,7 @@ export default function MuseumHero({slides,lang='en',seconds=3,autoplay=true}:{s
   <div className="m-bar">
    <div className="m-dots" role="tablist" aria-label={L('Choose a slide')}>{slides.map((s,i)=><button key={s.key} role="tab" aria-selected={i===at} aria-label={L('Show slide')+' '+num(lang,i+1)} className={'m-dot'+(i===at?' on':'')+(hold||reduce||!autoplay?' held':'')} onClick={()=>go(i)}><span style={{animationDuration:(s.seconds||seconds)+'s'}}/></button>)}</div>
    <div className="m-arrows"><button aria-label={L('Previous slide')} onClick={()=>go(at-1)}>{lang==='fa'||lang==='ar'?<ArrowForwardRounded/>:<ArrowBackRounded/>}</button><button aria-label={L('Next slide')} onClick={()=>go(at+1)}>{lang==='fa'||lang==='ar'?<ArrowBackRounded/>:<ArrowForwardRounded/>}</button></div>
-   {(()=>{const b=current.backdrop,c=b.credit,text=b.caption?.text||(c?[c.title,c.artist,c.year].filter(Boolean).join(', ')+' · Public domain, Wikimedia Commons':'');const url=b.caption?.url||c?.page;
+   {(()=>{const b=current.backdrop,c=b.credit,text=lang==='fa'?(c?displayPainting(c,lang):digits(lang,b.caption?.text||'')):b.caption?.text||(c?[c.title,c.artist,c.year].filter(Boolean).join(', ')+' · Public domain, Wikimedia Commons':'');const url=b.caption?.url||c?.page;
     return text?(url?<a className="m-credit" href={url} target="_blank" rel="noopener noreferrer">{text}</a>:<span className="m-credit">{text}</span>):null;})()}
   </div>
  </section>;

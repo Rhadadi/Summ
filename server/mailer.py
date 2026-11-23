@@ -12,14 +12,14 @@ def _sender()->str:return os.getenv('SUMM_MAIL_FROM','').strip() or os.getenv('S
 def public_url()->str:return os.getenv('SUMM_PUBLIC_URL','https://booksumm.duckdns.org').rstrip('/')
 def compose(email:str,code:str)->tuple[str,str,str]:
     link=f'{public_url()}/verify/{quote(email)}/{code}'
-    subject=f'{code} is your Inkling code · کد ورود اینکلینگ'
+    subject=f'{code} is your Inkling code · کد ورود اینک لینگ'
     text=(f'Your Inkling confirmation code is {code}\n\nOr open this link to confirm your email and sign in:\n{link}\n\nIt works for 15 minutes. If you did not ask for it, ignore this message.\n\n'
-          f'کد تأیید شما در اینکلینگ: {code}\n\nیا برای تأیید ایمیل و ورود، این پیوند را باز کنید:\n{link}\n\nاین کد ۱۵ دقیقه معتبر است. اگر شما درخواست نکرده‌اید، این پیام را نادیده بگیرید.\n')
+          f'کد تأیید شما در اینک لینگ: {code}\n\nیا برای تأیید ایمیل و ورود، این پیوند را باز کنید:\n{link}\n\nاین کد ۱۵ دقیقه معتبر است. اگر شما درخواست نکرده‌اید، این پیام را نادیده بگیرید.\n')
     html=(f'<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:480px;margin:auto;color:#1c2528"><h2 style="margin:0 0 8px">Inkling</h2>'
           f'<p>Your confirmation code</p><p style="font-size:34px;letter-spacing:.3em;font-weight:700;margin:6px 0">{code}</p>'
           f'<p><a href="{link}" style="display:inline-block;background:#256673;color:#fff;padding:12px 22px;border-radius:24px;text-decoration:none">Confirm and sign in</a></p>'
           f'<p style="color:#5d686c;font-size:13px">It works for 15 minutes. If you did not ask for it, ignore this message.</p>'
-          f'<hr style="border:0;border-top:1px solid #dfe5e6;margin:22px 0"><div dir="rtl" style="text-align:right"><p>کد تأیید شما در اینکلینگ</p><p style="font-size:34px;letter-spacing:.3em;font-weight:700;margin:6px 0">{code}</p>'
+          f'<hr style="border:0;border-top:1px solid #dfe5e6;margin:22px 0"><div dir="rtl" style="text-align:right"><p>کد تأیید شما در اینک لینگ</p><p style="font-size:34px;letter-spacing:.3em;font-weight:700;margin:6px 0">{code}</p>'
           f'<p><a href="{link}">تأیید ایمیل و ورود</a></p></div></div>')
     return subject,text,html
 def _smtp(email:str,subject:str,text:str,html:str,headers:dict|None=None):
