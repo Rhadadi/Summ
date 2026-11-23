@@ -2,7 +2,9 @@
 // Claude goes through Anthropic's SDK; ChatGPT and Gemini through their own HTTP APIs.
 import Anthropic from'@anthropic-ai/sdk';
 import type{Route}from'./ai-settings';
-export interface Turn{role:'user'|'assistant';text:string}
+import type{Anchor}from'./anchor';
+// a question about a passage keeps the passage, so the answer can be saved as a comment on it
+export interface Turn{role:'user'|'assistant';text:string;quote?:string;anchor?:Anchor|null}
 export class ChatError extends Error{constructor(message:string,public kind:'key'|'limit'|'network'|'refused'|'other'='other'){super(message);}}
 
 export async function streamAnswer(r:Route,system:string,turns:Turn[],onText:(delta:string)=>void,signal:AbortSignal):Promise<string>{

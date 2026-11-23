@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response,StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,companion,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,companion,marks,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -476,6 +476,14 @@ def _upstream(error:companion.Failed,service:str)->HTTPException:
     if error.status in (400,401,403):return HTTPException(422,f'{service} did not accept the key saved in Account: {error.message}')
     if error.status in (402,429):return HTTPException(429,f'{service} says the limit is reached. Try again later.')
     return HTTPException(502,f'{service} could not answer: {error.message}')
+# Highlights and comments, saved with the reader's account (encrypted at rest) and merged across their devices.
+@app.get('/api/marks')
+async def marks_get(since:float=Query(0,ge=0),user:dict=Depends(current_user)):
+    now=time.time();return {'marks':marks.since(user['id'],since),'now':now}
+@app.post('/api/marks')
+async def marks_push(body:marks.Push,user:dict=Depends(current_user)):
+    throttle('marks:'+user['id'],120)
+    return {'taken':marks.save(user['id'],body.marks)}
 @app.post('/api/companion/chat')
 async def companion_chat(body:ChatRequest,user:dict=Depends(current_user)):
     throttle('chat:'+user['id'],20)

@@ -3,6 +3,10 @@ import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react
 import{isShortcut,shortcutLabel}from'./ai-settings';
 const ChatPanel=lazy(()=>import('./ChatPanel'));
 import AiLaunch from'./AiLaunch';
+import ReaderMarks from'./ReaderMarks';
+import{anchorForQuote,anchorFromRange,type Anchor}from'./anchor';
+import{newId,putMark,marksFor,updateMark}from'./marks';
+import type{Kept}from'./ChatPanel';
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded,CenterFocusStrongRounded,DarkModeOutlined,LightModeOutlined,ContrastRounded,HeadphonesRounded,ScheduleRounded,AutoAwesomeRounded as SparkRounded}from'@mui/icons-material';
@@ -40,6 +44,8 @@ interface Props{
  notebook?:{id:string;slug:string;title:string};
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
+// a caption that only repeats the painting's credit (title, painter, year) is not shown twice
+const sameWords=(a:string,b:string)=>{const k=(t:string)=>t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');return!!b&&k(a)===k(b);};
 export default function ReaderPage(p:Props){
  const{book,chapter,section,settings,data,account}=p;
  const[guideOpen,setGuideOpen]=useState(false);
@@ -134,31 +140,43 @@ export default function ReaderPage(p:Props){
  // ---- the study companion (published books): ⌘K on a Mac, Ctrl+K on Windows; selected text becomes the question's subject
  const companionItems=section==='overview'&&report?.overview?report.overview.paragraphs:summary?.paragraphs;
  const canAsk=!!p.readOnly&&!!companionItems?.length&&!p.editSlot;
- const[chat,setChat]=useState<{open:boolean;quote?:string;n:number;loaded:boolean}>({open:false,n:0,loaded:false});
+ const[chat,setChat]=useState<{open:boolean;quote?:string;anchor?:Anchor|null;n:number;loaded:boolean}>({open:false,n:0,loaded:false});
+ const col=useRef<HTMLDivElement>(null);
  // ⌘K / Ctrl K (or the bubble) brings the passage the reader has selected, or copied a moment ago, into the question.
  // A tap on a phone clears the selection before the click arrives, so the last selection is remembered for a few seconds.
- const copied=useRef<{text:string;at:number}|null>(null),lastSel=useRef<{text:string;at:number}|null>(null),[armed,setArmed]=useState(false);
+ const copied=useRef<{text:string;anchor:Anchor|null;at:number}|null>(null),lastSel=useRef<{text:string;anchor:Anchor|null;at:number}|null>(null),[armed,setArmed]=useState(false);
  const picked=()=>{const sel=window.getSelection?.();if(!sel||sel.isCollapsed)return'';if(sel.anchorNode?.parentElement?.closest('.ai-panel,input,textarea'))return'';return sel.toString().replace(/\s+/g,' ').trim();};
  useEffect(()=>{
   if(!canAsk)return;
   let t=0;
-  const copy=()=>{const x=picked();if(x)copied.current={text:x,at:Date.now()};};
-  const change=()=>{const x=picked();if(x){lastSel.current={text:x,at:Date.now()};clearTimeout(t);setArmed(true);}else{clearTimeout(t);t=window.setTimeout(()=>setArmed(false),400);if(lastSel.current)lastSel.current.at=Date.now();}};
+  const copy=()=>{const x=picked();if(x)copied.current={text:x,anchor:pickedAnchor(),at:Date.now()};};
+  const change=()=>{const x=picked();if(x){lastSel.current={text:x,anchor:pickedAnchor(),at:Date.now()};clearTimeout(t);setArmed(true);}else{clearTimeout(t);t=window.setTimeout(()=>setArmed(false),400);if(lastSel.current)lastSel.current.at=Date.now();}};
   document.addEventListener('copy',copy);document.addEventListener('selectionchange',change);
   return()=>{document.removeEventListener('copy',copy);document.removeEventListener('selectionchange',change);clearTimeout(t);};
  },[canAsk]);
- const grab=()=>{
+ const pickedAnchor=()=>{const sel=window.getSelection?.();return sel&&sel.rangeCount&&col.current?anchorFromRange(col.current,sel.getRangeAt(0)):null;};
+ const grab=():{text:string;anchor:Anchor|null}=>{
   const now=Date.now();
-  let t=picked();
-  if(!t&&lastSel.current&&now-lastSel.current.at<4000)t=lastSel.current.text;
-  if(!t&&copied.current&&now-copied.current.at<10*60e3)t=copied.current.text;
+  let t=picked(),a=t?pickedAnchor():null;
+  if(!t&&lastSel.current&&now-lastSel.current.at<4000){t=lastSel.current.text;a=lastSel.current.anchor;}
+  if(!t&&copied.current&&now-copied.current.at<10*60e3){t=copied.current.text;a=copied.current.anchor;}
   copied.current=null;lastSel.current=null;setArmed(false);
-  return t.length>1200?t.slice(0,1200)+'…':t;
+  return{text:t.length>1200?t.slice(0,1200)+'…':t,anchor:t.length>1200?null:a};
  };
- const openChat=()=>{const q=grab();setChat(c=>({open:true,loaded:true,quote:q||undefined,n:c.n+1}));};
+ const openChat=()=>{const g=grab();setChat(c=>({open:true,loaded:true,quote:g.text||undefined,anchor:g.anchor,n:c.n+1}));};
+ const askAbout=(a:Anchor)=>setChat(c=>({open:true,loaded:true,quote:a.quote,anchor:a,n:c.n+1}));
+ const markMeta=p.notebook?{book:p.notebook.id,slug:p.notebook.slug,bookTitle:p.notebook.title,chapter:section==='overview'?'overview':chapter.id,chapterTitle:section==='overview'?L('Overview'):chapterTitle(data,chapter),lang}:null;
+ // an AI answer about a passage, kept as a comment on it (added to the passage's comment when it is already highlighted)
+ function keepAnswer(k:Kept){
+  if(!markMeta)return;
+  const a=k.anchor||(col.current&&anchorForQuote(col.current,k.quote))||{quote:k.quote,prefix:'',suffix:''};
+  const same=marksFor(markMeta.book,markMeta.chapter).find(m=>m.quote===a.quote&&m.prefix===a.prefix);
+  if(same)updateMark(same.id,{note:same.note.trim()?same.note.trim()+'\n\n'+k.text:k.text,source:same.source||'ai',model:same.model||k.model});
+  else putMark({id:newId(),kind:'mark',...markMeta,...a,color:'blue',note:k.text,source:'ai',model:k.model,created:Date.now()});
+ }
  useEffect(()=>{
   if(!canAsk)return;
-  const key=(e:KeyboardEvent)=>{if(!isShortcut(e))return;e.preventDefault();const q=grab();if(chat.open&&!q)setChat(c=>({...c,open:false}));else setChat(c=>({open:true,loaded:true,quote:q||undefined,n:c.n+1}));};
+  const key=(e:KeyboardEvent)=>{if(!isShortcut(e))return;e.preventDefault();const g=grab();if(chat.open&&!g.text)setChat(c=>({...c,open:false}));else setChat(c=>({open:true,loaded:true,quote:g.text||undefined,anchor:g.anchor,n:c.n+1}));};
  window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
  });
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
@@ -173,8 +191,8 @@ export default function ReaderPage(p:Props){
     <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')+(p.backdrop!.frame?' framed wide-only':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position,...frameVars(p.backdrop)}}/>
     <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1>{quoteLine&&<blockquote className="curated-chapter-quote" dir="auto">{quoteLine}</blockquote>}<div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><HeadphonesRounded/>{L('Listen')}{mins?<span className="mins">{num(lang,mins)} {L('min')}</span>:null}</button>}{summary&&<span className="curated-chapter-time"><ScheduleRounded/>{num(lang,readMins)} {L('min read')}</span>}</div></div>
    </div>}
-   {curated&&isChapter&&(p.backdrop!.caption?.text||p.backdrop!.credit)&&<p className="curated-chapter-credit" dir="auto">{p.backdrop!.credit&&<span>{displayPainting(p.backdrop!.credit,lang)}</span>}{p.backdrop!.caption?.text&&<span className="why">{p.backdrop!.caption.text}</span>}</p>}
-   <div className="r2-col">
+   {curated&&isChapter&&(p.backdrop!.caption?.text||p.backdrop!.credit)&&<p className="curated-chapter-credit" dir="auto">{p.backdrop!.credit&&<span>{displayPainting(p.backdrop!.credit,lang)}</span>}{p.backdrop!.caption?.text&&!sameWords(p.backdrop!.caption.text,p.backdrop!.credit?[p.backdrop!.credit.title,p.backdrop!.credit.artist,p.backdrop!.credit.year].join(' '):'')&&<span className="why">{p.backdrop!.caption.text}</span>}</p>}
+   <div className="r2-col" ref={col}>
    {p.editBar}
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
     {!curated&&<div className="r2-bar"><span className="r2-chip">{L('Study guide')}</span><span className="grow"/>{!p.readOnly&&<button className="r2-pill" onClick={()=>{setView('original');p.onChoose(Math.max(0,book.chapters.indexOf(main[0]||book.chapters[0])));}}>{L('Original text')}</button>}<IconButton className="r2-aa" size="small" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></div>}<h1>{L('Overview')}</h1>
@@ -211,8 +229,9 @@ export default function ReaderPage(p:Props){
    </>}
    </div>
   </article>
+  {p.readOnly&&!p.editSlot&&markMeta&&<ReaderMarks root={col} meta={markMeta} lang={lang} onAsk={askAbout}/>}
   {canAsk&&!chat.loaded&&<AiLaunch label={L('Ask AI')+' ('+shortcutLabel()+')'} text={armed?L('Ask'):undefined} onClick={openChat}/>}
-  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onOpen={openChat} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} quoteId={chat.n} armed={armed} chapterKey={book.id+'|'+(section||chapter.id)}
+  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onOpen={openChat} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} anchor={chat.anchor} quoteId={chat.n} armed={armed} onComment={markMeta?keepAnswer:undefined} chapterKey={book.id+'|'+(section||chapter.id)}
    context={{bookTitle:(data.version?.bookTitle||book.title),author:book.author==='Author not supplied'?'':book.author,chapterTitle:section==='overview'?L('Overview'):chapterTitle(data,chapter),lang,paragraphs:companionItems!.filter(x=>!x.image),takeaways:report?.overview?.takeaways.map(t=>t.text)}}/></Suspense>}
   {zoom&&<div className="lightbox" role="dialog" aria-modal="true" aria-label={zoom.alt} onClick={()=>setZoom(null)} onKeyDown={e=>{if(e.key==='Escape')setZoom(null);}}>
    <button className="lightbox-x" autoFocus aria-label={L('Close')} onClick={()=>setZoom(null)}><CloseRounded/></button>

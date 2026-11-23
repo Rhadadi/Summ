@@ -4,7 +4,8 @@
 // Tap or click outside, Esc, or (phone) a swipe down hides it into the bubble; an answer in progress keeps coming.
 // Conversations are kept per chapter while the page is open; nothing is stored on the server.
 import{useEffect,useLayoutEffect,useRef,useState,type PointerEvent as RPointerEvent}from'react';
-import{ArrowUpwardRounded,AutoAwesomeRounded,CheckRounded,CloseRounded,StopRounded}from'@mui/icons-material';
+import{AddCommentOutlined,ArrowUpwardRounded,AutoAwesomeRounded,CheckRounded,CloseRounded,StopRounded}from'@mui/icons-material';
+import type{Anchor}from'./anchor';
 import Inline from'./InlineText';
 import AiKeyForm from'./AiKeyForm';
 import AiLaunch from'./AiLaunch';
@@ -30,25 +31,26 @@ const withPassage=(p:string,q:string,fa:boolean)=>p?(fa?'دربارهٔ این �
 // keeps clicks in MUI menus (the model picker) from counting as "outside"
 const INSIDE='.ai-panel,.ai-launch,.ai-bar-btn,.MuiPopover-root,.MuiMenu-root,.MuiModal-root,.MuiPopper-root';
 
-interface Props{open:boolean;onOpen:()=>void;onClose:()=>void;lang:string;context:ChapterContext;chapterKey:string;quote?:string;quoteId?:number;armed?:boolean}
-export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,quote,quoteId,armed}:Props){
+export interface Kept{anchor:Anchor|null;quote:string;text:string;model:string}
+interface Props{open:boolean;onOpen:()=>void;onClose:()=>void;lang:string;context:ChapterContext;chapterKey:string;quote?:string;anchor?:Anchor|null;quoteId?:number;armed?:boolean;onComment?:(k:Kept)=>void}
+export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,quote,anchor,quoteId,armed,onComment}:Props){
  const L=(t:string)=>tr(lang,t),fa=lang==='fa';
  const phone=useMedia('(max-width:699px)'),fine=useMedia('(pointer:fine)');
  const[ai]=useAi(),acct=useAccountKeys(),way=route(ai,acct),[setup,setSetup]=useState(false);
  const start=kept.get(chapterKey);
- const[mode,setMode]=useState<Mode>(start?.mode||'explain'),[turns,setTurns]=useState<Turn[]>(start?.turns||[]),[draft,setDraft]=useState(''),[passage,setPassage]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const[mode,setMode]=useState<Mode>(start?.mode||'explain'),[turns,setTurns]=useState<Turn[]>(start?.turns||[]),[draft,setDraft]=useState(''),[passage,setPassage]=useState(''),[passageAnchor,setPassageAnchor]=useState<Anchor|null>(null),[keptAt,setKeptAt]=useState<number[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const[menu,setMenu]=useState(false),[unread,setUnread]=useState(false),[tall,setTall]=useState(false),[dragH,setDragH]=useState<number|null>(null),[pos,setPos]=useState<Pos|null>(savedPos);
  const abort=useRef<AbortController|null>(null),box=useRef<HTMLTextAreaElement>(null),list=useRef<HTMLDivElement>(null),panel=useRef<HTMLElement>(null);
  const drag=useRef<{x:number;y:number;px:number;py:number;h:number;moved:boolean}|null>(null),shown=useRef(open),close=useRef(onClose);
  shown.current=open;close.current=onClose;
  // a new chapter brings its own conversation
- useEffect(()=>{abort.current?.abort();const k=kept.get(chapterKey);setMode(k?.mode||'explain');setTurns(k?.turns||[]);setError('');setPassage('');},[chapterKey]);
+ useEffect(()=>{abort.current?.abort();const k=kept.get(chapterKey);setMode(k?.mode||'explain');setTurns(k?.turns||[]);setError('');setPassage('');setKeptAt([]);},[chapterKey]);
  useEffect(()=>{kept.set(chapterKey,{mode,turns});},[chapterKey,mode,turns]);
  // opening: the passage replaces any earlier one; on a phone, focus (and its keyboard) only when there is a passage to ask about
  useEffect(()=>{
   if(!open){setMenu(false);return;}
   setUnread(false);
-  if(quote)setPassage(quote);
+  if(quote){setPassage(quote);setPassageAnchor(anchor||null);}
   if(fine||quote)setTimeout(()=>box.current?.focus(),60);
  },[open,quote,quoteId,fine]);
  useEffect(()=>{if(open&&acct.loaded&&!way)setSetup(true);},[open,acct.loaded,way]);
@@ -82,8 +84,8 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
   if(busy||(!q&&!passage&&mode!=='quiz'))return;
   if(!way){setSetup(true);return;}
   const text=withPassage(passage,q||(mode==='quiz'&&!passage?(fa?'از من بپرس.':'Quiz me.'):''),fa);
-  const history:Turn[]=[...turns,{role:'user',text}];
-  setTurns([...history,{role:'assistant',text:''}]);setDraft('');setPassage('');setError('');setBusy(true);setMenu(false);setSetup(false);
+  const history:Turn[]=[...turns,{role:'user',text,...(passage?{quote:passage,anchor:passageAnchor}:{})}];
+  setTurns([...history,{role:'assistant',text:''}]);setDraft('');setPassage('');setPassageAnchor(null);setError('');setBusy(true);setMenu(false);setSetup(false);
   if(box.current)box.current.style.height='auto';
   const ctl=new AbortController();abort.current=ctl;
   let answer='';
@@ -144,17 +146,19 @@ export default function ChatPanel({open,onOpen,onClose,lang,context,chapterKey,q
  return <aside ref={panel} className={cls} style={style} role="dialog" aria-label={L('Study companion')} dir={fa?'rtl':'ltr'} lang={lang}>
   <div className="ai-grip" aria-hidden="true" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={()=>{if(!phone)home();}}/>
   {(turns.length>0||error)&&<div className="ai-body" ref={list}>
-   {turns.map((t,i)=><div key={i} className={'ai-msg '+t.role} dir="auto">{t.role==='assistant'?(t.text?paras(t.text):<span className="ai-typing" aria-label={L('Thinking…')}><i/><i/><i/></span>):asked(t.text)}</div>)}
+   {turns.map((t,i)=>{const q=turns[i-1]?.quote,done=t.role==='assistant'&&!!t.text&&!(busy&&i===turns.length-1);return <div key={i} className={'ai-msg '+t.role} dir="auto">{t.role==='assistant'?(t.text?paras(t.text):<span className="ai-typing" aria-label={L('Thinking…')}><i/><i/><i/></span>):asked(t.text)}
+    {done&&q&&onComment&&(keptAt.includes(i)?<span className="ai-kept"><CheckRounded/>{L('Saved as a comment on the passage')}</span>
+     :<button type="button" className="ai-keep" onClick={()=>{onComment({anchor:turns[i-1].anchor||null,quote:q,text:t.text,model:way?.name||''});setKeptAt(k=>[...k,i]);}}><AddCommentOutlined/>{L('Save as a comment')}</button>)}</div>;})}
    {error&&<p className="ai-error" role="alert">{error}</p>}
   </div>}
   {setup&&<div className="ai-setup"><AiKeyForm lang={lang} compact account={acct.gemini}/>{way&&<button className="ai-done" onClick={()=>{setSetup(false);box.current?.focus();}}>{L('Done')}</button>}</div>}
   {menu&&<div className="ai-menu" role="menu">
    {MODES.map(m=><button key={m.id} role="menuitemradio" aria-checked={mode===m.id} onClick={()=>{setMode(m.id);setMenu(false);if(fine)box.current?.focus();}}><CheckRounded className={mode===m.id?'':'off'}/>{fa?m.fa:m.en}</button>)}
    <hr/>
-   {turns.length>0&&<button role="menuitem" onClick={()=>{abort.current?.abort();setTurns([]);setError('');setMenu(false);}}><span className="ai-mi"/>{L('New conversation')}</button>}
+   {turns.length>0&&<button role="menuitem" onClick={()=>{abort.current?.abort();setTurns([]);setError('');setKeptAt([]);setMenu(false);}}><span className="ai-mi"/>{L('New conversation')}</button>}
    <button role="menuitem" onClick={()=>{setSetup(!setup);setMenu(false);}}><span className="ai-mi"/>{L('AI settings')}<small dir="ltr">{way?way.name+(way.kind==='account'?' · '+L('account'):''):''}</small></button>
   </div>}
-  {passage&&<div className="ai-passage" dir="auto"><q>{passage}</q><button type="button" aria-label={L('Remove passage')} onClick={()=>{setPassage('');if(fine)box.current?.focus();}}><CloseRounded/></button></div>}
+  {passage&&<div className="ai-passage" dir="auto"><q>{passage}</q><button type="button" aria-label={L('Remove passage')} onClick={()=>{setPassage('');setPassageAnchor(null);if(fine)box.current?.focus();}}><CloseRounded/></button></div>}
   <form className="ai-input" onSubmit={e=>{e.preventDefault();if(busy)abort.current?.abort();else void ask();}}>
    <button type="button" className={'ai-more'+(menu?' on':'')+(mode!=='explain'?' moded':'')} aria-label={L('Options')+' · '+(fa?current.fa:current.en)} title={fa?current.fa:current.en} aria-expanded={menu} onClick={()=>setMenu(!menu)}><AutoAwesomeRounded/></button>
    <textarea ref={box} rows={1} dir="auto" value={draft} placeholder={L(place)} aria-label={L('Your question')}
