@@ -248,7 +248,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
  return <Dialog open onClose={close} fullScreen={phone} fullWidth maxWidth="md" scroll="paper" aria-labelledby="nb-title">
   <DialogTitle id="nb-title" className="dialog-heading nb-dialog-title"><span>{done?'Published':'Add a book'}{p.title&&<> · <em dir="auto">{p.title.split(':')[0]}</em></>}</span>{draftStatus&&<small className="nb-save-state">{draftStatus}</small>}<IconButton aria-label="Close" disabled={busyClose} onClick={close}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard nb">
-   <nav className="nb-step-nav" aria-label="Add a book steps"><ol>{STEPS.map((label,i)=><li key={label}><button type="button" aria-current={i===step?'step':undefined} disabled={!source||publishing||!!done||i>step} onClick={()=>setStep(i)}>{label}</button></li>)}</ol></nav>
+   <nav className="nb-step-nav" aria-label="Add a book steps"><ol>{STEPS.map((label,i)=><li key={label}><button type="button" aria-current={i===step?'step':undefined} disabled={publishing||!!done||i>step} onClick={()=>setStep(i)}>{label}</button></li>)}</ol></nav>
    <div className="nb-step-heading"><span>Step {step+1} of {STEPS.length}</span><h2 ref={stepHeading} tabIndex={-1}>{STEPS[step]}</h2></div>
    <div className={'nb-activity'+(activity?' is-active':'')} aria-live="polite" aria-atomic="true"><span>{activity}</span>{activity&&<LinearProgress aria-label={activity}/>}</div>
    <input ref={zipInput} type="file" hidden accept=".zip,.md,.markdown" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void read(f);}}/>
