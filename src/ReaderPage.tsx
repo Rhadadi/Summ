@@ -1,8 +1,10 @@
 import{frameVars}from'./frame.ts';
-import{useEffect,useMemo,useRef,useState,type ReactNode}from'react';
+import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react';
+import{isShortcut,shortcutLabel}from'./ai-settings';
+const ChatPanel=lazy(()=>import('./ChatPanel'));
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded,CenterFocusStrongRounded,DarkModeOutlined,LightModeOutlined,ContrastRounded,HeadphonesRounded,ScheduleRounded}from'@mui/icons-material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded,CenterFocusStrongRounded,DarkModeOutlined,LightModeOutlined,ContrastRounded,HeadphonesRounded,ScheduleRounded,AutoAwesomeRounded as SparkRounded}from'@mui/icons-material';
 import StudyTools from'./StudyTools';
 import{pullQuote,readingMinutes,starts}from'./study';
 import{displayPainting}from'./persian-display';
@@ -128,9 +130,19 @@ export default function ReaderPage(p:Props){
  const curated=p.readOnly&&!!p.backdrop;
  const nextTheme=reading.theme==='night'?'paper':reading.theme==='sepia'?'night':'sepia';
  const quoteLine=summary?pullQuote(summary.paragraphs):null,readMins=summary?readingMinutes(summary.paragraphs,lang):0;
+ // ---- the study companion (published books): ⌘K on a Mac, Ctrl+K on Windows; selected text becomes the question's subject
+ const companionItems=section==='overview'&&report?.overview?report.overview.paragraphs:summary?.paragraphs;
+ const canAsk=!!p.readOnly&&!!companionItems?.length&&!p.editSlot;
+ const[chat,setChat]=useState<{open:boolean;quote?:string;loaded:boolean}>({open:false,loaded:false});
+ const openChat=()=>{const sel=window.getSelection?.()?.toString().replace(/\s+/g,' ').trim()||'';setChat({open:true,loaded:true,quote:sel&&sel.length<=600?sel:undefined});};
+ useEffect(()=>{
+  if(!canAsk)return;
+  const key=(e:KeyboardEvent)=>{if(isShortcut(e)){e.preventDefault();if(chat.open)setChat(c=>({...c,open:false}));else openChat();}};
+  window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+ });
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
-  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/><IconButton className="curated-site-tool" aria-label={L('Focus mode')} title={L('Focus mode')} onClick={()=>setReading({zen:true})}><CenterFocusStrongRounded/></IconButton><IconButton className="curated-site-tool" aria-label={L('Page colour')+': '+L(nextTheme)} title={L('Page colour')+': '+L(nextTheme)} onClick={()=>setReading({theme:nextTheme})}>{reading.theme==='night'?<LightModeOutlined/>:reading.theme==='sepia'?<DarkModeOutlined/>:<ContrastRounded/>}</IconButton><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/>{canAsk&&<button className="ai-bar-btn" aria-label={L('Ask AI')+' ('+shortcutLabel()+')'} title={L('Ask AI about this chapter')+' · '+shortcutLabel()} onClick={openChat}><SparkRounded/><span>{L('Ask AI')}</span><kbd dir="ltr">{shortcutLabel()}</kbd></button>}<IconButton className="curated-site-tool" aria-label={L('Focus mode')} title={L('Focus mode')} onClick={()=>setReading({zen:true})}><CenterFocusStrongRounded/></IconButton><IconButton className="curated-site-tool" aria-label={L('Page colour')+': '+L(nextTheme)} title={L('Page colour')+': '+L(nextTheme)} onClick={()=>setReading({theme:nextTheme})}>{reading.theme==='night'?<LightModeOutlined/>:reading.theme==='sepia'?<DarkModeOutlined/>:<ContrastRounded/>}</IconButton><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
@@ -178,6 +190,9 @@ export default function ReaderPage(p:Props){
    </>}
    </div>
   </article>
+  {canAsk&&!chat.open&&<button className="ai-launch" aria-label={L('Ask AI')+' ('+shortcutLabel()+')'} onClick={openChat}><SparkRounded/><span>{L('Ask AI')}</span><kbd dir="ltr">{shortcutLabel()}</kbd></button>}
+  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} chapterKey={book.id+'|'+(section||chapter.id)}
+   context={{bookTitle:(data.version?.bookTitle||book.title),author:book.author==='Author not supplied'?'':book.author,chapterTitle:section==='overview'?L('Overview'):chapterTitle(data,chapter),lang,paragraphs:companionItems!.filter(x=>!x.image),takeaways:report?.overview?.takeaways.map(t=>t.text)}}/></Suspense>}
   {zoom&&<div className="lightbox" role="dialog" aria-modal="true" aria-label={zoom.alt} onClick={()=>setZoom(null)} onKeyDown={e=>{if(e.key==='Escape')setZoom(null);}}>
    <button className="lightbox-x" autoFocus aria-label={L('Close')} onClick={()=>setZoom(null)}><CloseRounded/></button>
    <img src={zoom.src} alt={zoom.alt} onClick={e=>e.stopPropagation()}/>
