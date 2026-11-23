@@ -996,3 +996,32 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 }
 @media (prefers-reduced-motion:reduce){.ai-panel,.ai-launch{animation:none!important;transition:none!important}.ai-launch.busy::after{animation:none}}
 @media print{.ai-launch,.ai-panel{display:none!important}}
+/* chapter pager inside the reader: follow the page colour (night had dark titles on dark cards) */
+.r2 .doc-pager{border-top-color:var(--rline)}
+.r2 .doc-pager .pg{border-color:var(--rline)!important;color:var(--rink)!important;background:color-mix(in srgb,var(--rink) 4%,var(--rbg))!important}
+.r2 .doc-pager .pg small{color:var(--rmuted)}.r2 .doc-pager .pg:hover{border-color:var(--brand)!important}
+/* "Check your understanding" starts folded */
+.study-fold>summary{list-style:none;cursor:pointer}.study-fold>summary::-webkit-details-marker{display:none}
+.study-fold>summary h2{margin:0}.study-fold[open]>summary h2{margin-bottom:10px}
+.study-chev{margin-inline-start:auto;color:var(--rmuted,var(--muted))!important;font-size:22px;transition:transform .2s}.study-fold[open] .study-chev{transform:rotate(180deg)}
+/* voice notes: a mic in the corner of the note, recordings as quiet chips below it */
+.study-field{position:relative}.study-field textarea{display:block}[dir=ltr] .study-field textarea{padding-right:46px}[dir=rtl] .study-field textarea{padding-left:46px}
+.vn-mic,.vn-rec{position:absolute;top:8px;inset-inline-end:8px;border:0;cursor:pointer;font-family:inherit}
+.vn-mic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:transparent;color:var(--rmuted,var(--muted))}
+.vn-mic:hover{color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,transparent)}.vn-mic svg{font-size:20px}
+.vn-rec{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 10px;border-radius:99px;background:color-mix(in srgb,#d9534f 14%,transparent);color:#d9534f;font-size:12.5px;font-variant-numeric:tabular-nums}
+.vn-rec i{width:8px;height:8px;border-radius:50%;background:#d9534f;animation:vn-pulse 1.2s ease-in-out infinite}.vn-rec svg{font-size:18px}
+@keyframes vn-pulse{50%{opacity:.3}}
+.vn-clips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.vn-clip{display:inline-flex;align-items:center;height:28px;padding:0 2px;border:1px solid var(--rline,var(--line));border-radius:99px;color:var(--rmuted,var(--muted));font-size:12px}
+.vn-clip.on{border-color:var(--brand);color:var(--brand)}
+.vn-clip button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer;padding:0}
+.vn-clip button:hover{color:var(--brand)}.vn-clip button:disabled{opacity:.4;cursor:default}.vn-clip svg{font-size:16px}
+.vn-clip .spin svg{animation:ai-spin 1s linear infinite}
+.vn-len{padding:0 3px;font-variant-numeric:tabular-nums}
+.vn-key{display:flex;align-items:center;gap:10px;margin-top:10px}.vn-key a{color:var(--brand);font-size:13px;white-space:nowrap}
+.vn-save{border:0;border-radius:99px;background:var(--brand);color:#fff;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer}.vn-save:disabled{opacity:.4}
+.r2 .vn-key .MuiInputBase-root{color:var(--rink)}.r2 .vn-key .MuiInputLabel-root{color:var(--rmuted)}.r2 .vn-key .MuiOutlinedInput-notchedOutline{border-color:var(--rline)}
+.vn-err{margin:6px 0 0;color:#d9534f;font-size:13px}
+.nb-note .vn-clips{margin-top:6px}
+.study textarea{box-sizing:border-box}[dir=ltr] .study-field.recording textarea{padding-right:104px}[dir=rtl] .study-field.recording textarea{padding-left:104px}
