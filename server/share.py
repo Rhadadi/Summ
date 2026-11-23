@@ -26,7 +26,7 @@ def meta(book:dict,site:str)->tuple[str,str]:
     desc=_excerpt(doc,lang) or ('خلاصهٔ این کتاب را در چند دقیقه بخوانید یا بشنوید.' if fa else 'Read or listen to this book’s summary in minutes.')
     url=f"{site}/b/{quote(book['slug'])}";e=lambda s:html.escape(s,quote=True)
     tags=[f'<title>{e(heading)} · {"اینکلینگ" if fa else "Inkling"}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(url)}"/>',
-          '<meta property="og:type" content="book"/>',f'<meta property="og:site_name" content="{"اینکلینگ · Inkling" if fa else "Inkling"}"/>',
+          '<meta property="og:type" content="book"/>',f'<meta property="og:site_name" content="{"اینکلینگ" if fa else "Inkling"}"/>',
           f'<meta property="og:title" content="{e(heading)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(url)}"/>',
           f'<meta property="og:locale" content="{"fa_IR" if fa else "en_US"}"/>',f'<meta name="twitter:title" content="{e(heading)}"/>',f'<meta name="twitter:description" content="{e(desc)}"/>']
     if author:tags.append(f'<meta property="book:author" content="{e(author)}"/>')
@@ -74,20 +74,17 @@ def card_image(cover:bytes,cache_dir,key:str)->bytes:
 
 
 # ---- the site itself: what a shared link to the home page (or any page that is not a book) shows
-SITE_TITLE='اینکلینگ · Inkling — کتاب‌های خواندنی، در چند دقیقه'
-FA_DIGITS=str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹')
+SITE_TITLE='اینکلینگ — خلاصهٔ کتاب‌های خواندنی'
 
 def site_meta(site:str,books:int,version:int)->str:
-    count=f'{str(books).translate(FA_DIGITS)} کتاب، ' if books else ''
-    desc=(f'خلاصه‌های خوش‌نوشتِ {count}برای خواندن یا شنیدن در چند دقیقه، به زبان خودتان. '
-          'Short, beautifully written book summaries to read or listen to, in your own language.')
+    desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه، به زبان خودتان.'
     img=f'{site}/api/site/share.jpg?v={version}';e=lambda s:html.escape(s,quote=True)
     return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
-        '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="اینکلینگ · Inkling"/>',
+        '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="اینکلینگ"/>',
         f'<meta property="og:title" content="{e(SITE_TITLE)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(site)}/"/>',
-        '<meta property="og:locale" content="fa_IR"/>','<meta property="og:locale:alternate" content="en_US"/>',
+        '<meta property="og:locale" content="fa_IR"/>',
         f'<meta property="og:image" content="{e(img)}"/>','<meta property="og:image:width" content="1200"/>','<meta property="og:image:height" content="630"/>',
-        '<meta property="og:image:type" content="image/jpeg"/>','<meta property="og:image:alt" content="اینکلینگ: کتاب‌های خواندنی، در چند دقیقه"/>',
+        '<meta property="og:image:type" content="image/jpeg"/>','<meta property="og:image:alt" content="اینکلینگ: خلاصهٔ کتاب‌های خواندنی"/>',
         '<meta name="twitter:card" content="summary_large_image"/>',f'<meta name="twitter:title" content="{e(SITE_TITLE)}"/>',
         f'<meta name="twitter:description" content="{e(desc)}"/>',f'<meta name="twitter:image" content="{e(img)}"/>'])
 
@@ -146,11 +143,10 @@ def site_card(covers:list[bytes],icon:bytes|None,cache_dir,key:str)->bytes:
             bg.paste(ic,(right-92,top-12),m);top+=100
         except Exception:pass
     say('اینکلینگ',top,font('Vazirmatn-700.ttf',84),cream)
-    say('کتاب‌های خواندنی، در چند دقیقه',top+128,font('Vazirmatn-600.ttf',38),sand)
+    say('خلاصهٔ کتاب‌های خواندنی',top+128,font('Vazirmatn-600.ttf',40),sand)
     small=font('Vazirmatn-400.ttf',27)
-    say('خلاصه‌های خوش‌نوشت، برای خواندن و شنیدن',top+192,small,mist)
-    say('به زبان خودتان',top+234,small,mist)
-    say('Inkling · Books worth reading, in minutes',H-74,font('Inter-600.ttf',24),mist,rtl=False)
+    say('کوتاه و خوش‌نوشت، برای خواندن و شنیدن',top+194,small,mist)
+    say('در چند دقیقه، به زبان خودتان',top+236,small,mist)
     out=io.BytesIO();bg.save(out,'JPEG',quality=88,optimize=True,progressive=True);data=out.getvalue()
     try:path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
     except OSError:pass

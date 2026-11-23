@@ -995,7 +995,7 @@ async def site_share_image(v:str=''):
     ids=[r[0] for r in library.q("SELECT id FROM library WHERE visibility='public' AND cover_type IS NOT NULL AND cover_type!='' ORDER BY updated DESC LIMIT 5")]
     covers=[c[0] for c in (library.cover(i) for i in ids) if c]
     icon=dist/'icons'/'icon-512.png'
-    data=await asyncio.to_thread(share.site_card,covers,icon.read_bytes() if icon.is_file() else None,Path(os.getenv('SUMM_DATA_DIR','data'))/'share',f'site-v1-{n}-{latest}')
+    data=await asyncio.to_thread(share.site_card,covers,icon.read_bytes() if icon.is_file() else None,Path(os.getenv('SUMM_DATA_DIR','data'))/'share',f'site-v3-{n}-{latest}')
     return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=86400'})
 def site_page()->Response:
     from . import share
