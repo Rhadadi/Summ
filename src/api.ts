@@ -6,7 +6,7 @@ export const detailText=(detail:unknown,status:number)=>typeof detail==='string'
 async function call<T>(path:string,{method,body,signal}:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
  const verb=method||(body===undefined?'GET':'POST');
  const r=await fetch('/api/'+path,{method:verb,headers:{...(body!==undefined?{'Content-Type':'application/json'}:{}),...(verb!=='GET'?{'X-Summ-Request':'1'}:{})},body:body!==undefined?JSON.stringify(body):undefined,signal:signal||AbortSignal.timeout(verb==='GET'?45000:300000),credentials:'same-origin'});
- if(!r.headers.get('content-type')?.includes('application/json'))throw new ApiError([502,503,504].includes(r.status)?'The server was restarting or took too long to answer. Please try again in a minute.':'No Inkling server was found at this address. File imports and original-passage reading still work.',r.status);
+ if(!r.headers.get('content-type')?.includes('application/json'))throw new ApiError([502,503,504].includes(r.status)?'The server was restarting or took too long to answer. Please try again in a minute.':'No Osareh server was found at this address. File imports and original-passage reading still work.',r.status);
  const data=await r.json();if(!r.ok)throw new ApiError(detailText(data.detail,r.status),r.status);return data as T;
 }
 export const config=()=>call<AppConfig>('config');

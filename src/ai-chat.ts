@@ -13,7 +13,7 @@ export async function streamAnswer(r:Route,system:string,turns:Turn[],onText:(de
  if(r.provider==='openai')return openai(r.key,r.model,system,turns,onText,signal);
  return gemini(r.key,r.model,system,turns,onText,signal);
 }
-// Through the Inkling server, which answers with the Gemini key saved in the reader's account (it never reaches the browser).
+// Through the Osareh server, which answers with the Gemini key saved in the reader's account (it never reaches the browser).
 async function account(system:string,turns:Turn[],onText:(d:string)=>void,signal:AbortSignal){
  const r=await send('/api/companion/chat',{method:'POST',signal,credentials:'same-origin',headers:{'Content-Type':'application/json','X-Summ-Request':'1'},body:JSON.stringify({system,turns:turns.map(t=>({role:t.role,text:t.text}))})});
  if(!r.ok){let detail='';try{const j=await r.json();detail=typeof j.detail==='string'?j.detail:'';}catch{/* not JSON */}

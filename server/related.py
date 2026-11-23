@@ -7,7 +7,7 @@ import asyncio,json,os,re,time
 from pathlib import Path
 import httpx
 
-HEADERS={'User-Agent':'InklingReader/0.4 (https://booksumm.duckdns.org; book suggestions)'}
+HEADERS={'User-Agent':'OsarehReader/0.4 (https://osareh.duckdns.org; book suggestions)'}
 FIELDS='key,title,author_name,first_publish_year,cover_i,ratings_average,ratings_count,subject'
 def _norm(t:str)->str:return re.sub(r'[^a-z0-9؀-ۿ]+',' ',(t or '').lower()).strip()
 def _short(t:str)->str:return _norm(t.split(':')[0])

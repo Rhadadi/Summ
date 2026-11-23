@@ -171,7 +171,7 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
    toast(L('Saved on this device')+' · '+sizeLabel(entry.bytes)+(entry.audio?' · '+L('with audio'):'')+'. '+L('It opens without internet.'));
   }catch(e){toast((e as Error).message);}finally{setKeeping(null);}
  }
- const exportMeta=():ExportMeta=>({id:pub.id,title:pub.titles[version.language]||pub.title,author:authorFor(pub,version.language),language:version.language,rtl:['fa','ar'].includes(version.language),url:shareUrl,note:tr(version.language,'A summary from Inkling')});
+ const exportMeta=():ExportMeta=>({id:pub.id,title:pub.titles[version.language]||pub.title,author:authorFor(pub,version.language),language:version.language,rtl:['fa','ar'].includes(version.language),url:shareUrl,note:tr(version.language,'A summary from Osareh')});
  const exportSections=():ExportSection[]=>{
   const out:ExportSection[]=[],ov=data.report?.overview;
   if(ov)out.push({id:'overview',title:tr(version.language,'Overview'),takeaways:ov.takeaways.map(t=>t.text),paragraphs:ov.paragraphs.filter(x=>!x.image)});

@@ -509,7 +509,7 @@ body{background:var(--bg);color:var(--ink)}
 .m-arrows button svg{font-size:17px}
 .m-count{font-size:12px;opacity:.8}
 .pub-audio{display:grid;gap:10px;margin-bottom:8px}.pub-audio label{display:flex;align-items:center;justify-content:space-between;gap:14px}.pub-audio .MuiTextField-root{min-width:250px}
-.lockup{display:block;width:100%;max-width:190px;height:auto}.r2-brand .lockup{max-width:170px}
+.lockup{display:block;width:100%;max-width:153px;height:auto}.r2-brand .lockup{max-width:137px}
 .m-count{display:none}
 .m-arrows{gap:2px}.m-arrows button{width:24px;height:24px;background:none!important;opacity:.55}.m-arrows button:hover{opacity:1}.m-arrows button svg{font-size:16px}
 
@@ -570,7 +570,7 @@ body{background:var(--bg);color:var(--ink)}
 @media (max-width:899px){
  .topbar2{direction:ltr;justify-content:flex-start;gap:8px;border-bottom:0;padding:8px 12px}
  .desktop-search{display:none!important}
- .topbar-logo{display:block;margin-inline-start:auto;border:0;background:none;padding:0}.topbar-logo .lockup{width:128px;max-width:128px}
+ .topbar-logo{display:block;margin-inline-start:auto;border:0;background:none;padding:0}.topbar-logo .lockup{width:103px;max-width:103px}
  .drawer-search{display:flex}
  .language-switch{min-height:38px}
  .m-wall-head{margin-bottom:18px;padding-top:18px}
@@ -578,14 +578,14 @@ body{background:var(--bg);color:var(--ink)}
 .m-wall-head{justify-content:flex-end}.m-wall{padding-top:56px}
 @media (max-width:899px){.topbar-menu{order:0}.topbar2 .language-switch{order:1}.topbar-logo{order:2;margin-inline-start:auto;margin-left:auto}}
 
-.r2-mobile-logo{border:0;background:none;padding:0;display:block}.r2-mobile-logo .lockup{width:124px;max-width:124px}
+.r2-mobile-logo{border:0;background:none;padding:0;display:block}.r2-mobile-logo .lockup{width:100px;max-width:100px}
 .r2-mobilebar{justify-content:space-between}
 
 .m-wall{padding-top:36px}@media (max-width:899px){.m-wall{padding-top:24px}}
 
 /* Reader header: one slim row; the chapter label sits between two small steps; the phone bar has only menu and logo */
 .r2-mobilebar{direction:ltr;justify-content:space-between;padding:4px 4px 0}
-.r2-mobile-logo .lockup{width:104px;max-width:104px}
+.r2-mobile-logo .lockup{width:84px;max-width:84px}
 .r2-bar{gap:4px;margin:0 0 20px;padding-bottom:8px}
 .r2-chip{display:inline-flex;align-items:center;gap:2px;font-size:13px;font-weight:500}
 .r2-step{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--rmuted);padding:0}.r2-step:disabled{opacity:.25}.r2-step svg{font-size:22px}
@@ -604,7 +604,7 @@ body{background:var(--bg);color:var(--ink)}
  .shell.topnav .shell-side{display:none}
  .shell.topnav .topbar2{display:none}
  .topnav-bar{display:flex;align-items:center;gap:6px;height:58px;padding:0 28px;background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
- .tn-logo{border:0;background:none;padding:0;display:block}.tn-logo .lockup{width:128px;max-width:128px}
+ .tn-logo{border:0;background:none;padding:0;display:block}.tn-logo .lockup{width:103px;max-width:103px}
  .tn-links{display:flex;gap:2px;margin-inline-start:18px}
  .tn-grow{flex:1}
  .tn-link{border:0;background:none;color:var(--ink);padding:8px 14px;border-radius:980px;font:500 15px -apple-system,BlinkMacSystemFont,sans-serif;white-space:nowrap}
@@ -849,11 +849,11 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 @media (max-width:899px){.topbar2 .visitor-pill{order:1}.visitor-pill span{display:none}.visitor-pill{padding:4px 9px}}
 /* The reader's top bar matches the site's: same height, padding, logo size and link style. */
 .curated-reader .curated-reader-sitebar{min-height:58px;height:58px;padding:0 28px;gap:6px}
-.curated-reader .curated-site-brand{width:128px}
+.curated-reader .curated-site-brand{width:103px}
 .curated-reader-sitebar nav{margin-inline-start:18px}
 .curated-reader-sitebar nav button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:980px;font:500 15px -apple-system,BlinkMacSystemFont,"Segoe UI","Vazirmatn Variable",sans-serif}
 .curated-reader-sitebar nav button:hover{background:var(--brand-tint);color:var(--brand)}
-@media(max-width:899px){.curated-reader .curated-reader-sitebar{height:auto;min-height:54px;padding:8px 12px}.curated-reader .curated-site-brand{width:120px}.curated-reader-sitebar nav{margin-inline-start:6px}}
+@media(max-width:899px){.curated-reader .curated-reader-sitebar{height:auto;min-height:54px;padding:8px 12px}.curated-reader .curated-site-brand{width:97px}.curated-reader-sitebar nav{margin-inline-start:6px}}
 /* ---- Sepia page shade, site-wide (Settings → page colour) */
 :root[data-theme=sepia]{--bg:#f4ead6;--surface:#fbf4e6;--surface-low:#efe3cb;--surface-tint:#e8dabd;--line:#e0d0b2;--side:#efe3cb;--ink:#3b2f22;--muted:#7a6a55;--m-paper:#f1e5cc;--m-rule:#dccaa8}
 /* ---- Offline: the top bar says so; saved books sit on the home page */
@@ -1068,7 +1068,7 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 .nb-mark footer .nb-del{margin-inline-start:auto}
 /* phones: the reader never grows wider than the screen, even with the owner's extra buttons in the top bar */
 @media(max-width:899px){.r2.curated-reader{grid-template-columns:minmax(0,1fr)}.curated-reader-sitebar{min-width:0}}
-@media(max-width:480px){.curated-reader .curated-reader-sitebar{gap:2px;padding-inline:8px}.curated-reader .curated-site-brand{flex:none;width:104px}.curated-reader-sitebar .MuiIconButton-root{padding:7px}}
+@media(max-width:480px){.curated-reader .curated-reader-sitebar{gap:2px;padding-inline:8px}.curated-reader .curated-site-brand{flex:none;width:84px}.curated-reader-sitebar .MuiIconButton-root{padding:7px}}
 /* focus mode shows only the text: the painting's credit goes with the painting */
 .curated-reader.zen .curated-chapter-credit{display:none}
 /* captions stay captions: small and quiet, on every screen */
@@ -1079,7 +1079,7 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 @media(max-width:699px){.r2-quote{margin:22px 0;padding:2px 14px;font-size:var(--read-size,20px)}.curated-chapter-credit{font-size:11px;padding:0 16px}.curated-chapter-credit .why{font-size:11px}.r2-fig figcaption{font-size:12px}}
 /* About */
 .about-page{max-width:760px;margin:0 auto;padding:40px 24px 80px;color:var(--ink)}
-.about-head{text-align:center;margin-bottom:34px}.about-head .lockup{width:210px;height:auto;margin:0 auto 18px;display:block}
+.about-head{text-align:center;margin-bottom:34px}.about-head .lockup{width:170px;height:auto;margin:0 auto 18px;display:block}
 .about-head h1{margin:0 0 12px;font:700 30px/1.35 "Vazirmatn Variable",var(--serif)}
 .about-head p{margin:0 auto;max-width:600px;font-size:17.5px;line-height:1.95;color:var(--muted)}
 .about-parts{display:flex;flex-direction:column;gap:14px}

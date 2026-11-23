@@ -42,7 +42,7 @@ export function epubFiles(m:ExportMeta,sections:ExportSection[],cover?:{data:Uin
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="${m.language}" dir="${m.rtl?'rtl':'ltr'}">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="bookid">urn:inkling:${esc(m.id)}</dc:identifier><dc:title>${esc(m.title)}</dc:title><dc:language>${m.language}</dc:language>
-${m.author?'<dc:creator>'+esc(m.author)+'</dc:creator>':''}<dc:publisher>Inkling</dc:publisher><meta property="dcterms:modified">${modified}</meta>${cover?'<meta name="cover" content="cover-image"/>':''}
+${m.author?'<dc:creator>'+esc(m.author)+'</dc:creator>':''}<dc:publisher>Osareh</dc:publisher><meta property="dcterms:modified">${modified}</meta>${cover?'<meta name="cover" content="cover-image"/>':''}
 </metadata>
 <manifest>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="css" href="style.css" media-type="text/css"/><item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>

@@ -512,7 +512,7 @@ class SharePageTests(RolesTest):
         from server import share
         c,_=self.owner()
         book=c.post('/api/library',json={'doc':doc(title={'en':'Midlife: A Guide','fa':'میانسالی: راهنما'}),'visibility':'public'}).json()
-        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><link rel="icon" href="./favicon.svg"/><title>Inkling</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
+        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><link rel="icon" href="./favicon.svg"/><title>Osareh</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
         html=share.page(index,library.get(book['slug']),'https://x.test')
         self.assertIn('<html lang="fa"',html);self.assertIn('og:title" content="میانسالی: راهنما — نوشتهٔ An Author"',html)
         self.assertIn('og:description" content="Overview text."',html);self.assertIn('src="/assets/a.js"',html);self.assertNotIn('generic',html)
@@ -534,7 +534,7 @@ class SitePageTests(RolesTest):
         c,_=self.owner()
         book=c.post('/api/library',json={'doc':doc(title={'en':'Midlife: A Guide','fa':'میانسالی: راهنما'}),'visibility':'public'}).json()
         cover=io.BytesIO();Image.new('RGB',(400,600),(30,90,200)).save(cover,'PNG');c.put(f"/api/library/{book['id']}/cover",content=cover.getvalue())
-        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><title>Inkling</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
+        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><title>Osareh</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
         with mock.patch.object(appmod,'_index',return_value=index):
             for path in ('/','/library/c/psychology','/notebook','/verify/a%40b.c/123456'):
                 r=c.get(path);self.assertEqual(r.status_code,200,path);self.assertIn('og:image" content="',r.text);self.assertIn('/api/site/share.jpg',r.text)

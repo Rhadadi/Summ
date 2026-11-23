@@ -25,11 +25,11 @@ export default function NotebookPage({lang,navigate}:{lang:string;navigate:(path
   const text=books.map(b=>'# '+b.title+'\n\n'
    +b.notes.filter(n=>n.text.trim()).map(n=>'## '+n.chapterTitle+'\n'+n.text.trim()+'\n').join('\n')
    +(b.marks.length?'\n'+b.marks.map(m=>'> '+m.quote+'\n'+(m.note.trim()?(m.source==='ai'?'['+(m.model||'AI')+'] ':'')+m.note.trim()+'\n':'')+'— '+m.chapterTitle+'\n').join('\n'):'')).join('\n\n');
-  download(new Blob([text],{type:'text/plain;charset=utf-8'}),'inkling-notebook.txt');
+  download(new Blob([text],{type:'text/plain;charset=utf-8'}),'osareh-notebook.txt');
  }
  function exportBackup(){
-  const data={app:'Inkling',kind:'notebook-backup',at:new Date().toISOString(),notes:written,highlights:allMarks()};
-  download(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}),'inkling-notebook-backup.json');
+  const data={app:'Osareh',kind:'notebook-backup',at:new Date().toISOString(),notes:written,highlights:allMarks()};
+  download(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}),'osareh-notebook-backup.json');
  }
  const status=synced==='synced'?{icon:<CloudDoneOutlined/>,text:L('Saved to your account')}:synced==='local'?{icon:<CloudOffOutlined/>,text:L('Only on this device. Sign in to keep them safe in your account.')}
   :synced==='offline'?{icon:<CloudOffOutlined/>,text:L('Offline. Saved on this device; they reach your account when you are back online.')}

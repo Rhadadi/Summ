@@ -23,7 +23,7 @@ export default function ReviewDialog({book,year,initial,language,onClose,onSave,
  return <Dialog open onClose={()=>{if(!busy)onClose();}} fullWidth maxWidth="md" aria-labelledby="review-title" scroll="paper">
   <DialogTitle id="review-title" className="dialog-heading"><span>Reception of <em dir="auto">{book.title.split(':')[0]}</em></span><IconButton aria-label="Close" disabled={busy} onClick={onClose}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard">
-   <p className="dialog-lead">Inkling collects reviews from Wikipedia's reception section, The Guardian and The New York Times (when their keys are set) and a Google search, opens each review page and quotes it word for word. This takes a minute or two. Check every number and quote against its link, edit what is off, then approve. This uses your own Gemini key.</p>
+   <p className="dialog-lead">Osareh collects reviews from Wikipedia's reception section, The Guardian and The New York Times (when their keys are set) and a Google search, opens each review page and quotes it word for word. This takes a minute or two. Check every number and quote against its link, edit what is off, then approve. This uses your own Gemini key.</p>
    <div className="wizard-bar"><TextField select size="small" label="Write it in" value={lang} onChange={e=>setLang(e.target.value)}>{languages.map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>
     <Button variant={review?'outlined':'contained'} disabled={busy} onClick={run} startIcon={busy?<CircularProgress size={16} color="inherit"/>:undefined}>{busy?'Searching the web…':review?'Research again':'Research reviews'}</Button></div>
    {error&&<Alert severity="error" sx={{mb:2}}>{error}</Alert>}

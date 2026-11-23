@@ -6,7 +6,7 @@ from urllib.parse import quote,urlsplit
 import httpx
 from . import google_books
 COVER_HOSTS={'covers.openlibrary.org','books.google.com','books.googleusercontent.com','upload.wikimedia.org'}
-HEADERS={'User-Agent':'SummReader/0.3 (https://booksumm.duckdns.org)'}
+HEADERS={'User-Agent':'SummReader/0.3 (https://osareh.duckdns.org)'}
 def _words(text:str)->set[str]:return {w for w in re.findall(r'\w+',text.lower()) if len(w)>2}
 def _matches(wanted:str,found:str)->bool:
     # Accept a result only if it shares most of the requested title's words.

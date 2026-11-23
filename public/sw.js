@@ -1,4 +1,4 @@
-// Inkling's service worker: the site opens without a connection, and books saved for offline read and play from here.
+// Osareh's service worker: the site opens without a connection, and books saved for offline read and play from here.
 // Three caches: the app itself (replaced on every release), what the reader has looked at lately (pages, covers),
 // and the books the reader chose to keep (never evicted by us; removed only from the book page).
 const VERSION='inkling-v1';
@@ -46,7 +46,7 @@ async function page(req){
   if(r.ok&&new URL(req.url).pathname==='/'){const c=await caches.open(SHELL);shellIndex().then(x=>x&&c.put('/',x)).catch(()=>{});}
   return r;
  }catch{
-  return(await caches.match(req,{ignoreSearch:true}))||(await caches.match('/'))||new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><p style="font:18px system-ui;padding:40px">You are offline. Open Inkling once with a connection to read it offline.</p>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
+  return(await caches.match(req,{ignoreSearch:true}))||(await caches.match('/'))||new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><p style="font:18px system-ui;padding:40px">You are offline. Open Osareh once with a connection to read it offline.</p>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
  }
 }
 async function cacheFirst(req,name){

@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 import httpx
 from . import bookinfo
 
-HEADERS={'User-Agent':'InklingReader/0.4 (https://booksumm.duckdns.org; book reviews)'}
+HEADERS={'User-Agent':'OsarehReader/0.4 (https://osareh.duckdns.org; book reviews)'}
 QUOTE=re.compile(r'[“"]([^”"]{25,320})[”"]')
 def _plain(text:str)->str:
     """Wikitext or HTML to readable text."""

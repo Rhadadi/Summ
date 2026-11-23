@@ -1,5 +1,5 @@
 // The reader's own AI key for the study companion. It is kept in this browser only and sent straight to the provider
-// (Anthropic, OpenAI or Google), never to the Inkling server.
+// (Anthropic, OpenAI or Google), never to the Osareh server.
 import{useEffect,useState}from'react';
 export type Provider='anthropic'|'openai'|'gemini';
 export interface AiSettings{chosen?:boolean;provider:Provider|'account';keys:Partial<Record<Provider,string>>;models:Partial<Record<Provider,string>>}

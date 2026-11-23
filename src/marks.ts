@@ -1,5 +1,5 @@
 // Highlights and comments on the summary, and the chapter notes written "in your own words".
-// Saved in this browser first (they work offline), then kept safe with the reader's Inkling account: every change is
+// Saved in this browser first (they work offline), then kept safe with the reader's Osareh account: every change is
 // queued and sent to the server, which stores it encrypted and merges edits from the reader's other devices.
 import{useEffect,useState}from'react';
 import type{Anchor}from'./anchor';

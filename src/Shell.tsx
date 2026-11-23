@@ -13,13 +13,13 @@ export function Logo({dark=false}:{dark?:boolean}){
 // Full logo: Persian name, English name, optional tagline, and the ink-drop mark. Text follows the theme.
 export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;className?:string}){
  const fa='"Vazirmatn Variable",Vazirmatn,sans-serif';
- return <svg className={className} style={{direction:'ltr',letterSpacing:0,wordSpacing:0,textTransform:'none',fontStyle:'normal'}} viewBox={tagline?'190 30 520 190':'190 30 520 172'} role="img" aria-label="Inkling">
+ return <svg className={className} style={{direction:'ltr',letterSpacing:0,wordSpacing:0,textTransform:'none',fontStyle:'normal'}} viewBox={tagline?'290 30 420 190':'290 30 420 172'} role="img" aria-label="Osareh">
   <path d="M640 40C640 40 580 100 580 140a60 60 0 0 0 120 0C700 100 640 40 640 40Z" fill="var(--brand)"/>
   <path d="M604 148Q622 136 638 147V178Q622 167 604 178Z" fill="#fff"/>
   <path d="M676 148Q658 136 642 147V178Q658 167 676 178Z" fill="#fff"/>
   <path d="M640 98L651 109L640 120L629 109Z" fill="#ffc93c"/>
-  <text x="530" y="124" textAnchor="end" fontFamily={fa} fontSize="92" fontWeight="800" fill="currentColor">اینک لینگ</text>
-  <text x="530" y="176" textAnchor="end" fontFamily={fa} fontSize="46" fontWeight="800" letterSpacing="-1"><tspan fill="var(--brand)">ink</tspan><tspan fill="currentColor">ling</tspan></text>
+  <text x="530" y="124" textAnchor="end" fontFamily={fa} fontSize="92" fontWeight="800" fill="currentColor">عصاره</text>
+  <text x="530" y="176" textAnchor="end" fontFamily={fa} fontSize="46" fontWeight="800" letterSpacing="-1"><tspan fill="var(--brand)">osa</tspan><tspan fill="currentColor">reh</tspan></text>
   {tagline&&<text x="530" y="212" textAnchor="end" fontFamily={fa} fontSize="20" fill="currentColor" opacity=".7">خلاصهٔ کتاب‌ها به فارسی</text>}
  </svg>;
 }
@@ -42,7 +42,7 @@ function AccountMenu({lang,account,onAccount,onSettings,onLanguage,go}:{lang:str
    <MenuItem onClick={pick(()=>go('/notebook'))}><ListItemIcon><EditNoteOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Notebook')} secondary={L('Your notes, in your own words')}/></MenuItem>
    {saved.length>0&&<MenuItem onClick={pick(()=>go('/library/saved'))}><ListItemIcon><DownloadDoneRounded fontSize="small"/></ListItemIcon><ListItemText primary={L('Saved on this device')} secondary={num(lang,saved.length)+' '+L(saved.length===1?'book':'books')+' · '+L('read without internet')}/></MenuItem>}
    <MenuItem onClick={pick(onSettings)}><ListItemIcon><SettingsOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Settings')} secondary={L('Fonts, reading, newsletter, requests')}/></MenuItem>
-   <MenuItem onClick={pick(()=>go('/about'))}><ListItemIcon><InfoOutlined fontSize="small"/></ListItemIcon><ListItemText>{L('About Inkling')}</ListItemText></MenuItem>
+   <MenuItem onClick={pick(()=>go('/about'))}><ListItemIcon><InfoOutlined fontSize="small"/></ListItemIcon><ListItemText>{L('About Osareh')}</ListItemText></MenuItem>
    <MenuItem onClick={pick(()=>onLanguage(lang==='fa'?'en':'fa'))}><ListItemIcon><LanguageRounded fontSize="small"/></ListItemIcon><ListItemText>{lang==='fa'?'English':'فارسی'}</ListItemText></MenuItem>
   </Menu>
  </>;
@@ -60,14 +60,14 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
  const online=useOnline();
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
-  <button className="side-brand" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+  <button className="side-brand" aria-label="Osareh" onClick={()=>go('/')}><Lockup/></button>
   <label className="search2 drawer-search"><input type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>{onQuery(e.target.value);}} onKeyDown={e=>{if(e.key==='Enter')setOpen(false);}}/><span aria-hidden="true"><SearchRounded/></span></label>
   {item('/','For you',<HomeOutlined/>,route==='/')}
   {item('/library','Library',<MenuBookOutlined/>,route==='/library'||route.startsWith('/b/'))}
   {canEdit&&<>{item('/workspace','Workspace',<LibraryBooksOutlined/>,route==='/workspace'||route.startsWith('/book/'))}
   {item('/saved','Saved passages',<BookmarkBorderRounded/>,route==='/saved')}
   <button className="side-item" onClick={()=>{setOpen(false);onAdd();}}><AddRounded/><span>Add a book</span></button></>}
-  {item('/about','About Inkling',<InfoOutlined/>,route==='/about')}
+  {item('/about','About Osareh',<InfoOutlined/>,route==='/about')}
   {isEditor&&<button className="side-item" onClick={()=>{setOpen(false);onToggleVisitor();}}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(asVisitor?'Back to editing':'View as visitor')}</span></button>}
  </nav>;
  const link=(path:string,label:string,active:boolean)=><button className={'tn-link'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{L(label)}</button>;
@@ -76,7 +76,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
   <Drawer open={open} onClose={()=>setOpen(false)} slotProps={{paper:{className:'side-drawer'}}}>{nav}</Drawer>
   <div className="shell-main">
    {topNav&&<header className="topnav-bar">
-    <button className="tn-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+    <button className="tn-logo" aria-label="Osareh" onClick={()=>go('/')}><Lockup/></button>
     <nav className="tn-links" aria-label={L('Main')}>
      <button className={'tn-link'+(here==='/library'||here.startsWith('/b/')?' on':'')} aria-current={here==='/library'?'page':undefined} onClick={()=>go('/library')}><MenuBookOutlined/>{L('Library')}</button>
      {shelves.length>0&&<><button className={'tn-link'+(here.startsWith('/library/c/')?' on':'')} aria-haspopup="menu" aria-expanded={!!catAnchor} onClick={e=>setCatAnchor(e.currentTarget)}><CategoryOutlined/>{L('Categories')}<ExpandMoreRounded className="tn-chev"/></button>
@@ -95,7 +95,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
    </header>}
    <header className="topbar2">
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
-    <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
+    <button className="topbar-logo" aria-label="Osareh" onClick={()=>go('/')}><Lockup/></button>
     <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
    {asVisitor&&<button className="visitor-pill" onClick={onToggleVisitor} title={L('You are seeing the site as a visitor does. Editing tools are hidden.')}><EditNoteRounded/><span>{L('Back to editing')}</span></button>}
    {!online&&<span className="offline-pill" role="status" title={L('No connection. Saved books and pages you opened still work.')}><CloudOffRounded/><span>{L('Offline')}</span></span>}<AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage} go={go}/></header>

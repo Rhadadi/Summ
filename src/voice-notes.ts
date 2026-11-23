@@ -1,5 +1,5 @@
 // Voice notes for "In your own words": short recordings kept in this browser (IndexedDB), and their transcripts from
-// ElevenLabs Scribe with the reader's own key. Neither the audio nor the key ever reaches the Inkling server.
+// ElevenLabs Scribe with the reader's own key. Neither the audio nor the key ever reaches the Osareh server.
 import{useEffect,useState}from'react';
 export interface ClipMeta{bookId:string;slug:string;bookTitle:string;chapterId:string;chapterTitle:string;lang:string}
 export interface Clip extends ClipMeta{id:string;at:number;ms:number;type:string;blob:Blob;transcribed:boolean}
@@ -70,7 +70,7 @@ export async function transcribe(blob:Blob,lang:string,key:string):Promise<strin
  return String(j.text||'').trim();
 }
 
-/** The same, through the Inkling server with the ElevenLabs key saved in the reader's account. */
+/** The same, through the Osareh server with the ElevenLabs key saved in the reader's account. */
 export async function transcribeWithAccount(blob:Blob,lang:string):Promise<string>{
  let r:Response;
  try{r=await fetch('/api/voice/transcribe?lang='+encodeURIComponent(lang||''),{method:'POST',credentials:'same-origin',headers:{'Content-Type':blob.type||'audio/webm','X-Summ-Request':'1'},body:blob});}

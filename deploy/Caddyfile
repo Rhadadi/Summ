@@ -1,4 +1,4 @@
-{$SUMM_DOMAIN:booksumm.duckdns.org} {
+{$SUMM_DOMAIN:osareh.duckdns.org} {
   encode zstd gzip
   request_body {
     max_size 2MB

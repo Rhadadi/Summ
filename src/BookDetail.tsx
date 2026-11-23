@@ -35,7 +35,7 @@ interface Props{
  // More round buttons beside Share (save offline, download).
  tools?:ReactNode;
 }
-const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'Inkling · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
+const pdfLabels:Record<string,Record<string,string>>={fa:{overview:'نمای کلی',takeaways:'نکته‌های کلیدی',glance:'نگاهی به کتاب',contents:'فهرست',analysis:'تحلیل درونی',reception:'زمینه و بازتاب',publisher:'معرفی ناشر از Google Books',kicker:'عصاره · راهنمای مطالعه',disclaimer:'این متن با هوش مصنوعی از روی منبع ساخته و به‌طور خودکار با آن سنجیده شده است. امتیازها و توضیح‌ها از منابع عمومی نام‌برده آمده‌اند. به متن اصلی مراجعه کنید.'}};
 async function downscale(blob:Blob){
  const bitmap=await createImageBitmap(blob);const scale=Math.min(1,900/Math.max(bitmap.width,bitmap.height));
  const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);
@@ -196,7 +196,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
   {(!book.demo||readOnly)&&(!readOnly||!emptyReception||!!receptionHref)&&<section className="reception">
    <h2>{L('What others say')}</h2>
    {readOnly&&!!receptionHref&&emptyReception&&<p className="rx-owner-empty">{L('No reception yet')} · <a href={receptionHref}>{L('Research it')}</a></p>}
-   {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
+   {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Osareh gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
     <ReviewSection lang={lang} review={review} scores={receptionScores} draft={!!review&&!reviewApproved&&!readOnly} cta={readOnly?{onRead:()=>onRead(startAt),onListen:canListen?()=>onListen():undefined}:undefined}/>
 

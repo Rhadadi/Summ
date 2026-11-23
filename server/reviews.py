@@ -142,7 +142,7 @@ async def portrait(author:str)->dict|None:
     name=author.split(',')[0].strip()
     if not name:return None
     try:
-        async with httpx.AsyncClient(timeout=10,headers={'User-Agent':'InklingReader/0.4 (https://booksumm.duckdns.org)'}) as client:
+        async with httpx.AsyncClient(timeout=10,headers={'User-Agent':'OsarehReader/0.4 (https://osareh.duckdns.org)'}) as client:
             r=await client.get('https://en.wikipedia.org/api/rest_v1/page/summary/'+quote(name.replace(' ','_')))
         if r.status_code!=200:return None
         data=r.json();src=((data.get('thumbnail') or {}).get('source') or '')

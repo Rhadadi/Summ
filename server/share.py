@@ -25,8 +25,8 @@ def meta(book:dict,site:str)->tuple[str,str]:
     heading=title+(f' — {"نوشتهٔ " if fa else "by "}{author}' if author else '')
     desc=_excerpt(doc,lang) or ('خلاصهٔ این کتاب را در چند دقیقه بخوانید یا بشنوید.' if fa else 'Read or listen to this book’s summary in minutes.')
     url=f"{site}/b/{quote(book['slug'])}";e=lambda s:html.escape(s,quote=True)
-    tags=[f'<title>{e(heading)} · {"اینک لینگ" if fa else "Inkling"}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(url)}"/>',
-          '<meta property="og:type" content="book"/>',f'<meta property="og:site_name" content="{"اینک لینگ" if fa else "Inkling"}"/>',
+    tags=[f'<title>{e(heading)} · {"عصاره" if fa else "Osareh"}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(url)}"/>',
+          '<meta property="og:type" content="book"/>',f'<meta property="og:site_name" content="{"عصاره" if fa else "Osareh"}"/>',
           f'<meta property="og:title" content="{e(heading)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(url)}"/>',
           f'<meta property="og:locale" content="{"fa_IR" if fa else "en_US"}"/>',f'<meta name="twitter:title" content="{e(heading)}"/>',f'<meta name="twitter:description" content="{e(desc)}"/>']
     if author:tags.append(f'<meta property="book:author" content="{e(author)}"/>')
@@ -74,17 +74,17 @@ def card_image(cover:bytes,cache_dir,key:str)->bytes:
 
 
 # ---- the site itself: what a shared link to the home page (or any page that is not a book) shows
-SITE_TITLE='اینک لینگ — خلاصهٔ کتاب‌های خواندنی'
+SITE_TITLE='عصاره — خلاصهٔ کتاب‌های خواندنی'
 
 def site_meta(site:str,books:int,version:int)->str:
     desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه.'
-    img=f'{site}/api/site/share.jpg?v=5-{version}';e=lambda s:html.escape(s,quote=True)
+    img=f'{site}/api/site/share.jpg?v=6-{version}';e=lambda s:html.escape(s,quote=True)
     return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
-        '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="اینک لینگ"/>',
+        '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="عصاره"/>',
         f'<meta property="og:title" content="{e(SITE_TITLE)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(site)}/"/>',
         '<meta property="og:locale" content="fa_IR"/>',
         f'<meta property="og:image" content="{e(img)}"/>','<meta property="og:image:width" content="1200"/>','<meta property="og:image:height" content="630"/>',
-        '<meta property="og:image:type" content="image/jpeg"/>','<meta property="og:image:alt" content="اینک لینگ: خلاصهٔ کتاب‌های خواندنی"/>',
+        '<meta property="og:image:type" content="image/jpeg"/>','<meta property="og:image:alt" content="عصاره: خلاصهٔ کتاب‌های خواندنی"/>',
         '<meta name="twitter:card" content="summary_large_image"/>',f'<meta name="twitter:title" content="{e(SITE_TITLE)}"/>',
         f'<meta name="twitter:description" content="{e(desc)}"/>',f'<meta name="twitter:image" content="{e(img)}"/>'])
 
@@ -142,7 +142,7 @@ def site_card(covers:list[bytes],icon:bytes|None,cache_dir,key:str)->bytes:
             m=Image.new('L',(92,92),0);ImageDraw.Draw(m).rounded_rectangle((0,0,91,91),22,fill=255)
             bg.paste(ic,(right-92,top-12),m);top+=100
         except Exception:pass
-    say('اینک لینگ',top,font('Vazirmatn-700.ttf',84),cream)
+    say('عصاره',top,font('Vazirmatn-700.ttf',84),cream)
     say('خلاصهٔ کتاب‌های خواندنی',top+128,font('Vazirmatn-600.ttf',40),sand)
     small=font('Vazirmatn-400.ttf',27)
     say('کوتاه و خوش‌نوشت، برای خواندن و شنیدن',top+194,small,mist)

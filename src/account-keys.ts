@@ -1,4 +1,4 @@
-// Which of the reader's own keys are saved in their Inkling account. The keys themselves stay encrypted on the server,
+// Which of the reader's own keys are saved in their Osareh account. The keys themselves stay encrypted on the server,
 // which uses them for the study companion (Gemini) and voice-note transcripts (ElevenLabs); only their presence is known here.
 import{useEffect,useState}from'react';
 import{me}from'./api';

@@ -19,7 +19,7 @@ export default function AiKeyForm({lang,compact,account}:{lang:string;compact?:b
   <TextField select fullWidth size="small" label={L('Model')} value={modelOf(s,p.id)} onChange={e=>save({...s,models:{...s.models,[p.id]:e.target.value}})}>
    {p.models.map(m=><MenuItem key={m.id} value={m.id}>{m.name} · {L(m.note)}</MenuItem>)}
   </TextField>
-  <p className="ai-form-note">{L('Your key stays in this browser and goes straight to')} {p.name}{lang==='fa'?' ':'; '}{L('Inkling never sees it. Usage is billed to your account.')} <a href={p.keyUrl} target="_blank" rel="noreferrer">{L('Get a key')}</a>{s.keys[p.id]&&<> · <button className="text-link2 inline" onClick={()=>save({...s,keys:{...s.keys,[p.id]:''}})}>{L('Remove key')}</button></>}</p>
+  <p className="ai-form-note">{L('Your key stays in this browser and goes straight to')} {p.name}{lang==='fa'?' ':'; '}{L('Osareh never sees it. Usage is billed to your account.')} <a href={p.keyUrl} target="_blank" rel="noreferrer">{L('Get a key')}</a>{s.keys[p.id]&&<> · <button className="text-link2 inline" onClick={()=>save({...s,keys:{...s.keys,[p.id]:''}})}>{L('Remove key')}</button></>}</p>
   </>}
   {!compact&&<p className="ai-form-note">{L('Open the companion while reading with')} <kbd dir="ltr">{shortcutLabel()}</kbd>.</p>}
  </div>;

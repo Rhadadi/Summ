@@ -76,7 +76,7 @@ export default function App(){
  const mobile=useMediaQuery('(max-width:899px)');
  // /  home · /library · /saved · /book/:id detail · /read/:id[/section] reader
  // The link in the confirmation email opens /verify/<email>/<code>: confirm, sign in and go home.
- useEffect(()=>{const m=route.match(/^\/verify\/([^/]+)\/(\d{4,12})$/);if(!m)return;verifyEmail(decodeURIComponent(m[1]),m[2]).then(a=>{setAccount(a);setToast('Email confirmed. Welcome to Inkling.');navigate('/');}).catch(e=>{setToast(e instanceof Error?e.message:'That link did not work.');setAccountOpen(true);navigate('/');});},[route]);
+ useEffect(()=>{const m=route.match(/^\/verify\/([^/]+)\/(\d{4,12})$/);if(!m)return;verifyEmail(decodeURIComponent(m[1]),m[2]).then(a=>{setAccount(a);setToast('Email confirmed. Welcome to Osareh.');navigate('/');}).catch(e=>{setToast(e instanceof Error?e.message:'That link did not work.');setAccountOpen(true);navigate('/');});},[route]);
  const parts=route.split('/'),isDetail=parts[1]==='book',isRead=parts[1]==='read',isReader=isDetail||isRead,isSaved=route==='/saved',isWorkspace=route==='/workspace',isPublishedEditor=parts[1]==='edit',isLibrary=parts[1]==='library',isPub=parts[1]==='b',pubSlug=parts[2]||'',pubRead=parts[3]==='read',pubSection=pubRead?decodeURIComponent(parts[4]||''):'';
  const readSection=isRead?decodeURIComponent(parts[3]||''):'';
  const active=isReader?books.find(b=>b.id===parts[2]):undefined;

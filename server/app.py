@@ -1,4 +1,4 @@
-"""Optional Inkling service. Browser originals stay local; AI receives the selected chapter and runs on each user's own Gemini key."""
+"""Optional Osareh service. Browser originals stay local; AI receives the selected chapter and runs on each user's own Gemini key."""
 from __future__ import annotations
 import asyncio
 from collections import defaultdict,deque
@@ -26,8 +26,8 @@ COOKIE='summ_session'
 async def lifespan(_:FastAPI):
     library.reset_jobs();watcher=asyncio.create_task(mailing.watch());yield
     watcher.cancel()
-app=FastAPI(title='Inkling processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
-app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://booksumm.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
+app=FastAPI(title='Osareh processing',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
+app.add_middleware(CORSMiddleware,allow_origins=[s.strip() for s in os.getenv('SUMM_ALLOWED_ORIGINS','https://osareh.duckdns.org,http://localhost:3000').split(',') if s.strip()],allow_methods=['GET'],allow_headers=['Content-Type'])
 semaphore=asyncio.Semaphore(2)
 MAX_VOICE=2_000_000  # a five-minute voice note at 32 kbit/s is about 1.2 MB; the proxy allows 2 MB
 hits:dict[str,deque]=defaultdict(deque)
@@ -972,7 +972,7 @@ async def library_share_image(book_id:str,v:str=''):
     data=await asyncio.to_thread(share.card_image,found[0],Path(os.getenv('SUMM_DATA_DIR','data'))/'share',book['id']+'-'+str(int(book['updated'])))
     return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=604800'})
 def _index()->str:
-    return (dist/'index.html').read_text() if (dist/'index.html').is_file() else '<!doctype html><html lang="en"><head><title>Inkling</title></head><body></body></html>'
+    return (dist/'index.html').read_text() if (dist/'index.html').is_file() else '<!doctype html><html lang="en"><head><title>Osareh</title></head><body></body></html>'
 @app.get('/b/{slug}')
 @app.get('/b/{slug}/{rest:path}')
 async def share_page(slug:str,rest:str=''):
@@ -995,7 +995,7 @@ async def site_share_image(v:str=''):
     ids=[r[0] for r in library.q("SELECT id FROM library WHERE visibility='public' AND cover_type IS NOT NULL AND cover_type!='' ORDER BY updated DESC LIMIT 5")]
     covers=[c[0] for c in (library.cover(i) for i in ids) if c]
     icon=dist/'icons'/'icon-512.png'
-    data=await asyncio.to_thread(share.site_card,covers,icon.read_bytes() if icon.is_file() else None,Path(os.getenv('SUMM_DATA_DIR','data'))/'share',f'site-v5-{n}-{latest}')
+    data=await asyncio.to_thread(share.site_card,covers,icon.read_bytes() if icon.is_file() else None,Path(os.getenv('SUMM_DATA_DIR','data'))/'share',f'site-v6-{n}-{latest}')
     return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=86400'})
 def site_page()->Response:
     from . import share

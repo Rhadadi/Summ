@@ -6,7 +6,7 @@ import httpx
 from . import accounts,library
 
 API='https://commons.wikimedia.org/w/api.php'
-HEADERS={'User-Agent':'InklingReader/0.4 (https://booksumm.duckdns.org; book summaries) httpx'}
+HEADERS={'User-Agent':'OsarehReader/0.4 (https://osareh.duckdns.org; book summaries) httpx'}
 TITLE=re.compile(r'^File:[^\n/\\]{3,200}\.(?:jpe?g|png|webp)$',re.I)
 MAX_BYTES=3_000_000
 def _dir()->Path:

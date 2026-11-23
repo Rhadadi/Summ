@@ -1,5 +1,5 @@
 # Append this site block to the host's existing /etc/caddy/Caddyfile.
-booksumm.duckdns.org {
+osareh.duckdns.org {
   encode zstd gzip
   request_body {
     max_size 2MB
