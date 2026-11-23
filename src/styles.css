@@ -1079,7 +1079,7 @@ button.rel-book{border:0;background:none;padding:0;text-align:start;color:inheri
 @media(max-width:699px){.r2-quote{margin:22px 0;padding:2px 14px;font-size:var(--read-size,20px)}.curated-chapter-credit{font-size:11px;padding:0 16px}.curated-chapter-credit .why{font-size:11px}.r2-fig figcaption{font-size:12px}}
 /* About */
 .about-page{max-width:760px;margin:0 auto;padding:40px 24px 80px;color:var(--ink)}
-.about-head{text-align:center;margin-bottom:34px}.about-head .lockup{width:170px;height:auto;margin:0 auto 18px;display:block}
+.about-head{text-align:center;margin-bottom:34px}.about-head .lockup{width:220px;max-width:220px;height:auto;margin:0 auto 18px;display:block}
 .about-head h1{margin:0 0 12px;font:700 30px/1.35 "Vazirmatn Variable",var(--serif)}
 .about-head p{margin:0 auto;max-width:600px;font-size:17.5px;line-height:1.95;color:var(--muted)}
 .about-parts{display:flex;flex-direction:column;gap:14px}

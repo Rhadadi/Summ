@@ -30,7 +30,7 @@ export default function LibraryPage({books,published,drafts,language,covers,filt
   <div className="cards">
    {shown.map(b=><article className="card" key={b.id}>
     <button className="card-open" onClick={()=>onOpen(b)} aria-label={'Open '+b.title}>
-     <div className="card-top"><span className="card-brand"><Logo dark/>Osareh</span><span className="card-tag">{b.demo?'Sample':b.format}</span></div>
+     <div className="card-top"><span className="card-brand"><Logo dark/>{language==='fa'?'عصاره':'Osareh'}</span><span className="card-tag">{b.demo?'Sample':b.format}</span></div>
      <h2 dir="auto">{b.title}</h2>
      <p className="card-author" dir="auto">{b.author==='Author not supplied'?'':displayName(b.author)}</p>
      <Cover book={b} url={covers[b.id]} className="card-cover"/>

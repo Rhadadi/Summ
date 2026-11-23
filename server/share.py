@@ -78,7 +78,7 @@ SITE_TITLE='عصاره — خلاصهٔ کتاب‌های خواندنی'
 
 def site_meta(site:str,books:int,version:int)->str:
     desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه.'
-    img=f'{site}/api/site/share.jpg?v=6-{version}';e=lambda s:html.escape(s,quote=True)
+    img=f'{site}/api/site/share.jpg?v=7-{version}';e=lambda s:html.escape(s,quote=True)
     return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
         '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="عصاره"/>',
         f'<meta property="og:title" content="{e(SITE_TITLE)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(site)}/"/>',
@@ -142,11 +142,16 @@ def site_card(covers:list[bytes],icon:bytes|None,cache_dir,key:str)->bytes:
             m=Image.new('L',(92,92),0);ImageDraw.Draw(m).rounded_rectangle((0,0,91,91),22,fill=255)
             bg.paste(ic,(right-92,top-12),m);top+=100
         except Exception:pass
-    say('عصاره',top,font('Vazirmatn-700.ttf',84),cream)
-    say('خلاصهٔ کتاب‌های خواندنی',top+128,font('Vazirmatn-600.ttf',40),sand)
+    # the logo (brand/wordmark-light.png, made from public/brand/osareh-wordmark-light.svg); the name as text if it is missing
+    try:
+        wm=Image.open(Path(__file__).parent/'brand'/'wordmark-light.png').convert('RGBA');mh=128;mw=int(wm.width*mh/wm.height)
+        wm=wm.resize((mw,mh),Image.LANCZOS);bg.paste(wm,(right-mw,top),wm);gap=150
+    except Exception:
+        say('عصاره',top,font('Vazirmatn-700.ttf',84),cream);gap=128
+    say('خلاصهٔ کتاب‌های خواندنی',top+gap,font('Vazirmatn-600.ttf',40),sand)
     small=font('Vazirmatn-400.ttf',27)
-    say('کوتاه و خوش‌نوشت، برای خواندن و شنیدن',top+194,small,mist)
-    say('در چند دقیقه',top+236,small,mist)
+    say('کوتاه و خوش‌نوشت، برای خواندن و شنیدن',top+gap+66,small,mist)
+    say('در چند دقیقه',top+gap+108,small,mist)
     out=io.BytesIO();bg.save(out,'JPEG',quality=88,optimize=True,progressive=True);data=out.getvalue()
     try:path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
     except OSError:pass
