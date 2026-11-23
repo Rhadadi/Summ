@@ -77,7 +77,7 @@ def card_image(cover:bytes,cache_dir,key:str)->bytes:
 SITE_TITLE='اینکلینگ — خلاصهٔ کتاب‌های خواندنی'
 
 def site_meta(site:str,books:int,version:int)->str:
-    desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه، به زبان خودتان.'
+    desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه.'
     img=f'{site}/api/site/share.jpg?v={version}';e=lambda s:html.escape(s,quote=True)
     return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
         '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="اینکلینگ"/>',
@@ -146,7 +146,7 @@ def site_card(covers:list[bytes],icon:bytes|None,cache_dir,key:str)->bytes:
     say('خلاصهٔ کتاب‌های خواندنی',top+128,font('Vazirmatn-600.ttf',40),sand)
     small=font('Vazirmatn-400.ttf',27)
     say('کوتاه و خوش‌نوشت، برای خواندن و شنیدن',top+194,small,mist)
-    say('در چند دقیقه، به زبان خودتان',top+236,small,mist)
+    say('در چند دقیقه',top+236,small,mist)
     out=io.BytesIO();bg.save(out,'JPEG',quality=88,optimize=True,progressive=True);data=out.getvalue()
     try:path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
     except OSError:pass
