@@ -1,7 +1,6 @@
 // What Osareh is, what a reader can do here, and what happens to what they write. Short, in the reader's language.
 import{AutoStoriesOutlined,EditNoteOutlined,HeadphonesOutlined,LockOutlined,MenuBookOutlined,DownloadDoneRounded}from'@mui/icons-material';
 import type{ReactNode}from'react';
-import{Lockup}from'./Shell';
 
 interface Part{icon:ReactNode;title:string;text:string}
 const FA={
@@ -13,7 +12,7 @@ const FA={
   {icon:<LockOutlined/>,title:'یادداشت‌های شما مال خودتان است',text:'هایلایت‌ها، حاشیه‌ها و یادداشت‌ها اول روی دستگاه شما ذخیره می‌شوند و وقتی وارد حساب شوید، رمزگذاری‌شده در حساب شما نگه داشته می‌شوند تا روی دستگاه‌های دیگرتان هم باشند. کسی جز شما آن‌ها را نمی‌بیند و هر وقت بخواهید از «دفترچه» نسخه‌ای از همه‌شان دریافت می‌کنید.'},
   {icon:<DownloadDoneRounded/>,title:'کتابی را می‌خواهید؟',text:'اگر کتابی را دوست دارید که هنوز اینجا نیست، از «تنظیمات» درخواستش را بفرستید. با عضویت در خبرنامه هم از کتاب‌های تازه باخبر می‌شوید.'},
  ] as Part[],
- library:'رفتن به کتابخانه',notebook:'دفترچهٔ من',title:'دربارهٔ عصاره',
+ library:'رفتن به کتابخانه',notebook:'دفترچهٔ من',title:'دربارهٔ عصاره',tagline:'خلاصهٔ کتاب‌های خواندنی',
 };
 const EN={
  lead:'Osareh (Persian for “essence”) offers short, beautifully written summaries of books worth reading, so you can take in each book’s main ideas in minutes, reading or listening, in your own language.',
@@ -24,13 +23,13 @@ const EN={
   {icon:<LockOutlined/>,title:'Your notes are yours',text:'Highlights, comments and notes are saved on your device first and, when you sign in, kept encrypted in your account so they are on your other devices too. No one else sees them, and you can download a copy of all of them from the Notebook at any time.'},
   {icon:<DownloadDoneRounded/>,title:'Want a book?',text:'If a book you love is not here yet, request it from Settings. Join the newsletter to hear about new books.'},
  ] as Part[],
- library:'Go to the library',notebook:'My notebook',title:'About Osareh',
+ library:'Go to the library',notebook:'My notebook',title:'About Osareh',tagline:'Summaries of books worth reading',
 };
 
 export default function AboutPage({lang,navigate}:{lang:string;navigate:(path:string)=>void}){
  const t=lang==='fa'?FA:EN;
  return <article className="about-page" dir={lang==='fa'?'rtl':'ltr'}>
-  <header className="about-head"><Lockup/><h1>{t.title}</h1><p>{t.lead}</p></header>
+  <header className="about-head"><div className="about-hero"><img src="/brand/osareh-gilded.svg" alt={lang==='fa'?'عصاره':'Osareh'}/><p>{t.tagline}</p></div><h1>{t.title}</h1><p>{t.lead}</p></header>
   <div className="about-parts">{t.parts.map(p=><section key={p.title} className="about-part">{p.icon}<div><h2>{p.title}</h2><p>{p.text}</p></div></section>)}</div>
   <div className="about-actions"><button className="about-go" onClick={()=>navigate('/library')}><AutoStoriesOutlined/>{t.library}</button><button className="text-link2" onClick={()=>navigate('/notebook')}>{t.notebook}</button></div>
  </article>;

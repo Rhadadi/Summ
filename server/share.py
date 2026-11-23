@@ -78,7 +78,7 @@ SITE_TITLE='عصاره — خلاصهٔ کتاب‌های خواندنی'
 
 def site_meta(site:str,books:int,version:int)->str:
     desc='خلاصه‌هایی کوتاه و خوش‌نوشت، برای خواندن یا شنیدن در چند دقیقه.'
-    img=f'{site}/api/site/share.jpg?v=8-{version}';e=lambda s:html.escape(s,quote=True)
+    img=f'{site}/api/site/share.jpg?v=9-{version}';e=lambda s:html.escape(s,quote=True)
     return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
         '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="عصاره"/>',
         f'<meta property="og:title" content="{e(SITE_TITLE)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(site)}/"/>',
@@ -113,6 +113,12 @@ def site_card(covers:list[bytes],cache_dir,key:str)->bytes:
     bg=Image.new('RGB',(W,H),(23,49,54));glow=Image.new('L',(W,H),0)
     ImageDraw.Draw(glow).ellipse((-300,-200,700,800),fill=255);glow=glow.filter(ImageFilter.GaussianBlur(160))
     bg.paste(Image.new('RGB',(W,H),(37,102,115)),(0,0),glow.point(lambda v:int(v*.75)))
+    # faint Nastaliq words behind everything (brand/card-texture.png, from public/brand/calligraphy-texture.svg)
+    try:
+        tex=Image.open(Path(__file__).parent/'brand'/'card-texture.png').convert('RGBA')
+        if tex.size!=(W,H):tex=tex.resize((W,H),Image.LANCZOS)
+        bg.paste(tex,(0,0),tex)
+    except Exception:pass
     # the covers, fanned on the left
     shown=[]
     for raw in covers[:5]:
@@ -135,11 +141,12 @@ def site_card(covers:list[bytes],cache_dir,key:str)->bytes:
     def say(text,y,f,fill,rtl=True):
         try:d.text((right,y),text,font=f,fill=fill,anchor='ra',direction='rtl' if rtl else None,language='fa' if rtl else None)
         except Exception:d.text((right,y),text,font=f,fill=fill,anchor='ra')
-    # the logo alone: the square app icon stays off the card (above the name it would read as a dot, making «غصاره»)
-    top=126
+    # the logo alone, gilded (brand/logo-gilded.png, from public/brand/osareh-gilded.svg). The square app icon stays off
+    # the card: above the name it would read as a dot, making «غصاره».
+    top=92
     try:
-        wm=Image.open(Path(__file__).parent/'brand'/'wordmark-light.png').convert('RGBA');mh=170;mw=int(wm.width*mh/wm.height)
-        wm=wm.resize((mw,mh),Image.LANCZOS);bg.paste(wm,(right-mw,top),wm);gap=200
+        wm=Image.open(Path(__file__).parent/'brand'/'logo-gilded.png').convert('RGBA');wm=wm.crop(wm.getbbox())
+        mw=460;mh=int(wm.height*mw/wm.width);wm=wm.resize((mw,mh),Image.LANCZOS);bg.paste(wm,(right-mw+8,top),wm);gap=mh+22
     except Exception:
         say('عصاره',top,font('Vazirmatn-700.ttf',96),cream);gap=150
     say('خلاصهٔ کتاب‌های خواندنی',top+gap,font('Vazirmatn-600.ttf',40),sand)
