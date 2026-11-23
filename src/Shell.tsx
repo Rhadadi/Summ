@@ -1,6 +1,7 @@
 import{forwardRef,useState,type ReactNode}from'react';
 import{Avatar,Divider,Drawer,IconButton,ListItemIcon,ListItemText,Menu,MenuItem}from'@mui/material';
-import{AddRounded,BookmarkBorderRounded,CategoryOutlined,EditNoteRounded,ExpandMoreRounded,HomeOutlined,LanguageRounded,PersonOutlineRounded,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined}from'@mui/icons-material';
+import{AddRounded,BookmarkBorderRounded,CategoryOutlined,EditNoteRounded,ExpandMoreRounded,HomeOutlined,LanguageRounded,PersonOutlineRounded,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined,CloudOffRounded,DownloadDoneRounded,EditNoteOutlined}from'@mui/icons-material';
+import{useOnline,useSaved}from'./offline';
 import{categoryCounts,categoryName}from'./categories';
 import{tr,rtl,num}from'./i18n';
 import type{Account,PubBook}from'./types';
@@ -23,7 +24,8 @@ export function Lockup({tagline=false,className='lockup'}:{tagline?:boolean;clas
  </svg>;
 }
 // Account, settings and language in one place: the top corner (left in Persian). One button, one short menu.
-function AccountMenu({lang,account,onAccount,onSettings,onLanguage}:{lang:string;account:Account|null;onAccount:()=>void;onSettings:()=>void;onLanguage:(lang:'fa'|'en')=>void}){
+function AccountMenu({lang,account,onAccount,onSettings,onLanguage,go}:{lang:string;account:Account|null;onAccount:()=>void;onSettings:()=>void;onLanguage:(lang:'fa'|'en')=>void;go:(path:string)=>void}){
+ const saved=useSaved();
  const L=(text:string)=>tr(lang,text);
  const[anchor,setAnchor]=useState<HTMLElement|null>(null),close=()=>setAnchor(null),pick=(fn:()=>void)=>()=>{close();fn();};
  const name=account?.user.name||'';
@@ -37,6 +39,8 @@ function AccountMenu({lang,account,onAccount,onSettings,onLanguage}:{lang:string
    <div className="acct-head" dir="auto">{account?<><strong>{name}</strong><small>{account.user.email}</small></>:<><strong>{L('Welcome')}</strong><small>{L('Sign in to save your place and get new books first.')}</small></>}</div>
    <Divider/>
    <MenuItem onClick={pick(onAccount)}><ListItemIcon><PersonOutlineRounded fontSize="small"/></ListItemIcon><ListItemText>{account?L('Your account'):L('Log in or sign up')}</ListItemText></MenuItem>
+   <MenuItem onClick={pick(()=>go('/notebook'))}><ListItemIcon><EditNoteOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Notebook')} secondary={L('Your notes, in your own words')}/></MenuItem>
+   {saved.length>0&&<MenuItem onClick={pick(()=>go('/library/saved'))}><ListItemIcon><DownloadDoneRounded fontSize="small"/></ListItemIcon><ListItemText primary={L('Saved on this device')} secondary={num(lang,saved.length)+' '+L(saved.length===1?'book':'books')+' · '+L('read without internet')}/></MenuItem>}
    <MenuItem onClick={pick(onSettings)}><ListItemIcon><SettingsOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Settings')} secondary={L('Fonts, reading, newsletter, requests')}/></MenuItem>
    <MenuItem onClick={pick(()=>onLanguage(lang==='fa'?'en':'fa'))}><ListItemIcon><LanguageRounded fontSize="small"/></ListItemIcon><ListItemText>{lang==='fa'?'English':'فارسی'}</ListItemText></MenuItem>
   </Menu>
@@ -50,8 +54,9 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
  const shelves=books?categoryCounts(books):[];
  // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
  // Every page a reader sees (home, library, categories, a book) has the same slim top bar; the editor's own pages keep the side panel.
- const topNav=route==='/'||/^\/b\/[^/]+$/.test(route)||route==='/library'||route.startsWith('/library/'),here:string=route;
+ const topNav=route==='/'||route==='/notebook'||/^\/b\/[^/]+$/.test(route)||route==='/library'||route.startsWith('/library/'),here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
+ const online=useOnline();
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
  const nav=<nav className="side" aria-label={L('Main')}>
   <button className="side-brand" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
@@ -83,14 +88,15 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
     <span className="tn-grow"/>
     {searching?<label className="tn-search"><input autoFocus type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)} onBlur={()=>{if(!query)setSearching(false);}} onKeyDown={e=>{if(e.key==='Escape')setSearching(false);}}/></label>:null}
     <IconButton className="tn-icon" aria-label={L('Search your library')} onClick={()=>setSearching(v=>!v)}><SearchRounded/></IconButton>
-    <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage}/>
+    {!online&&<span className="offline-pill" role="status" title={L('No connection. Saved books and pages you opened still work.')}><CloudOffRounded/><span>{L('Offline')}</span></span>}
+    <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage} go={go}/>
    </header>}
    <header className="topbar2">
     <IconButton className="topbar-menu" aria-label={L('Open menu')} onClick={()=>setOpen(true)}><MenuRounded/></IconButton>
     <button className="topbar-logo" aria-label="Inkling" onClick={()=>go('/')}><Lockup/></button>
     <label className="search2 desktop-search"><input ref={search} type="search" aria-label={L('Search your library')} placeholder={L('Search your library')} value={query} onChange={e=>onQuery(e.target.value)}/><span aria-hidden="true"><SearchRounded/></span></label>
    {asVisitor&&<button className="visitor-pill" onClick={onToggleVisitor} title={L('You are seeing the site as a visitor does. Editing tools are hidden.')}><EditNoteRounded/><span>{L('Back to editing')}</span></button>}
-   <AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage}/></header>
+   {!online&&<span className="offline-pill" role="status" title={L('No connection. Saved books and pages you opened still work.')}><CloudOffRounded/><span>{L('Offline')}</span></span>}<AccountMenu lang={lang} account={account} onAccount={onAccount} onSettings={onSettings} onLanguage={onLanguage} go={go}/></header>
    <main id="main-content" tabIndex={-1}>{children}</main>
   </div>
  </div>;

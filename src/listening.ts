@@ -24,3 +24,11 @@ export function audioFor(status:AudioStatus|null|undefined,pubAudio:string[]|und
 }
 // Chapter and overview buttons: the book must have audio, and (once known) this chapter must have a track.
 export const canListenTo=(a:ReturnType<typeof audioFor>,chapterId:string|null)=>a.book&&(!a.known||(chapterId?a.chapters.has(chapterId):a.overview));
+/** Where a share of a chapter (0–1) falls in its tracks, by their lengths; a second early, so the sentence is heard from its start. Null when a length is unknown. */
+export function seekIn(tracks:{chapterId:string|null;seconds?:number|null}[],chapterId:string,at:number):{index:number;seconds:number}|null{
+ const own=tracks.map((t,i)=>({t,i})).filter(x=>x.t.chapterId===chapterId);
+ if(!own.length||own.some(x=>!x.t.seconds))return null;
+ let left=Math.max(0,Math.min(1,at))*own.reduce((n,x)=>n+x.t.seconds!,0);
+ for(const[k,x]of own.entries()){if(left<x.t.seconds!||k===own.length-1)return{index:x.i,seconds:Math.max(0,Math.min(left,x.t.seconds!)-1)};left-=x.t.seconds!;}
+ return null;
+}

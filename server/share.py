@@ -39,7 +39,7 @@ def meta(book:dict,site:str)->tuple[str,str]:
 def page(index:str,book:dict|None,site:str)->str:
     """The app's index.html for a /b/ path: asset links made absolute (the page is one level down), and the book's tags
     in place of the site's generic title and description."""
-    out=index.replace('"./assets/','"/assets/').replace('"./favicon','"/favicon')
+    out=re.sub(r'(src|href)="\./',r'\1="/',index)
     if not book:return out
     tags,lang=meta(book,site)
     out=re.sub(r'<title>.*?</title>','',out,count=1,flags=re.S)

@@ -43,15 +43,16 @@ export function usePlayer(onAccount:()=>void){
   remember();a.pause();pendingSeek.current=seek;const next={...s,index,playing:play&&!!s.urls[index]};current.current=next;setState(next);setTime({at:seek,length:0});
   if(s.urls[index]){a.src=s.urls[index]!;a.playbackRate=rateRef.current;if(play)a.play().catch(()=>setState(x=>x&&{...x,playing:false}));}else{a.pause();a.removeAttribute('src');}
  }
- async function load(book:Source,items:Track[],language:string,engine:Engine,startChapter?:string|null,restart=false){
+ async function load(book:Source,items:Track[],language:string,engine:Engine,startChapter?:string|null,restart=false,at?:{index:number;seconds:number}|null){
   remember();audio.current?.pause();audio.current?.removeAttribute('src');run.current?.abort();const controller=new AbortController();run.current=controller;
   const hosted=items.length>0&&items.every(t=>t.url);
   const tracks=hosted?items:chunk(items);if(!tracks.length)return;
   const signature=trackSignature(tracks);
   const saved=restart?null:listeningPlace(book.id,signature,tracks.length);
   const resume=saved&&(!startChapter||tracks[saved.index].chapterId===startChapter)?saved:null;
-  const start=resume?.index??Math.max(0,startChapter?tracks.findIndex(t=>t.chapterId===startChapter):0);
-  const speed=resume?.rate??rateRef.current;rateRef.current=speed;setRate(speed);pendingSeek.current=resume?.seconds||0;
+  // at: an exact place (a section's play button), which wins over the saved one
+  const start=at&&at.index<tracks.length?at.index:resume?.index??Math.max(0,startChapter?tracks.findIndex(t=>t.chapterId===startChapter):0);
+  const speed=resume?.rate??rateRef.current;rateRef.current=speed;setRate(speed);pendingSeek.current=at?at.seconds:resume?.seconds||0;
   const urls:(string|undefined)[]=tracks.map(t=>hosted?t.url:undefined);
   const initial={book,tracks,index:start,urls,playing:false,engine,language,error:'',signature};current.current=initial;setState(initial);setTime({at:pendingSeek.current,length:0});
   if(hosted){go(start,true,pendingSeek.current);return;}

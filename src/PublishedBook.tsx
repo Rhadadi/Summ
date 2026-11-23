@@ -1,5 +1,10 @@
 import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react';
-import{Alert,Button,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,MenuItem,Snackbar,TextField}from'@mui/material';
+import{Alert,Button,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,Menu,MenuItem,Snackbar,TextField}from'@mui/material';
+import{isSaved,offlineSupported,removeBook,saveBook,sizeLabel,useOnline,useSaved}from'./offline';
+import{download,fileName,makeEpub,printBook,type ExportMeta,type ExportSection}from'./export-book';
+import{authorFor}from'./persian-display';
+import{chapterTitle,mainChapters}from'./bookData';
+import{sized}from'./img';
 import{bookCategories,categoryById,categoryName}from'./categories';
 import type{HomeConfig,PubBook,PubDoc,RelatedBook,Review,Settings}from'./types';
 import{bookBackdrop,homeBooks}from'./bookBackdrop';
@@ -8,9 +13,9 @@ import{adaptPublished,pickVersion,readPosition,savePosition,versionKey}from'./pu
 import{languages}from'./core';
 import BookDetail from'./BookDetail';import ReaderPage from'./ReaderPage';
 import{tr,num}from'./i18n';
-import{audioFor,canListenTo,listeningPlace,trackSignature}from'./listening';
+import{audioFor,canListenTo,listeningPlace,seekIn,trackSignature}from'./listening';
 import{chapterHint,editorRoute}from'./view-switch.ts';
-import{EditOutlined,GraphicEqRounded,VisibilityOutlined,WallpaperRounded}from'@mui/icons-material';
+import{DownloadForOfflineRounded,EditOutlined,FileDownloadOutlined,GraphicEqRounded,OfflinePinRounded,VisibilityOutlined,WallpaperRounded}from'@mui/icons-material';
 import{staleTitles,type AudioEnv}from'./audio-form.ts';
 import type{PlayerApi}from'./Player';
 import{persianReception}from'./persian-reception';
@@ -119,6 +124,8 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
   if(i<0||i===adapted.book.chapterIndex)return;
   const merged={...position,index:i,lastRead:Date.now()};setPosition(merged);savePosition(pub.id,merged);
  },[hint,pub,adapted]);
+ // Saving for offline and downloading: the state lives here, the buttons sit beside Share.
+ const savedList=useSaved(),online=useOnline(),[keeping,setKeeping]=useState<number|null>(null),[dlMenu,setDlMenu]=useState<HTMLElement|null>(null);
  const autoStarted=useRef('');
  useEffect(()=>{
   if(!listenOnOpen){autoStarted.current='';return;}
@@ -142,13 +149,54 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const frameUi=framing&&framable?<Suspense fallback={null}><FrameDialog lang={settings.uiLanguage||'fa'} bookLang={version.language} url={pub.slide!.art!} whole={pub.slide!.fit==='whole'} title={book.title} frame={pub.slide!.frame} framePhone={pub.slide!.framePhone} onClose={()=>setFraming(false)} onSave={async(wide,phone)=>{const slide=await setFrame(pub.id,wide,phone);setPub(p=>p&&{...p,slide});onSaved?.();}}/></Suspense>:null;
  const move=(next:Partial<typeof position>)=>{const merged={...position,...next,lastRead:Date.now()};setPosition(merged);savePosition(pub.id,merged);};
  const open=(index?:number,sec?:string)=>{if(index!==undefined)move({index});else move({});navigate(base+'/read'+(sec?'/'+encodeURIComponent(sec):''));};
- async function listen(chapterId?:string|null){
+ // at: where to start inside the chapter, as a share of its length (a section's play button); the chapter's tracks are walked by their seconds.
+ async function listen(chapterId?:string|null,at?:number){
   try{
    const status=audioStatus?.status==='ready'?audioStatus:await narrationStatus(pub!.id,version!.language);
    if(status.status!=='ready'||!status.tracks.length){toast(L(status.status==='running'?'The narration is still being prepared. Try again in a few minutes.':'There is no narration for this book yet.'));return;}
-   player.load({id:'pub:'+pub!.id,title:book.title},status.tracks.map(t=>({title:t.title,text:'',chapterId:t.chapterId,url:t.url+'?v='+pub!.updated})),version!.language,'offline',chapterId);
+   const tracks=status.tracks.map(t=>({title:t.title,text:'',chapterId:t.chapterId,url:t.url+'?v='+pub!.updated}));
+   const seek=at!==undefined&&chapterId?seekIn(status.tracks,chapterId,at):null;
+   void player.load({id:'pub:'+pub!.id,title:book.title},tracks,version!.language,'offline',chapterId,false,seek);
   }catch(e){toast((e as Error).message);}
  }
+ const chapterMinutes=(chapterId:string)=>{const ts=(audioStatus?.status==='ready'?audioStatus.tracks:[]).filter(t=>t.chapterId===chapterId);return ts.length&&ts.every(t=>t.seconds)?Math.max(1,Math.round(ts.reduce((n,t)=>n+(t.seconds||0),0)/60)):null;};
+ // ---- keep: offline copy, EPUB and print
+ const saved=savedList.find(x=>x.id===pub.id);
+ async function keepOffline(){
+  if(keeping!==null)return;
+  if(saved||isSaved(pub!.id)){await removeBook(pub!.id);toast(L('Removed from this device.'));return;}
+  if(!online){toast(L('Connect to the internet to save this book.'));return;}
+  setKeeping(0);
+  try{
+   const status=audioStatus||await narrationStatus(pub!.id,version!.language).catch(()=>null);
+   const art=[backdrop.url,...(backdrop.srcset||'').split(', ').filter(Boolean).map(x=>x.split(' ')[0])];
+   const entry=await saveBook(pub!,version!.language,status,art,(done,total)=>setKeeping(Math.round(done/total*100)));
+   toast(L('Saved on this device')+' · '+sizeLabel(entry.bytes)+(entry.audio?' · '+L('with audio'):'')+'. '+L('It opens without internet.'));
+  }catch(e){toast((e as Error).message);}finally{setKeeping(null);}
+ }
+ const exportMeta=():ExportMeta=>({id:pub.id,title:pub.titles[version.language]||pub.title,author:authorFor(pub,version.language),language:version.language,rtl:['fa','ar'].includes(version.language),url:shareUrl,note:tr(version.language,'A summary from Inkling')});
+ const exportSections=():ExportSection[]=>{
+  const out:ExportSection[]=[],ov=data.report?.overview;
+  if(ov)out.push({id:'overview',title:tr(version.language,'Overview'),takeaways:ov.takeaways.map(t=>t.text),paragraphs:ov.paragraphs.filter(x=>!x.image)});
+  for(const c of mainChapters(book)){const s=data.summaries[c.id];if(s)out.push({id:c.id,title:chapterTitle(data,c),paragraphs:s.paragraphs.filter(x=>!x.image)});}
+  return out;
+ };
+ async function epub(){
+  setDlMenu(null);
+  try{
+   let cover:{data:Uint8Array;type:string}|undefined;
+   if(pub!.cover)try{const r=await fetch(sized(pub!.cover,800));if(r.ok)cover={data:new Uint8Array(await r.arrayBuffer()),type:(r.headers.get('content-type')||'image/jpeg').split(';')[0]};}catch{/* no cover then */}
+   download(await makeEpub(exportMeta(),exportSections(),cover),fileName(exportMeta().title,'epub'));
+  }catch(e){toast((e as Error).message);}
+ }
+ function pdf(){setDlMenu(null);if(!printBook(exportMeta(),exportSections(),'"Vazirmatn Variable","Literata Variable",Georgia,serif'))toast(L('Allow pop-ups to print this book.'));}
+ const tools=<>
+  {offlineSupported()&&<button className={'curated-share'+(saved?' on':'')} aria-pressed={!!saved} aria-label={L(saved?'Saved on this device · remove':'Save for offline')} title={L(saved?'Saved on this device · remove':'Save for offline')} onClick={()=>void keepOffline()}>{keeping!==null?<CircularProgress size={20} variant={keeping?'determinate':'indeterminate'} value={keeping}/>:saved?<OfflinePinRounded/>:<DownloadForOfflineRounded/>}</button>}
+  <button className="curated-share" aria-label={L('Download')} title={L('Download')} aria-haspopup="menu" onClick={e=>setDlMenu(e.currentTarget)}><FileDownloadOutlined/></button>
+  <Menu anchorEl={dlMenu} open={!!dlMenu} onClose={()=>setDlMenu(null)} slotProps={{paper:{dir:['fa','ar'].includes(version.language)?'rtl':'ltr',className:'dl-menu'}}}>
+   <MenuItem onClick={()=>void epub()}><span><strong>EPUB</strong><small>{L('For Kindle, Apple Books and other e-readers')}</small></span></MenuItem>
+   <MenuItem onClick={pdf}><span><strong>PDF</strong><small>{L('Print, or save as PDF')}</small></span></MenuItem>
+  </Menu></>;
  const switcher=pub.doc.versions.length>1&&<div className="pub-switch">
   {[...new Set(pub.doc.versions.map(v=>v.language))].length>1&&<TextField select size="small" label={L('Language')} value={version.language} onChange={e=>setChosen(versionKey(pickVersion(pub.doc,undefined,e.target.value)))}>{languages.filter(l=>pub.doc.versions.some(v=>v.language===l.code)).map(l=><MenuItem key={l.code} value={l.code}>{l.label}</MenuItem>)}</TextField>}
   {pub.doc.versions.filter(v=>v.language===version.language).length>1&&<TextField select size="small" label={L('Version')} value={versionKey(version)} onChange={e=>setChosen(e.target.value)}>{pub.doc.versions.filter(v=>v.language===version.language).map(v=><MenuItem key={versionKey(v)} value={versionKey(v)}>{v.label}</MenuItem>)}</TextField>}
@@ -170,7 +218,7 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
    :mayEdit&&stored?<Suspense fallback={null}><RestoreBanner L={L} text={L('You have unsaved edits from')+' '+new Date(stored.at).toLocaleString(uiLang==='fa'?'fa-IR':undefined,{dateStyle:'medium',timeStyle:'short'})+' '+L('on this device.')+(stored.base&&stored.base!==pub.rev?' '+L('The book changed since; your edits will replace those parts.'):'')} onRestore={()=>restore(stored)} onDiscard={discard}/></Suspense>:null;
   const dir=ctl.rtl||uiLang==='fa'?'rtl':'ltr',dlg={paper:{dir}};
   return <EditContext.Provider value={active?ctl:null}>
-   <ReaderPage canListen={id=>canListenTo(audio,id)} owner={owner&&{...owner,onAudio:mayEdit&&owner.audio?()=>setAudioOpen({}):undefined,onBackground:background,onEdit:mayEdit?ctl.openBookEditor:undefined,editing:active,onEditing:mayEdit?(active?finish:enter):undefined}} editSlot={editSlot} editBar={editBar} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
+   <ReaderPage canListen={id=>canListenTo(audio,id)} listenMinutes={chapterMinutes} notebook={{id:pub.id,slug:pub.slug,title:pub.titles[version.language]||pub.title}} owner={owner&&{...owner,onAudio:mayEdit&&owner.audio?()=>setAudioOpen({}):undefined,onBackground:background,onEdit:mayEdit?ctl.openBookEditor:undefined,editing:active,onEditing:mayEdit?(active?finish:enter):undefined}} editSlot={editSlot} editBar={editBar} book={book} chapter={book.chapters[book.chapterIndex]} section={hint?'':section} settings={settings} account={null} price={null} saved={[]} data={data} summary={null} generating={false} generationError="" readOnly backdrop={backdrop}
     onPreferences={onPreferences} onGenerate={noop} onCancel={noop} onBookmark={noop} onEvidence={noop} onChoose={i=>{move({index:i});navigate(base+'/read');}} onSection={s=>navigate(base+'/read/'+encodeURIComponent(s))} onBack={()=>navigate(base)}
     onHome={()=>navigate('/')} cover={pub.cover||undefined} onListen={listen} onCreate={noop}/>
    {active&&<Suspense fallback={null}><EditChrome ctl={ctl}/></Suspense>}
@@ -187,6 +235,6 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const hostedTracks=(audioStatus?.tracks||[]).map(t=>({title:t.title,chapterId:t.chapterId,text:'',url:t.url+'?v='+pub.updated}));
  const resume=listeningPlace(book.id,trackSignature(hostedTracks),hostedTracks.length);
  const duration=audioStatus?.tracks.length&&audioStatus.tracks.every(t=>t.seconds!=null)?Math.ceil(audioStatus.tracks.reduce((n,t)=>n+(t.seconds||0),0)/60):null;
- return <>{switcher}{audioUi}{frameUi}<BookDetail onShare={share} categories={bookCategories(pub).map(id=>({id,label:categoryName(categoryById(id)!,version.language)}))} canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},...(owner!.audio?[{key:'audio',label:L(audio.book?'Audio':'Add audio'),icon:<GraphicEqRounded/>,onClick:()=>setAudioOpen({})}]:[]),{key:'background',label:L('Background'),icon:<WallpaperRounded/>,onClick:background!},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
+ return <>{switcher}{audioUi}{frameUi}<BookDetail onShare={share} tools={tools} categories={bookCategories(pub).map(id=>({id,label:categoryName(categoryById(id)!,version.language)}))} canListen={audio.book} ownerActions={mayEdit?[{key:'edit',label:L('Edit book'),icon:<EditOutlined/>,onClick:()=>navigate(editorRoute(pub.id))},...(owner!.audio?[{key:'audio',label:L(audio.book?'Audio':'Add audio'),icon:<GraphicEqRounded/>,onClick:()=>setAudioOpen({})}]:[]),{key:'background',label:L('Background'),icon:<WallpaperRounded/>,onClick:background!},{key:'visitor',label:L('View as visitor'),icon:<VisibilityOutlined/>,onClick:owner!.onToggle}]:undefined} related={related} receptionHref={mayEdit?editorRoute(pub.id,'reception'):undefined} searchTitle={pub.doc.title[pub.doc.originalLanguage]||pub.title} listenLabel={resume&&resume.seconds>0?tr(version.language,'Resume listening'):undefined} audioNote={audioStatus?.status==='ready'?(duration?tr(version.language,'Listening time')+': '+tr(version.language,'Approximate')+' '+num(version.language,duration)+' '+tr(version.language,'min'):tr(version.language,'Audio duration is shown during playback.')):undefined} book={book} cover={pub.cover||''} data={data} saved={[]} readOnly backdrop={backdrop} pubInfo={pub.doc.info?{title:'',authors:[],year:'',pages:null,categories:[],description:'',ratings:[],readers:null,wikipedia:null,covers:[],links:[],...pub.doc.info}:null} backLabel="Library" review={version.language==='fa'?persianReception(pub.doc.review||found,pub.id):pub.doc.review||found}
   onCover={async()=>{}} onCreate={noop} onRead={open} onListen={listen} onExport={noop} onEditContents={noop} onRebuild={async()=>{}} onAccount={noop} onBack={()=>navigate('/library')} /></>;
 }

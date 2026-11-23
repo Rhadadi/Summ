@@ -503,6 +503,11 @@ class SlugTests(RolesTest):
         self.assertEqual(c.get('/api/library/'+a['id']).json()['slug'],'same-title')
         self.assertEqual(c.get('/api/library/book-'+a['id'][:6]).json()['id'],a['id'])
 class SharePageTests(RolesTest):
+    def test_every_relative_link_on_a_book_page_is_made_absolute(self):
+        from server import share
+        index='<html lang="en"><head><link rel="manifest" href="./manifest.webmanifest"/><link rel="apple-touch-icon" href="./icons/a.png"/><script src="./assets/a.js"></script></head></html>'
+        out=share.page(index,None,'https://x.test')
+        self.assertNotIn('"./',out);self.assertIn('href="/manifest.webmanifest"',out);self.assertIn('href="/icons/a.png"',out);self.assertIn('src="/assets/a.js"',out)
     def test_a_book_link_carries_its_title_summary_and_cover_and_old_links_move(self):
         from server import share
         c,_=self.owner()

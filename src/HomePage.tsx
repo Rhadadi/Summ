@@ -16,6 +16,9 @@ import{publicTitle}from'./discovery';
 import{art}from'./art';
 import CategoryChips from'./CategoryChips';
 import BookRow from'./BookRow';
+import{categoryCounts,categoryName}from'./categories.ts';
+import{useSaved}from'./offline';
+import{AutoStoriesOutlined,CasinoOutlined,DownloadDoneRounded,HeadphonesOutlined,TravelExploreRounded}from'@mui/icons-material';
 import type{Account}from'./types';
 
 interface Props{account:Account|null;mailEnabled:boolean;isOwner:boolean;config:HomeConfig|null;onEditHome:()=>void;lang:string;published:PubBook[]|null;canEdit:boolean;onOpenPublished:(book:PubBook)=>void;books:Book[];covers:Record<string,string>;saved:SavedPassage[];onRead:(book:Book)=>void;onOpen:(book:Book)=>void;onListen:(book:Book)=>void;onAdd:()=>void;navigate:(path:string)=>void}
@@ -23,7 +26,8 @@ export const author=(b:Book)=>b.author==='Author not supplied'?'':displayName(b.
 export function Shelf({book,url}:{book:Book;url?:string}){return <span className="shelf"><span className="shelf-arc"/><Cover book={book} url={url} className="shelf-cover"/></span>;}
 export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,lang,published,canEdit,onOpenPublished,books,covers,saved,onRead,onOpen,onListen,onAdd,navigate}:Props){
  const L=(text:string)=>tr(lang,text);
- const[ready,setReady]=useState<Record<string,number>>({});
+ const[ready,setReady]=useState<Record<string,number>>({}),[finding,setFinding]=useState(false);
+ const savedOffline=useSaved();
  const recent=[...books].sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt)).slice(0,4);
  // Whole-book reports say how many chapters already have summaries to listen to.
  useEffect(()=>{let live=true;Promise.all(recent.map(async b=>{const key=await store.latestReport(b.id).catch(()=>undefined);const r=key?await store.report(key).catch(()=>undefined):undefined;return[b.id,r?Object.keys(r.chapters).length:0]as const;})).then(x=>{if(live)setReady(Object.fromEntries(x));});return()=>{live=false;};},[books]);
@@ -42,6 +46,17 @@ export default function HomePage({account,mailEnabled,isOwner,config,onEditHome,
   :[{key:'welcome',backdrop:galleryBackdrop(art.hokusai),eyebrow:'Inkling',title:'Books worth reading, in minutes.',text:'The first summaries are being prepared. Check back soon.',actions:[{label:'Browse the library',primary:true,onClick:()=>navigate('/library')},...(canEdit?[{label:'Add a book',onClick:onAdd}]:[])]}];
  const intro=<>
   <MuseumHero slides={slides} lang={lang} seconds={config?.seconds||3} autoplay={config?.autoplay!==false}/>{canEdit&&<div className="home-edit"><button onClick={onEditHome}>Edit the home page</button>{isOwner&&<button onClick={()=>navigate('/mailing')}>Requests and mailing list</button>}</div>}
+  {all.length>0&&<section className="home-start" aria-labelledby="home-start-q">
+   <h2 id="home-start-q">{L('What would you like to understand today?')}</h2>
+   <ul className="home-figures">
+    <li><AutoStoriesOutlined/><b>{num(lang,all.length)}</b><span>{L('books')}</span></li>
+    <li><LibraryBooksOutlined/><b>{num(lang,all.reduce((n,b)=>n+(b.chapters||0),0))}</b><span>{L('chapter summaries')}</span></li>
+    <li><HeadphonesOutlined/><b>{num(lang,all.filter(b=>b.audio?.length).length)}</b><span>{L('to listen to')}</span></li>
+   </ul>
+   <div className="home-start-actions"><button className="home-find" aria-expanded={finding} onClick={()=>setFinding(f=>!f)}><TravelExploreRounded/>{L('Find a book for me')}</button><button className="home-surprise" onClick={()=>onOpenPublished(all[Math.floor(Math.random()*all.length)])}><CasinoOutlined/>{L('Surprise me')}</button></div>
+   {finding&&<div className="home-paths" role="group" aria-label={L('Pick a subject')}><p>{L('Pick a subject; each opens its books, shortest path first.')}</p>{categoryCounts(all).map(({category,count})=><button key={category.id} onClick={()=>navigate('/library/c/'+category.id)}><strong>{categoryName(category,lang)}</strong><small>{num(lang,count)} {L(count===1?'book':'books')}</small></button>)}<button onClick={()=>navigate('/library/listen')}><strong>{L('Something to listen to')}</strong><small><HeadphonesOutlined fontSize="inherit"/></small></button></div>}
+  </section>}
+  {savedOffline.length>0&&<section className="home-offline" aria-label={L('Saved on this device')}><DownloadDoneRounded/><span>{L('Saved on this device')}:</span>{savedOffline.map(b=><button key={b.id} onClick={()=>navigate('/b/'+b.slug)} dir="auto">{b.title.split(':')[0]}</button>)}</section>}
   {config?.shelf!==false&&<section className="m-wall" aria-label={L('The library')}>
    <CategoryChips books={wall} lang={lang} active={null} all={false} onPick={id=>navigate(id?'/library/c/'+id:'/library')}/>
    {wall.length>0&&<BookRow label={L('All books')} dir={lang==='fa'?'rtl':'ltr'}>{wall.map(b=><button key={b.id} role="listitem" className="m-card" onClick={()=>onOpenPublished(b)}><span className={'m-card-cover'+(b.cover?'':' blank')}>{b.cover?<img src={sized(b.cover,480)} alt="" loading="lazy"/>:<span dir="auto">{first(b)}</span>}</span><strong dir="auto">{first(b)}</strong>{b.author&&<span dir="auto">{lang==='fa'?'نوشتهٔ ':'By '}<b>{lang==='fa'?authorFor(b,lang):displayName(b.author)}</b></span>}</button>)}</BookRow>}

@@ -2,7 +2,10 @@ import{frameVars}from'./frame.ts';
 import{useEffect,useMemo,useRef,useState,type ReactNode}from'react';
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
-import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded}from'@mui/icons-material';
+import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded,CenterFocusStrongRounded,DarkModeOutlined,LightModeOutlined,ContrastRounded,HeadphonesRounded,ScheduleRounded}from'@mui/icons-material';
+import StudyTools from'./StudyTools';
+import{pullQuote,readingMinutes,starts}from'./study';
+import{displayPainting}from'./persian-display';
 import{Lockup}from'./Shell';
 import Inline from'./InlineText';
 import FontChooser from'./FontChooser';
@@ -19,7 +22,7 @@ interface Props{
  book:Book;chapter:Chapter;section:string;settings:Settings;account:Account|null;price:Price|null;saved:SavedPassage[];data:BookData;
  summary:Summary|null;generating:boolean;generationError:string;
  onPreferences:(patch:Partial<Settings>)=>void;onGenerate:()=>void;onCancel:()=>void;onBookmark:(block:Block,wording:string,chapter:Chapter)=>void;onEvidence:(block:Block,wording:string,chapter:Chapter)=>void;
- onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string)=>void;onCreate:()=>void;cover?:string;
+ onChoose:(index:number)=>void;onSection:(section:string)=>void;onBack:()=>void;onHome:()=>void;onListen:(chapterId?:string,at?:number)=>void;onCreate:()=>void;cover?:string;
  readOnly?:boolean;backdrop?:Backdrop;
  // Editors see these in the site bar: where they read is where they switch views.
  // onEdit opens the book editor; editing/onEditing switch the inline editing of this page on and off.
@@ -28,6 +31,10 @@ interface Props{
  editSlot?:(scope:string,fixed:(i:number,caption?:ReactNode)=>ReactNode)=>ReactNode|null;editBar?:ReactNode;
  // Listen shows only where there is audio: null asks about the overview.
  canListen?:(chapterId:string|null)=>boolean;
+ // Minutes of audio for a chapter, when known: the opening says "Listen · 6 min" and each section can play from its start.
+ listenMinutes?:(chapterId:string)=>number|null;
+ // The published book, for notes in the notebook (study tools show only when it is given).
+ notebook?:{id:string;slug:string;title:string};
 }
 const rtl=(lang?:string)=>lang&&['fa','ar'].includes(lang)?'rtl':'ltr';
 export default function ReaderPage(p:Props){
@@ -74,11 +81,16 @@ export default function ReaderPage(p:Props){
   const shown=(x.pages||[]).filter(n=>!found.some(b=>b.page===n));
   return <span className="refs">{groups.map(g=>{const a=g[0].page,z=g[g.length-1].page,label=!a?'¶':a===z?'p. '+a:'pp. '+a+'–'+z;return p.readOnly?<span className="pg-chip" key={g[0].id}>{label}</span>:<button key={g[0].id} onClick={()=>p.onEvidence(g[0],g[0].text,c)}>{label}</button>;})}{shown.map(n=><span className="pg-chip" key={'p'+n}>p. {n}</span>)}</span>;
  }
+ const listenable=!!summary&&!!p.readOnly&&(p.canListen?.(chapter.id)??false),mins=listenable?p.listenMinutes?.(chapter.id)??null:null;
+ const startAt=useMemo(()=>summary?new Map(summary.paragraphs.map((x,i)=>[x,starts(summary.paragraphs)[i]])):new Map<SummaryParagraph,number>(),[summary]);
+ const headed=!!summary?.paragraphs.some(x=>x.heading);
+ const paraPlay=(x:SummaryParagraph)=>!headed&&mins&&startAt.has(x)&&!x.image&&!x.table?<button className="para-play" aria-label={L('Listen from here')} title={L('Listen from here')} onClick={()=>p.onListen(chapter.id,startAt.get(x))}><PlayArrowRounded/></button>:null;
+ const sectionPlay=(x:SummaryParagraph)=>mins&&startAt.has(x)?<button className="sec-play" aria-label={L('Listen from here')} title={L('Listen from here')} onClick={()=>p.onListen(chapter.id,startAt.get(x))}><PlayArrowRounded/></button>:null;
  function block(x:SummaryParagraph,i:number,c?:Chapter,caption?:ReactNode){
   return x.image&&(pictures[x.image.path]||x.image.path.startsWith('/api/'))?<figure className="r2-fig" key={i}><button className="r2-zoom" aria-label={L('Enlarge')+': '+(x.image.alt||x.text)} onClick={()=>setZoom({src:pictures[x.image!.path]||x.image!.path,alt:x.image!.alt||x.text})}><img src={pictures[x.image.path]||sized(x.image.path,1280)} srcSet={pictures[x.image.path]?undefined:srcSet(x.image.path)} sizes="(max-width:800px) 100vw, 760px" alt={x.image.alt} loading="lazy"/></button><figcaption dir="auto">{caption??<Inline text={x.text}/>}</figcaption></figure>
    :x.quote?<blockquote className="r2-quote" key={i} dir="auto">{x.heading&&<h2>{x.heading}</h2>}<Inline text={x.text}/>{refs(x,c)}</blockquote>
    :x.table?<div className="r2-p r2-table" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<div className="r2-scroll"><table><thead><tr>{x.table[0].map((h,j)=><th key={j} dir="auto">{h}</th>)}</tr></thead><tbody>{x.table.slice(1).map((r,j)=><tr key={j}>{r.map((v,k)=><td key={k} dir="auto">{v}</td>)}</tr>)}</tbody></table></div></div>
-   :<div className="r2-p" key={i}>{x.heading&&<h2 dir="auto">{x.heading}</h2>}<p dir="auto"><Inline text={x.text}/>{refs(x,c)}</p></div>;
+   :<div className="r2-p" key={i}>{paraPlay(x)}{x.heading&&<h2 dir="auto">{x.heading}{sectionPlay(x)}</h2>}<p dir="auto"><Inline text={x.text}/>{refs(x,c)}</p></div>;
  }
  // scope names the list for the inline editor (see inline-draft.ts); without one, or when the editor is off, the list reads as always.
  function paragraphs(items:SummaryParagraph[],c?:Chapter,scope?:string){
@@ -114,9 +126,11 @@ export default function ReaderPage(p:Props){
  const guideSection=section.startsWith('g:')?report?.guide?.sections.find(s=>'g:'+s.kind===section):undefined,guideAt=guideSection?report!.guide!.sections.indexOf(guideSection):-1;
  const seq=main.includes(chapter)?main:book.chapters,next=seq[seq.indexOf(chapter)+1],prev=seq[seq.indexOf(chapter)-1];
  const curated=p.readOnly&&!!p.backdrop;
+ const nextTheme=reading.theme==='night'?'paper':reading.theme==='sepia'?'night':'sepia';
+ const quoteLine=summary?pullQuote(summary.paragraphs):null,readMins=summary?readingMinutes(summary.paragraphs,lang):0;
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
-  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/><IconButton className="curated-site-tool" aria-label={L('Focus mode')} title={L('Focus mode')} onClick={()=>setReading({zen:true})}><CenterFocusStrongRounded/></IconButton><IconButton className="curated-site-tool" aria-label={L('Page colour')+': '+L(nextTheme)} title={L('Page colour')+': '+L(nextTheme)} onClick={()=>setReading({theme:nextTheme})}>{reading.theme==='night'?<LightModeOutlined/>:reading.theme==='sepia'?<DarkModeOutlined/>:<ContrastRounded/>}</IconButton><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
@@ -124,8 +138,9 @@ export default function ReaderPage(p:Props){
    {curated&&isChapter&&<div className="curated-chapter-art">
     {p.backdrop!.whole&&<img className="curated-fill" src={p.backdrop!.url} alt="" aria-hidden="true"/>}
     <img className={'curated-art'+(p.backdrop!.whole?' whole':'')+(p.backdrop!.blur?' blurred':'')+(p.backdrop!.frame?' framed wide-only':'')} src={p.backdrop!.url} srcSet={p.backdrop!.srcset} alt="" style={{objectPosition:p.backdrop!.position,...frameVars(p.backdrop)}}/>
-    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1><div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><PlayArrowRounded/>{L('Listen')}</button>}</div></div>
+    <div className="curated-art-shade"/><div className="curated-chapter-inner"><div className="curated-chapter-top"><button disabled={!prev} aria-label={L('Previous')} onClick={()=>prev&&choose(prev)}>{isRtl(lang)?<ChevronRightRounded/>:<ChevronLeftRounded/>}</button><small>{index>=0?(lang==='fa'?'فصل '+num(lang,index+1)+' از '+num(lang,main.length):'Chapter '+(index+1)+' of '+main.length):L('Section')}</small><button disabled={!next} aria-label={L('Next')} onClick={()=>next&&choose(next)}>{isRtl(lang)?<ChevronLeftRounded/>:<ChevronRightRounded/>}</button></div><h1 dir="auto">{p.editSlot?.('t:'+chapter.id,()=>null)||chapterTitle(data,chapter)}</h1>{quoteLine&&<blockquote className="curated-chapter-quote" dir="auto">{quoteLine}</blockquote>}<div className="curated-chapter-bottom">{summary&&(p.canListen?.(chapter.id)??true)&&<button onClick={()=>p.onListen(chapter.id)}><HeadphonesRounded/>{L('Listen')}{mins?<span className="mins">{num(lang,mins)} {L('min')}</span>:null}</button>}{summary&&<span className="curated-chapter-time"><ScheduleRounded/>{num(lang,readMins)} {L('min read')}</span>}</div></div>
    </div>}
+   {curated&&isChapter&&(p.backdrop!.caption?.text||p.backdrop!.credit)&&<p className="curated-chapter-credit" dir="auto">{p.backdrop!.credit&&<span>{displayPainting(p.backdrop!.credit,lang)}</span>}{p.backdrop!.caption?.text&&<span className="why">{p.backdrop!.caption.text}</span>}</p>}
    <div className="r2-col">
    {p.editBar}
    {section==='overview'&&report?.overview&&<div dir={rtl(report.language)}>
@@ -147,7 +162,8 @@ export default function ReaderPage(p:Props){
       <Button size="small" startIcon={<TuneRounded/>} onClick={e=>setOpts(e.currentTarget)}>Options</Button>
       <Button size="small" disabled={p.generating} onClick={p.onGenerate}>{p.generating?'Summarizing…':'Redo'}</Button></>}</div>}
      {p.generating&&<div className="doc-status"><LinearProgress/><span>Summarizing… <button onClick={p.onCancel}>Cancel</button></span></div>}
-     <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter,'ch:'+chapter.id+':p')}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter,'ch:'+chapter.id+':r')}</>}</div></>
+     <div dir={rtl(summary.language)}>{paragraphs(summary.paragraphs,chapter,'ch:'+chapter.id+':p')}{summary.review.length>0&&<><h2 className="r2-sub">Critique</h2>{paragraphs(summary.review,chapter,'ch:'+chapter.id+':r')}</>}</div>
+     {p.notebook&&!p.editSlot&&<StudyTools lang={summary.language||lang} paragraphs={summary.paragraphs.filter(x=>!x.image)} book={p.notebook} chapter={{id:chapter.id,title:chapterTitle(data,chapter)}}/>}</>
     :p.readOnly?<div className="r2-box"><strong>{L('This chapter isn’t part of the published summary')}</strong><p>{L('Pick another chapter from the list.')}</p></div>
     :<div className="r2-box" dir="ltr">
      <strong>This chapter isn’t summarized yet</strong>

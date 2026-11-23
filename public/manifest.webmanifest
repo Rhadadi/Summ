@@ -1,0 +1,17 @@
+{
+ "name":"Inkling — Books worth reading, in minutes",
+ "short_name":"Inkling",
+ "description":"Short, beautifully written book summaries to read or listen to, in your own language. Saved books work offline.",
+ "start_url":"/",
+ "scope":"/",
+ "display":"standalone",
+ "background_color":"#f4eee3",
+ "theme_color":"#256673",
+ "lang":"fa",
+ "dir":"auto",
+ "icons":[
+  {"src":"/icons/icon-192.png","sizes":"192x192","type":"image/png"},
+  {"src":"/icons/icon-512.png","sizes":"512x512","type":"image/png"},
+  {"src":"/icons/maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+ ]
+}

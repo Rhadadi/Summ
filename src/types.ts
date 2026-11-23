@@ -3,7 +3,7 @@ export type Depth='glance'|'overview'|'detailed'|'close';
 export interface Block{id:string;text:string;location:string;page?:number;note?:boolean}
 export interface Chapter{id:string;title:string;blocks:Block[]}
 export interface Book{id:string;title:string;author:string;format:string;category:'book'|'article'|'video'|'text';chapters:Chapter[];warnings:string[];addedAt:number;lastRead:number;chapterIndex:number;completed:string[];color:number;hash:string;demo?:boolean;url?:string;importVersion?:number;published?:{id:string;slug:string;visibility:'public'|'unlisted';at:number}}
-export interface Settings{uiLanguage?:'fa'|'en';depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'night';engine?:'offline'|'elevenlabs'}
+export interface Settings{uiLanguage?:'fa'|'en';depth:Depth;purpose:'understand'|'learn'|'academic'|'apply';language:string;review:'off'|'internal';fontSize:number;theme:'paper'|'white'|'sepia'|'night';engine?:'offline'|'elevenlabs'}
 export interface SavedPassage{id:string;bookId:string;chapterId:string;blockId:string;title:string;chapterTitle:string;text:string;location:string;savedAt:number}
 export interface Usage{input:number;output:number}
 export interface SummaryParagraph{heading?:string;text:string;evidence_ids:string[];pages?:number[];image?:{path:string;alt:string};table?:string[][];quote?:boolean}

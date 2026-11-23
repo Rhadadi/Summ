@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 from collections import defaultdict,deque
-import http.client,io,ipaddress,json,os,re,socket,ssl,time
+import http.client,io,ipaddress,json,mimetypes,os,re,socket,ssl,time
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
@@ -885,4 +885,5 @@ async def share_page(slug:str):
     if book['slug']!=slug:  # an old link (book-dab5e9): send it to the readable one
         return Response(status_code=301,headers={'Location':'/b/'+quote(book['slug'])})
     return Response(share.page(index,book,mailer.public_url()),media_type='text/html',headers={'Cache-Control':'public, max-age=300'})
+mimetypes.add_type('application/manifest+json','.webmanifest')
 if dist.is_dir():app.mount('/',StaticFiles(directory=dist,html=True),name='reader')
