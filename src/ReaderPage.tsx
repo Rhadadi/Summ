@@ -2,6 +2,7 @@ import{frameVars}from'./frame.ts';
 import{lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode}from'react';
 import{isShortcut,shortcutLabel}from'./ai-settings';
 const ChatPanel=lazy(()=>import('./ChatPanel'));
+import AiLaunch from'./AiLaunch';
 import{sized,srcSet}from'./img';
 import{Alert,Button,CircularProgress,Divider,Drawer,IconButton,LinearProgress,ListItemIcon,Menu,MenuItem,Popover,Switch,TextField,useMediaQuery}from'@mui/material';
 import{ChevronLeftRounded,ChevronRightRounded,CloseRounded,ArrowBackIosNewRounded,AutoAwesomeRounded,BookmarkBorderRounded,BookmarkRounded,ExpandMoreRounded,FormatListBulletedRounded,PlayArrowRounded,TextFieldsRounded,TuneRounded,EditOutlined,VisibilityOutlined,EditNoteRounded,MoreHorizRounded,GraphicEqRounded,WallpaperRounded,CenterFocusStrongRounded,DarkModeOutlined,LightModeOutlined,ContrastRounded,HeadphonesRounded,ScheduleRounded,AutoAwesomeRounded as SparkRounded}from'@mui/icons-material';
@@ -133,12 +134,17 @@ export default function ReaderPage(p:Props){
  // ---- the study companion (published books): ⌘K on a Mac, Ctrl+K on Windows; selected text becomes the question's subject
  const companionItems=section==='overview'&&report?.overview?report.overview.paragraphs:summary?.paragraphs;
  const canAsk=!!p.readOnly&&!!companionItems?.length&&!p.editSlot;
- const[chat,setChat]=useState<{open:boolean;quote?:string;loaded:boolean}>({open:false,loaded:false});
- const openChat=()=>{const sel=window.getSelection?.()?.toString().replace(/\s+/g,' ').trim()||'';setChat({open:true,loaded:true,quote:sel&&sel.length<=600?sel:undefined});};
+ const[chat,setChat]=useState<{open:boolean;quote?:string;n:number;loaded:boolean}>({open:false,n:0,loaded:false});
+ // ⌘K / Ctrl K (or the bubble) brings the passage the reader has selected, or copied a moment ago, into the question box
+ const copied=useRef<{text:string;at:number}|null>(null);
+ const picked=()=>{const sel=window.getSelection?.();if(!sel||sel.isCollapsed)return'';if(sel.anchorNode?.parentElement?.closest('.ai-panel'))return'';return sel.toString().replace(/\s+/g,' ').trim();};
+ useEffect(()=>{if(!canAsk)return;const on=()=>{const t=picked();if(t)copied.current={text:t,at:Date.now()};};document.addEventListener('copy',on);return()=>document.removeEventListener('copy',on);},[canAsk]);
+ const grab=()=>{let t=picked();if(!t&&copied.current&&Date.now()-copied.current.at<10*60e3)t=copied.current.text;copied.current=null;return t.length>1200?t.slice(0,1200)+'…':t;};
+ const openChat=()=>{const q=grab();setChat(c=>({open:true,loaded:true,quote:q||undefined,n:c.n+1}));};
  useEffect(()=>{
   if(!canAsk)return;
-  const key=(e:KeyboardEvent)=>{if(isShortcut(e)){e.preventDefault();if(chat.open)setChat(c=>({...c,open:false}));else openChat();}};
-  window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  const key=(e:KeyboardEvent)=>{if(!isShortcut(e))return;e.preventDefault();const q=grab();if(chat.open&&!q)setChat(c=>({...c,open:false}));else setChat(c=>({open:true,loaded:true,quote:q||undefined,n:c.n+1}));};
+ window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
  });
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
@@ -190,8 +196,8 @@ export default function ReaderPage(p:Props){
    </>}
    </div>
   </article>
-  {canAsk&&!chat.open&&<button className="ai-launch" aria-label={L('Ask AI')+' ('+shortcutLabel()+')'} onClick={openChat}><SparkRounded/><span>{L('Ask AI')}</span><kbd dir="ltr">{shortcutLabel()}</kbd></button>}
-  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} chapterKey={book.id+'|'+(section||chapter.id)}
+  {canAsk&&!chat.loaded&&<AiLaunch label={L('Ask AI')+' ('+shortcutLabel()+')'} onClick={openChat}/>}
+  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onOpen={openChat} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} quoteId={chat.n} chapterKey={book.id+'|'+(section||chapter.id)}
    context={{bookTitle:(data.version?.bookTitle||book.title),author:book.author==='Author not supplied'?'':book.author,chapterTitle:section==='overview'?L('Overview'):chapterTitle(data,chapter),lang,paragraphs:companionItems!.filter(x=>!x.image),takeaways:report?.overview?.takeaways.map(t=>t.text)}}/></Suspense>}
   {zoom&&<div className="lightbox" role="dialog" aria-modal="true" aria-label={zoom.alt} onClick={()=>setZoom(null)} onKeyDown={e=>{if(e.key==='Escape')setZoom(null);}}>
    <button className="lightbox-x" autoFocus aria-label={L('Close')} onClick={()=>setZoom(null)}><CloseRounded/></button>
