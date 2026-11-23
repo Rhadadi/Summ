@@ -4,7 +4,7 @@ import{IconButton,InputAdornment,MenuItem,TextField,ToggleButton,ToggleButtonGro
 import{VisibilityOffOutlined,VisibilityOutlined}from'@mui/icons-material';
 import{PROVIDERS,modelOf,shortcutLabel,useAi,type Provider}from'./ai-settings';
 import{tr}from'./i18n';
-export default function AiKeyForm({lang}:{lang:string}){
+export default function AiKeyForm({lang,compact}:{lang:string;compact?:boolean}){
  const L=(t:string)=>tr(lang,t),[s,save]=useAi(),[show,setShow]=useState(false);
  const p=PROVIDERS.find(x=>x.id===s.provider)!;
  return <div className="ai-form" dir={lang==='fa'?'rtl':'ltr'}>
@@ -17,6 +17,6 @@ export default function AiKeyForm({lang}:{lang:string}){
    {p.models.map(m=><MenuItem key={m.id} value={m.id}>{m.name} · {L(m.note)}</MenuItem>)}
   </TextField>
   <p className="ai-form-note">{L('Your key stays in this browser and goes straight to')} {p.name}{lang==='fa'?' ':'; '}{L('Inkling never sees it. Usage is billed to your account.')} <a href={p.keyUrl} target="_blank" rel="noreferrer">{L('Get a key')}</a>{s.keys[s.provider]&&<> · <button className="text-link2 inline" onClick={()=>save({...s,keys:{...s.keys,[s.provider]:''}})}>{L('Remove key')}</button></>}</p>
-  <p className="ai-form-note">{L('Open the companion while reading with')} <kbd dir="ltr">{shortcutLabel()}</kbd>.</p>
+  {!compact&&<p className="ai-form-note">{L('Open the companion while reading with')} <kbd dir="ltr">{shortcutLabel()}</kbd>.</p>}
  </div>;
 }

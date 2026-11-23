@@ -135,11 +135,26 @@ export default function ReaderPage(p:Props){
  const companionItems=section==='overview'&&report?.overview?report.overview.paragraphs:summary?.paragraphs;
  const canAsk=!!p.readOnly&&!!companionItems?.length&&!p.editSlot;
  const[chat,setChat]=useState<{open:boolean;quote?:string;n:number;loaded:boolean}>({open:false,n:0,loaded:false});
- // ⌘K / Ctrl K (or the bubble) brings the passage the reader has selected, or copied a moment ago, into the question box
- const copied=useRef<{text:string;at:number}|null>(null);
- const picked=()=>{const sel=window.getSelection?.();if(!sel||sel.isCollapsed)return'';if(sel.anchorNode?.parentElement?.closest('.ai-panel'))return'';return sel.toString().replace(/\s+/g,' ').trim();};
- useEffect(()=>{if(!canAsk)return;const on=()=>{const t=picked();if(t)copied.current={text:t,at:Date.now()};};document.addEventListener('copy',on);return()=>document.removeEventListener('copy',on);},[canAsk]);
- const grab=()=>{let t=picked();if(!t&&copied.current&&Date.now()-copied.current.at<10*60e3)t=copied.current.text;copied.current=null;return t.length>1200?t.slice(0,1200)+'…':t;};
+ // ⌘K / Ctrl K (or the bubble) brings the passage the reader has selected, or copied a moment ago, into the question.
+ // A tap on a phone clears the selection before the click arrives, so the last selection is remembered for a few seconds.
+ const copied=useRef<{text:string;at:number}|null>(null),lastSel=useRef<{text:string;at:number}|null>(null),[armed,setArmed]=useState(false);
+ const picked=()=>{const sel=window.getSelection?.();if(!sel||sel.isCollapsed)return'';if(sel.anchorNode?.parentElement?.closest('.ai-panel,input,textarea'))return'';return sel.toString().replace(/\s+/g,' ').trim();};
+ useEffect(()=>{
+  if(!canAsk)return;
+  let t=0;
+  const copy=()=>{const x=picked();if(x)copied.current={text:x,at:Date.now()};};
+  const change=()=>{const x=picked();if(x){lastSel.current={text:x,at:Date.now()};clearTimeout(t);setArmed(true);}else{clearTimeout(t);t=window.setTimeout(()=>setArmed(false),400);if(lastSel.current)lastSel.current.at=Date.now();}};
+  document.addEventListener('copy',copy);document.addEventListener('selectionchange',change);
+  return()=>{document.removeEventListener('copy',copy);document.removeEventListener('selectionchange',change);clearTimeout(t);};
+ },[canAsk]);
+ const grab=()=>{
+  const now=Date.now();
+  let t=picked();
+  if(!t&&lastSel.current&&now-lastSel.current.at<4000)t=lastSel.current.text;
+  if(!t&&copied.current&&now-copied.current.at<10*60e3)t=copied.current.text;
+  copied.current=null;lastSel.current=null;setArmed(false);
+  return t.length>1200?t.slice(0,1200)+'…':t;
+ };
  const openChat=()=>{const q=grab();setChat(c=>({open:true,loaded:true,quote:q||undefined,n:c.n+1}));};
  useEffect(()=>{
   if(!canAsk)return;
@@ -148,7 +163,7 @@ export default function ReaderPage(p:Props){
  });
  return <div className={'r2 look-'+reading.theme+(reading.zen?' zen':'')+(curated?' curated-reader':'')+(p.editSlot?' editing':'')} lang={lang} dir={isRtl(lang)?'rtl':'ltr'} style={readingStyle(reading)}>
   {reading.zen&&<button className="zen-exit" aria-label={L('Leave zen mode')} onClick={()=>setReading({zen:false})}><CloseRounded/></button>}
-  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/>{canAsk&&<button className="ai-bar-btn" aria-label={L('Ask AI')+' ('+shortcutLabel()+')'} title={L('Ask AI about this chapter')+' · '+shortcutLabel()} onClick={openChat}><SparkRounded/><span>{L('Ask AI')}</span><kbd dir="ltr">{shortcutLabel()}</kbd></button>}<IconButton className="curated-site-tool" aria-label={L('Focus mode')} title={L('Focus mode')} onClick={()=>setReading({zen:true})}><CenterFocusStrongRounded/></IconButton><IconButton className="curated-site-tool" aria-label={L('Page colour')+': '+L(nextTheme)} title={L('Page colour')+': '+L(nextTheme)} onClick={()=>setReading({theme:nextTheme})}>{reading.theme==='night'?<LightModeOutlined/>:reading.theme==='sepia'?<DarkModeOutlined/>:<ContrastRounded/>}</IconButton><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
+  {curated&&<header className="curated-reader-sitebar"><button className="curated-site-brand" aria-label="Inkling" onClick={p.onHome}><Lockup/></button><nav aria-label={L('Main')}><button onClick={p.onBack}>{L('Back to the book')}</button></nav>{p.owner&&<span className="curated-site-owner">{p.owner.asVisitor?<button onClick={p.owner.onToggle}><EditNoteRounded/><span>{L('Back to editing')}</span></button>:<>{p.owner.onEditing&&<button className={'ed-pill'+(p.owner.editing?' on':'')} aria-pressed={!!p.owner.editing} onClick={p.owner.onEditing}><EditOutlined/><span>{L(p.owner.editing?'Editing':'Edit this page')}</span></button>}<IconButton className="curated-site-more" aria-label={L('More')} aria-haspopup="menu" onClick={e=>setOwnerMenu(e.currentTarget)}><MoreHorizRounded/></IconButton></>}</span>}<span className="curated-site-grow"/>{canAsk&&<button className="ai-bar-btn" onPointerDown={e=>e.preventDefault()} aria-label={L('Ask AI')+' ('+shortcutLabel()+')'} title={L('Ask AI about this chapter')+' · '+shortcutLabel()} onClick={openChat}><SparkRounded/><span>{L('Ask AI')}</span><kbd dir="ltr">{shortcutLabel()}</kbd></button>}<IconButton className="curated-site-tool" aria-label={L('Focus mode')} title={L('Focus mode')} onClick={()=>setReading({zen:true})}><CenterFocusStrongRounded/></IconButton><IconButton className="curated-site-tool" aria-label={L('Page colour')+': '+L(nextTheme)} title={L('Page colour')+': '+L(nextTheme)} onClick={()=>setReading({theme:nextTheme})}>{reading.theme==='night'?<LightModeOutlined/>:reading.theme==='sepia'?<DarkModeOutlined/>:<ContrastRounded/>}</IconButton><IconButton className="curated-site-contents" aria-label={L('Contents')} onClick={()=>setList(true)}><FormatListBulletedRounded/></IconButton><IconButton className="curated-site-aa" aria-label={L('Reading settings')} onClick={e=>setLook(e.currentTarget)}><TextFieldsRounded/></IconButton></header>}
   <aside className="r2-side">{panel}</aside>
   <Drawer open={list} onClose={()=>setList(false)} slotProps={{paper:{className:'r2-drawer'}}}>{panel}</Drawer>
   <article id="main-content" tabIndex={-1} className="r2-main" ref={top}>
@@ -196,8 +211,8 @@ export default function ReaderPage(p:Props){
    </>}
    </div>
   </article>
-  {canAsk&&!chat.loaded&&<AiLaunch label={L('Ask AI')+' ('+shortcutLabel()+')'} onClick={openChat}/>}
-  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onOpen={openChat} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} quoteId={chat.n} chapterKey={book.id+'|'+(section||chapter.id)}
+  {canAsk&&!chat.loaded&&<AiLaunch label={L('Ask AI')+' ('+shortcutLabel()+')'} text={armed?L('Ask'):undefined} onClick={openChat}/>}
+  {canAsk&&chat.loaded&&<Suspense fallback={null}><ChatPanel open={chat.open} onOpen={openChat} onClose={()=>setChat(c=>({...c,open:false}))} lang={lang} quote={chat.quote} quoteId={chat.n} armed={armed} chapterKey={book.id+'|'+(section||chapter.id)}
    context={{bookTitle:(data.version?.bookTitle||book.title),author:book.author==='Author not supplied'?'':book.author,chapterTitle:section==='overview'?L('Overview'):chapterTitle(data,chapter),lang,paragraphs:companionItems!.filter(x=>!x.image),takeaways:report?.overview?.takeaways.map(t=>t.text)}}/></Suspense>}
   {zoom&&<div className="lightbox" role="dialog" aria-modal="true" aria-label={zoom.alt} onClick={()=>setZoom(null)} onKeyDown={e=>{if(e.key==='Escape')setZoom(null);}}>
    <button className="lightbox-x" autoFocus aria-label={L('Close')} onClick={()=>setZoom(null)}><CloseRounded/></button>
