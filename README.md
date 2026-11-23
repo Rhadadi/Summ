@@ -14,6 +14,7 @@ A source-first reading app with a Google Material Design–inspired interface. I
 - A study guide per book: overview and key takeaways, sections chosen for the kind of book (characters, themes, and symbols for fiction; key ideas, arguments, and terms for nonfiction; thesis, method, and findings for academic work), and every chapter summary.
 - Search Google Books by title, author, or ISBN. Browse catalog records and previews, or choose an edition for an imported book's study guide. Book facts and reception also draw on Open Library and Wikipedia.
 - Covers from the file (EPUB cover image or the first non-blank PDF page) or, failing that, from Open Library or Google Books.
+- Add a Book accepts a finished summary ZIP or Markdown file. The wizard lets editors check the chapter list, edit the text, complete the book introduction, preview the reader view, and save a draft to finish later. It flags missing chapters, untranslated Persian text, and unusually brief summaries before publication.
 - Narration: free offline Piper voices on the server (English, Persian, and six more languages), or ElevenLabs with each user's own key. Audio is cached in the browser.
 - A typeset PDF of the study guide (cover, contents with page numbers, running heads; Vazirmatn and right-to-left layout for Persian and Arabic).
 - Light/dark appearance, keyboard navigation, responsive layouts, and Persian/Arabic text support.
@@ -22,14 +23,14 @@ A source-first reading app with a Google Material Design–inspired interface. I
 - Background framing: for a painting or an uploaded picture the owner drags a focus ring and zooms (1x to 3x), optionally framing phones differently, with live previews of the home slider, the book page and the chapter header. Pictures chosen automatically or taken from the cover are not framed.
 - The home page lists every published book under the slideshow; "View as visitor" and "Back to editing" keep the book and chapter; the book page has a redesigned reception section and a rated "If you liked this book" shelf that includes books from this library.
 
-Files and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. AI generation sends the selected chapter to the Inkling server, which calls Gemini with the signed-in user's own key.
+Original books and reading history are stored in this browser using IndexedDB. They do not sync between devices or site addresses. An editor's unfinished summary ZIP or Markdown draft, manual edits, and chosen cover are stored in the server data volume so the editor can resume on another device. The draft is deleted after publication. AI generation sends the selected chapter to the Inkling server, which calls Gemini with the signed-in user's own key.
 
 ## Who can do what
 
 - **Owner** (the Google-verified account whose email is `SUMM_OWNER_EMAIL`): imports books, generates or imports summaries, publishes them, and approves editors.
 - **Editors** (approved by the owner in Settings): the same, using their own Gemini key. They can change only the books they published.
 - **Readers** (everyone, with or without an account): read published summaries and listen to their narration. They cannot generate anything.
-- Publishing stores summaries, a cover and narration on the server. The original file and its text are never uploaded, and page references in a published summary show page numbers only.
+- Publishing stores summaries, a cover and narration on the server. Original PDF and EPUB files are not uploaded; a summary ZIP or Markdown file is uploaded when an editor saves an Add a Book draft. Page references in a published summary show page numbers only.
 
 ## Hosting
 

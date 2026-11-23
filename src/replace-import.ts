@@ -8,7 +8,7 @@ import{readSummaryFiles,type SummaryDocument}from'./summary-import.ts';
 
 // Putting a new summary ZIP into a book that is already published: the person ticks what is replaced (the overview, the key
 // ideas, the study guide, each chapter) and which version it goes into; nothing is saved until they save the draft.
-export interface ZipSummary{block:ParsedBlock;type:string;lang:string;label:string}
+export interface ZipSummary{block:ParsedBlock;type:string;lang:string;label:string;sourcePath?:string}
 export interface ZipContents{summaries:ZipSummary[];images:SummaryImage[];sourcePath:string}
 
 const typeIds=['comprehensive','detailed','concise','brief','standard','executive','study','quick'];
@@ -20,7 +20,7 @@ export function parseSummaries(documents:SummaryDocument[]):ZipSummary[]{
    const block=parseBlock(part.text,part.type||byName||null,part.language||'en');
    if(!block.chapters.length)continue;
    const type=part.type||byName||'detailed',lang=part.language||block.language;
-   out.push({block,type,lang,label:versionLabel(type)});
+   out.push({block,type,lang,label:versionLabel(type),sourcePath:doc.name});
   }
  }
  return out;
@@ -58,7 +58,7 @@ const noData:BookData={summaries:{},loaded:true,titles:{},versions:[]};
 export function applyReplacement(doc:PubDoc,s:ZipSummary,images:SummaryImage[],sourcePath:string,plan:ReplacePlan,stamp=Date.now().toString(36)):Replaced{
  const chapters=asChapters(doc,s.lang);
  const mapped=s.block.chapters.flatMap((parsed,i)=>plan.chapters[i]?[{chapterId:plan.chapters[i],parsed}]:[]);
- const iv=buildVersion(s.block,mapped,s.lang,s.type,{sourcePath,images});
+ const iv=buildVersion(s.block,mapped,s.lang,s.type,{sourcePath:s.sourcePath||sourcePath,images});
  const book={id:'replace',title:'',author:'',format:'SUMMARY',category:'book',chapters,warnings:[],addedAt:0,lastRead:0,chapterIndex:0,completed:[],color:0,hash:''} as Book;
  const include=new Set(mapped.map(m=>m.chapterId));
  const entry={data:versionData(noData,iv),choice:{language:s.lang,type:s.type,label:s.label}};

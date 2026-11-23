@@ -7,12 +7,14 @@ import Cover from'./Cover';
 import{Logo}from'./Shell';
 import GoogleBooksDialog from'./GoogleBooksDialog';
 import{tr}from'./i18n';
+import type{WizardDraftMeta}from'./wizard-drafts';
+import'./workspace-drafts.css';
 
 const words=(b:Book)=>bookWords({...b,chapters:b.chapters.map(bodyChapter)});
 const hours=(m:number)=>m<90?m+' min':Math.round(m/60)+' hours';
 const filters=[{id:'all',label:'All'},{id:'book',label:'Books'},{id:'article',label:'Articles'},{id:'video',label:'Transcripts'},{id:'text',label:'Notes'}];
-interface Props{books:Book[];published:PubBook[];language:string;covers:Record<string,string>;filter:string;query:string;canSearchBooks:boolean;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onOpenPublished:(book:PubBook)=>void;onEditPublished:(book:PubBook)=>void;onAdd:()=>void;onRemove:(book:Book)=>void;onClear:()=>void}
-export default function LibraryPage({books,published,language,covers,filter,query,canSearchBooks,onFilter,onOpen,onOpenPublished,onEditPublished,onAdd,onRemove,onClear}:Props){
+interface Props{books:Book[];published:PubBook[];drafts:WizardDraftMeta[];language:string;covers:Record<string,string>;filter:string;query:string;canSearchBooks:boolean;onFilter:(id:string)=>void;onOpen:(book:Book)=>void;onOpenPublished:(book:PubBook)=>void;onEditPublished:(book:PubBook)=>void;onAdd:()=>void;onResumeDraft:(id:string)=>void;onDeleteDraft:(id:string)=>void;onRemove:(book:Book)=>void;onClear:()=>void}
+export default function LibraryPage({books,published,drafts,language,covers,filter,query,canSearchBooks,onFilter,onOpen,onOpenPublished,onEditPublished,onAdd,onResumeDraft,onDeleteDraft,onRemove,onClear}:Props){
  const L=(text:string)=>tr(language,text);
  const[searchOpen,setSearchOpen]=useState(false);
  const shown=books.filter(b=>(filter==='all'||b.category===filter)&&(b.title+' '+b.author).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>(b.lastRead||b.addedAt)-(a.lastRead||a.addedAt));
@@ -20,6 +22,7 @@ export default function LibraryPage({books,published,language,covers,filter,quer
  return <div className="library">
   <h1 className="library-title">{L('Your workspace')}</h1>
   <p className="library-sub">{books.length} {books.length===1?'book':'books'} · {hours(books.reduce((n,b)=>n+minutes(words(b)),0))} of reading</p>
+  {drafts.length>0&&<section className="workspace-drafts"><h2>{language==='fa'?'کتاب‌های نیمه‌تمام':'Unfinished books'}</h2><p>{language==='fa'?'از همان‌جایی که مانده‌اید ادامه دهید.':'Pick up where you left off.'}</p><div className="workspace-drafts-grid">{drafts.map(d=><article className="workspace-draft-card" key={d.id}><div className="workspace-draft-mark" aria-hidden="true">✎</div><div className="workspace-draft-copy"><h3 dir="auto">{d.title|| (language==='fa'?'کتاب بی‌عنوان':'Untitled book')}</h3><small>{d.hasSource?(language==='fa'?'پیش‌نویس ذخیره‌شده':'Saved draft'):(language==='fa'?'بارگذاری فایل ناتمام ماند':'Source upload incomplete')} · {new Intl.DateTimeFormat(language==='fa'?'fa-IR':'en-US',{dateStyle:'medium'}).format(new Date(d.updated*1000))}</small><div className="workspace-draft-actions">{d.hasSource&&<Button variant="contained" size="small" onClick={()=>onResumeDraft(d.id)}>{language==='fa'?'ادامه':'Continue'}</Button>}<Button size="small" color="inherit" onClick={()=>onDeleteDraft(d.id)}>{language==='fa'?'حذف':'Delete'}</Button></div></div></article>)}</div></section>}
   <section className="workspace-published"><h2>{L('Published books')}</h2><p>{L('Edit the books readers see, including books published from another device.')}</p><div className="workspace-published-grid">{published.map(b=><article key={b.id} className="workspace-published-card"><div className="workspace-published-cover">{b.cover&&<img src={b.cover} alt=""/>}</div><div><h3 dir="auto">{b.title}</h3><p dir="auto">{b.author}</p><small>{L(b.visibility==='public'?'Public':'Unlisted')} · {b.chapters} {L('chapters')}</small><div className="workspace-published-actions"><Button variant="contained" size="small" onClick={()=>onEditPublished(b)}>{L('Edit book')}</Button><Button size="small" onClick={()=>onOpenPublished(b)}>{L('View')}</Button></div></div></article>)}</div>{!published.length&&<p>{L('No published books yet. Add a source below, write or import a summary, then publish it.')}</p>}</section>
   {canSearchBooks&&<Button variant="outlined" sx={{mb:3}} startIcon={<SearchRounded/>} onClick={()=>setSearchOpen(true)}>Find books</Button>}
   <h2>{L('Sources on this device')}</h2><p className="library-sub">{L('Import a book here, prepare its summary, then publish it for editing on any device.')}</p>

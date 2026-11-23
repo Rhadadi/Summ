@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel,ConfigDict,Field
-from . import accounts,artwork,audio,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
+from . import accounts,artwork,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
 MAX_FETCH=6*1024*1024
 GEMINI='https://generativelanguage.googleapis.com/v1beta/models/'
@@ -34,7 +34,15 @@ async def body_limit(request:Request,call_next):
     if request.url.path.startswith('/api/') and request.method!='GET':
         # A custom header cannot be sent cross-site without a CORS preflight, which this server refuses.
         if request.headers.get('x-summ-request')!='1':return JSONResponse({'detail':'Request blocked. Reload Summ and try again.'},status_code=403)
-        size=0;chunks=[];limit=4_100_000 if request.url.path=='/api/library' and request.method=='POST' else 1_500_000
+        size=0;chunks=[]
+        if request.url.path.startswith('/api/drafts/') and request.url.path.endswith('/source'):
+            limit=drafts.MAX_SOURCE
+        elif request.url.path.startswith('/api/drafts/') and request.url.path.endswith('/cover'):
+            limit=drafts.MAX_COVER
+        elif request.url.path.startswith('/api/drafts'):
+            limit=drafts.MAX_STATE+100_000
+        else:
+            limit=4_100_000 if request.url.path=='/api/library' and request.method=='POST' else 1_500_000
         async for chunk in request.stream():
             size+=len(chunk)
             if size>limit:return JSONResponse({'detail':'Request too large. Split the source into smaller sections.'},status_code=413)
@@ -163,7 +171,7 @@ async def logout(request:Request):
 async def me(user:dict=Depends(current_user)):return me_payload(user)
 @app.delete('/api/me')
 async def delete_account(user:dict=Depends(current_user)):
-    accounts.delete_user(user['id']);response=JSONResponse({'ok':True});response.delete_cookie(COOKIE,path='/');return response
+    drafts.remove_all(user['id']);accounts.delete_user(user['id']);response=JSONResponse({'ok':True});response.delete_cookie(COOKIE,path='/');return response
 async def check_key(api_key:str,model:str):
     if not MODEL_NAME.fullmatch(model):raise HTTPException(422,'Enter a model name such as gemini-flash-latest.')
     try:
@@ -515,6 +523,45 @@ def own_or_owner(user:dict,book_id:str):
     owner=library.owner_of(book_id)
     if owner is None:raise HTTPException(404,'This book is not in the library.')
     if owner!=user['id'] and user['role']!='owner':raise HTTPException(403,'You can only change books you published.')
+# ---- private drafts for the Add a Book wizard
+class DraftBody(StrictModel):
+    state:dict=Field(default_factory=dict)
+    base:str|None=Field(default=None,pattern=r'^[0-9a-f]{16}$')
+@app.get('/api/drafts')
+async def draft_list(user:dict=Depends(editor_user)):
+    return {'drafts':drafts.listing(user['id'])}
+@app.post('/api/drafts')
+async def draft_create(body:DraftBody,user:dict=Depends(editor_user)):
+    return drafts.create(user['id'],body.state)
+@app.get('/api/drafts/{draft_id}')
+async def draft_get(draft_id:str,user:dict=Depends(editor_user)):
+    return drafts.get(user['id'],draft_id)
+@app.put('/api/drafts/{draft_id}')
+async def draft_update(draft_id:str,body:DraftBody,user:dict=Depends(editor_user)):
+    return drafts.update(user['id'],draft_id,body.state,body.base)
+@app.delete('/api/drafts/{draft_id}')
+async def draft_remove(draft_id:str,user:dict=Depends(editor_user)):
+    drafts.remove(user['id'],draft_id);return {'ok':True}
+@app.put('/api/drafts/{draft_id}/source')
+async def draft_source_upload(draft_id:str,request:Request,user:dict=Depends(editor_user)):
+    return await asyncio.to_thread(drafts.save_source,user['id'],draft_id,await request.body(),request.headers.get('content-type',''))
+@app.get('/api/drafts/{draft_id}/source')
+async def draft_source_get(draft_id:str,user:dict=Depends(editor_user)):
+    data,kind=await asyncio.to_thread(drafts.source,user['id'],draft_id)
+    return Response(data,media_type=kind)
+@app.delete('/api/drafts/{draft_id}/source')
+async def draft_source_remove(draft_id:str,user:dict=Depends(editor_user)):
+    return drafts.remove_source(user['id'],draft_id)
+@app.put('/api/drafts/{draft_id}/cover')
+async def draft_cover_upload(draft_id:str,request:Request,user:dict=Depends(editor_user)):
+    return await asyncio.to_thread(drafts.save_cover,user['id'],draft_id,await request.body())
+@app.get('/api/drafts/{draft_id}/cover')
+async def draft_cover_get(draft_id:str,user:dict=Depends(editor_user)):
+    data,kind=await asyncio.to_thread(drafts.cover,user['id'],draft_id)
+    return Response(data,media_type=kind)
+@app.delete('/api/drafts/{draft_id}/cover')
+async def draft_cover_remove(draft_id:str,user:dict=Depends(editor_user)):
+    return drafts.remove_cover(user['id'],draft_id)
 @app.get('/api/library')
 async def library_list(request:Request):throttle('lib:'+client_ip(request),120);return {'books':library.listing()}
 @app.get('/api/library/mine')
