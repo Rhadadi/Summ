@@ -1,4 +1,0 @@
-/* IranNastaliq, only from the reader's own device. Its licence (scict.ir / Hamoonsoft) limits use to the owner's
-   workstation and forbids copying or distributing the font, so the site never sends the file: it only names it.
-   size-adjust: Nastaliq is drawn small on its body, so it would read smaller than the other fonts. */
-@font-face{font-family:"IranNastaliq Installed";src:local("IranNastaliq"),local("IranNastaliq-Web"),local("IranNastaliqWeb"),local("Iran Nastaliq");font-display:swap;size-adjust:125%}

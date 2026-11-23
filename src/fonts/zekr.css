@@ -1,4 +1,6 @@
 /* Fonts shared with Zekr. Files in public/fonts, licences in public/fonts/LICENSES-zekr.txt. */
 @font-face{font-family:"Zekr Scheherazade";src:url("/fonts/scheherazade-new.woff2") format("woff2");font-display:swap;size-adjust:112%}
+/* Bold, for the reader's headings (SIL's own web font from the 4.500 release, unmodified) */
+@font-face{font-family:"Zekr Scheherazade";src:url("/fonts/scheherazade-new-bold.woff2") format("woff2");font-weight:700;font-display:swap;size-adjust:112%}
 @font-face{font-family:"Zekr Naskh";src:url("/fonts/kfgqpc-naskh.woff2") format("woff2");font-display:swap}
 @font-face{font-family:"Zekr Noto Sans";src:url("/fonts/noto-sans-arabic.woff2") format("woff2");font-weight:100 900;font-display:swap}

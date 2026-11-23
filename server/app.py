@@ -987,6 +987,15 @@ async def share_page(slug:str,rest:str=''):
     return Response(share.page(index,book,mailer.public_url()),media_type='text/html',headers={'Cache-Control':'public, max-age=300'})
 def _site_state()->tuple[int,int]:
     n,latest=library.q("SELECT COUNT(*),COALESCE(MAX(updated),0) FROM library WHERE visibility='public'")[0];return int(n),int(latest)
+FONT_FILE=re.compile(r'^[a-z0-9-]+\.woff2$')
+@app.get('/api/fonts/{name}')
+async def font_file(name:str):
+    """A reading font kept in <data>/fonts, outside the public repository: IranNastaliq, whose licence does not grant
+    distribution; the owner is asking its rights holders for permission and serves it meanwhile. Without the file this
+    is a 404, and readers fall back to an installed copy (src/fonts/irannastaliq.css)."""
+    path=Path(os.getenv('SUMM_DATA_DIR','data'))/'fonts'/name
+    if not FONT_FILE.match(name) or not path.is_file():raise HTTPException(404,'No such font.')
+    return FileResponse(path,media_type='font/woff2',headers={'Cache-Control':'public, max-age=604800'})
 @app.get('/api/site/share.jpg')
 async def site_share_image(v:str=''):
     """The picture a shared link to the site shows: its name and promise beside the latest covers."""

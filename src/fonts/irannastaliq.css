@@ -1,0 +1,6 @@
+/* IranNastaliq: the reader's installed copy when there is one, else the file the server keeps outside the public
+   repository (<data>/fonts/irannastaliq.woff2, served at /api/fonts/). Its licence (scict.ir / Hamoonsoft) does not grant
+   distribution; the owner is asking the rights holders for permission and serves it meanwhile. Without the file, only
+   installed copies work, and the font menu says so.
+   size-adjust: Nastaliq is drawn small on its body, so it would read smaller than the other fonts. */
+@font-face{font-family:"IranNastaliq Reading";src:local("IranNastaliq"),local("IranNastaliq-Web"),local("IranNastaliqWeb"),local("Iran Nastaliq"),url("/api/fonts/irannastaliq.woff2") format("woff2");font-display:swap;size-adjust:125%}
