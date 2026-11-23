@@ -26,7 +26,7 @@ export default function RelatedShelf({books,lang}:{books:RelatedBook[];lang?:str
     {showRating(c)&&<span className="rel-rating"><Stars value={c.rating!}/><b>{num(lang,+c.rating!.toFixed(1))}</b><small>({num(lang,c.count!)})</small></span>}
     {c.why&&<small className="rel-why" dir="auto">{c.why}</small>}
    </>;
-   if(c.slug)return <a key={c.key} className="rel-book" href={'#/b/'+c.slug}>{body}</a>;
+   if(c.slug)return <a key={c.key} className="rel-book" href={'/b/'+c.slug}>{body}</a>;
    return <button type="button" key={c.key} className="rel-book" onClick={()=>setOpen(c)}>{body}</button>;
   })}</div>
   {open&&(()=>{const c=open,name=c.original||c.title,state=sent[c.key];

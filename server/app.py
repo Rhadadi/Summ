@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse,JSONResponse,Response,StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel,ConfigDict,Field
 from . import accounts,artwork,companion,marks,audio,drafts,home,images,mailer,mailing,related,reception,reviews,bookinfo,google_books,google_identity,library,pdf
 MAX_SOURCE=240_000
@@ -970,15 +971,44 @@ async def library_share_image(book_id:str,v:str=''):
     if not found:raise HTTPException(404,'This book has no cover.')
     data=await asyncio.to_thread(share.card_image,found[0],Path(os.getenv('SUMM_DATA_DIR','data'))/'share',book['id']+'-'+str(int(book['updated'])))
     return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=604800'})
+def _index()->str:
+    return (dist/'index.html').read_text() if (dist/'index.html').is_file() else '<!doctype html><html lang="en"><head><title>Inkling</title></head><body></body></html>'
 @app.get('/b/{slug}')
-async def share_page(slug:str):
-    """A book's shareable link. Previews need the book in the HTML; the app then opens the same book."""
+@app.get('/b/{slug}/{rest:path}')
+async def share_page(slug:str,rest:str=''):
+    """A book's addresses (/b/<slug>, /b/<slug>/read/c:<chapter> …). Previews need the book in the HTML; the app then
+    opens the same page."""
     from . import share
-    index=(dist/'index.html').read_text() if (dist/'index.html').is_file() else '<!doctype html><html lang="en"><head><title>Inkling</title></head><body></body></html>'
+    index=_index()
     try:book=library.get(slug)
     except accounts.AccountError:return Response(share.page(index,None,mailer.public_url()),status_code=404,media_type='text/html')
     if book['slug']!=slug:  # an old link (book-dab5e9): send it to the readable one
-        return Response(status_code=301,headers={'Location':'/b/'+quote(book['slug'])})
+        return Response(status_code=301,headers={'Location':'/b/'+quote(book['slug'])+('/'+quote(rest,safe='/:') if rest else '')})
     return Response(share.page(index,book,mailer.public_url()),media_type='text/html',headers={'Cache-Control':'public, max-age=300'})
+def _site_state()->tuple[int,int]:
+    n,latest=library.q("SELECT COUNT(*),COALESCE(MAX(updated),0) FROM library WHERE visibility='public'")[0];return int(n),int(latest)
+@app.get('/api/site/share.jpg')
+async def site_share_image(v:str=''):
+    """The picture a shared link to the site shows: its name and promise beside the latest covers."""
+    from . import share
+    n,latest=_site_state()
+    ids=[r[0] for r in library.q("SELECT id FROM library WHERE visibility='public' AND cover_type IS NOT NULL AND cover_type!='' ORDER BY updated DESC LIMIT 5")]
+    covers=[c[0] for c in (library.cover(i) for i in ids) if c]
+    icon=dist/'icons'/'icon-512.png'
+    data=await asyncio.to_thread(share.site_card,covers,icon.read_bytes() if icon.is_file() else None,Path(os.getenv('SUMM_DATA_DIR','data'))/'share',f'site-v1-{n}-{latest}')
+    return Response(data,media_type='image/jpeg',headers={'Cache-Control':'public, max-age=86400'})
+def site_page()->Response:
+    from . import share
+    n,latest=_site_state()
+    return Response(share.site_page(_index(),mailer.public_url(),n,latest),media_type='text/html',headers={'Cache-Control':'no-cache'})
+# Real files have an extension; every other address (/library, /notebook, /verify/…) is a page of the app.
+FILE_PATH=re.compile(r'\.(js|mjs|css|map|png|jpe?g|webp|avif|gif|svg|ico|json|webmanifest|txt|xml|woff2?|ttf|otf|mp3|m4a|wav|pdf|html?)$',re.I)
+class ReaderFiles(StaticFiles):
+    async def get_response(self,path:str,scope):
+        if path in ('','.','index.html'):return site_page()
+        try:return await super().get_response(path,scope)
+        except StarletteHTTPException as e:
+            if e.status_code!=404 or path.startswith('api/') or path=='api' or FILE_PATH.search(path):raise
+            return site_page()
 mimetypes.add_type('application/manifest+json','.webmanifest')
-if dist.is_dir():app.mount('/',StaticFiles(directory=dist,html=True),name='reader')
+if dist.is_dir():app.mount('/',ReaderFiles(directory=dist,html=True),name='reader')

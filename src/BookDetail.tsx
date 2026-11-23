@@ -137,7 +137,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
      {author&&<p className="hero-author" dir="auto">{lang==='fa'?'نوشتهٔ ':'by '}{author}</p>}
      {subtitle&&<p className="hero-sub" dir="auto">{subtitle}</p>}
      {tagsOf([...(review?.themes||[]),...(info?.categories||[])]).length>0&&<div className="hero-tags">{tagsOf([...(review?.themes||[]).slice(0,2),...(info?.categories||[])]).map(t=><span key={t} dir="auto">{L(t)}</span>)}</div>}
-     {categories.length>0&&<nav className="cat-links" aria-label={L('Categories')}>{categories.map(c=><a key={c.id} href={'#/library/c/'+c.id}>{c.label}</a>)}</nav>}
+     {categories.length>0&&<nav className="cat-links" aria-label={L('Categories')}>{categories.map(c=><a key={c.id} href={'/library/c/'+c.id}>{c.label}</a>)}</nav>}
      <div className="stats">
       {info?.ratings[0]&&<span><StarRounded/>{num(lang,+info.ratings[0].rating.toFixed(1))}{info.ratings[0].count?' ('+num(lang,info.ratings[0].count)+' '+L('ratings')+')':''}</span>}
       <span><AccessTimeRounded/>{readOnly?L('Approximate')+' '+num(lang,main.reduce((n,c)=>n+(summaries[c.id]?minutes(summaries[c.id].paragraphs.reduce((m,y)=>m+y.text.split(/\s+/).length,0)):0),0))+' '+L('min')+' · '+L('Reading time'):readingTime(bookWords({...book,chapters:book.chapters.map(bodyChapter)})).replace('about ','').replace('-minute read',' min book').replace('-hour read','-hour book')}</span>
@@ -195,7 +195,7 @@ export default function BookDetail({receptionHref,listenLabel,audioNote,book,cov
   </section>
   {(!book.demo||readOnly)&&(!readOnly||!emptyReception||!!receptionHref)&&<section className="reception">
    <h2>{L('What others say')}</h2>
-   {readOnly&&!!receptionHref&&emptyReception&&<p className="rx-owner-empty">{L('No reception yet')} · <a href={'#'+receptionHref}>{L('Research it')}</a></p>}
+   {readOnly&&!!receptionHref&&emptyReception&&<p className="rx-owner-empty">{L('No reception yet')} · <a href={receptionHref}>{L('Research it')}</a></p>}
    {!review&&!readOnly&&!!onReview&&<div className="rv-empty"><div><strong>No reception yet</strong><span>Inkling gathers what critics and readers wrote: Wikipedia's reception section, The Guardian, The New York Times and a web search. It reads each review and quotes it word for word, with a Persian translation. You approve it before readers see it.</span></div><Button variant="contained" startIcon={<AutoAwesomeRounded/>} onClick={onReview}>Research reviews and ratings</Button></div>}
    {infoState==='loading'&&!review?<p className="muted"><CircularProgress size={16}/> {L('Looking the book up…')}</p>:<>
     <ReviewSection lang={lang} review={review} scores={receptionScores} draft={!!review&&!reviewApproved&&!readOnly} cta={readOnly?{onRead:()=>onRead(startAt),onListen:canListen?()=>onListen():undefined}:undefined}/>

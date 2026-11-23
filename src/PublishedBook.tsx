@@ -42,11 +42,8 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  const[pub,setPub]=useState<(PubBook&{doc:PubDoc})|null>(null),[error,setError]=useState(''),[chosen,setChosen]=useState(''),[position,setPosition]=useState({index:0,completed:[] as string[],lastRead:0});
  useEffect(()=>{let live=true;setPub(null);setError('');libraryBook(slug).then(b=>{if(!live)return;
   // an old link (book-dab5e9) or the id still opens the book; the address bar then shows the readable one
-  if(b.slug!==slug){if(!location.hash){history.replaceState(null,'','/b/'+encodeURIComponent(b.slug));window.dispatchEvent(new HashChangeEvent('hashchange'));return;}
-   const here=decodeURIComponent(location.hash.slice(1));location.replace('#'+here.replace('/b/'+slug,'/b/'+b.slug));return;}
+  if(b.slug!==slug){history.replaceState(null,'',location.pathname.replace('/b/'+encodeURIComponent(slug),'/b/'+b.slug).replace('/b/'+slug,'/b/'+b.slug));window.dispatchEvent(new PopStateEvent('popstate'));return;}
   setPub(b);setPosition(readPosition(b.id));}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[slug]);
- // the book page shows its shareable address (/b/<slug>), so copying it from the address bar also gives a preview
- useEffect(()=>{if(pub&&mode==='detail'&&location.pathname==='/'&&location.hash)history.replaceState(null,'','/b/'+encodeURIComponent(pub.slug));},[pub,mode]);
  const version=pub?pickVersion(pub.doc,chosen,settings.language):undefined;
  // ---- inline editing: the owner's draft lives here (use-draft.ts); the editor itself loads lazily
  const vk=version?versionKey(version):'',mayEdit=!!owner&&!owner.asVisitor&&!!pub&&owner.editable.includes(pub.id);
@@ -115,7 +112,7 @@ export default function PublishedBook({listenOnOpen=false,slug,mode,section,sett
  // While editing, the page shows the draft; every other view shows what is saved.
  const shown=useMemo(()=>pub&&active&&Object.keys(d.changes).length?applyDraft(pub.doc,{book:pub.id,base:pub.rev||'',vk,changes:d.changes,at:0}):pub?.doc,[pub,active,d.changes,vk]);
  const adapted=useMemo(()=>{if(!pub||!version||!shown)return null;return adaptPublished(pub,shown,shown.versions.find(x=>versionKey(x)===versionKey(version))||version,position);},[pub,version,position,shown]);
- // #/b/slug/read/c:<chapterId> opens that chapter (the editor's "View as visitor" uses it). Applied once, so moving on is free.
+ // /b/slug/read/c:<chapterId> opens that chapter (the editor's "View as visitor" uses it). Applied once, so moving on is free.
  const hint=mode==='read'?chapterHint(section):null,hinted=useRef('');
  useEffect(()=>{
   if(!hint||!pub||!adapted||hinted.current===pub.id+':'+hint)return;

@@ -71,3 +71,87 @@ def card_image(cover:bytes,cache_dir,key:str)->bytes:
     try:path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
     except OSError:pass
     return data
+
+
+# ---- the site itself: what a shared link to the home page (or any page that is not a book) shows
+SITE_TITLE='اینکلینگ · Inkling — کتاب‌های خواندنی، در چند دقیقه'
+FA_DIGITS=str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹')
+
+def site_meta(site:str,books:int,version:int)->str:
+    count=f'{str(books).translate(FA_DIGITS)} کتاب، ' if books else ''
+    desc=(f'خلاصه‌های خوش‌نوشتِ {count}برای خواندن یا شنیدن در چند دقیقه، به زبان خودتان. '
+          'Short, beautifully written book summaries to read or listen to, in your own language.')
+    img=f'{site}/api/site/share.jpg?v={version}';e=lambda s:html.escape(s,quote=True)
+    return '\n'.join([f'<title>{e(SITE_TITLE)}</title>',f'<meta name="description" content="{e(desc)}"/>',f'<link rel="canonical" href="{e(site)}/"/>',
+        '<meta property="og:type" content="website"/>','<meta property="og:site_name" content="اینکلینگ · Inkling"/>',
+        f'<meta property="og:title" content="{e(SITE_TITLE)}"/>',f'<meta property="og:description" content="{e(desc)}"/>',f'<meta property="og:url" content="{e(site)}/"/>',
+        '<meta property="og:locale" content="fa_IR"/>','<meta property="og:locale:alternate" content="en_US"/>',
+        f'<meta property="og:image" content="{e(img)}"/>','<meta property="og:image:width" content="1200"/>','<meta property="og:image:height" content="630"/>',
+        '<meta property="og:image:type" content="image/jpeg"/>','<meta property="og:image:alt" content="اینکلینگ: کتاب‌های خواندنی، در چند دقیقه"/>',
+        '<meta name="twitter:card" content="summary_large_image"/>',f'<meta name="twitter:title" content="{e(SITE_TITLE)}"/>',
+        f'<meta name="twitter:description" content="{e(desc)}"/>',f'<meta name="twitter:image" content="{e(img)}"/>'])
+
+def site_page(index:str,site:str,books:int,version:int)->str:
+    """The app's index.html for every address that is not a book: absolute asset links (the address may be deep, like
+    /library/c/psychology) and the site's own preview."""
+    out=re.sub(r'(src|href)="\./',r'\1="/',index)
+    out=re.sub(r'<title>.*?</title>','',out,count=1,flags=re.S)
+    out=re.sub(r'<meta name="description"[^>]*>','',out,count=1)
+    out=out.replace('<html lang="en"','<html lang="fa" dir="rtl"',1)
+    return out.replace('</head>',site_meta(site,books,version)+'</head>',1)
+
+def site_card(covers:list[bytes],icon:bytes|None,cache_dir,key:str)->bytes:
+    """The site's 1200x630 preview: name, promise and a fan of the latest covers, on the reader's deep teal."""
+    from pathlib import Path
+    path=Path(cache_dir)/(re.sub(r'[^\w.-]','',key)+'.jpg')
+    if path.exists():return path.read_bytes()
+    import io
+    from PIL import Image,ImageDraw,ImageFilter,ImageFont
+    W,H=1200,630
+    fonts=Path(__file__).parent/'fonts'
+    def font(name:str,size:int):
+        try:return ImageFont.truetype(str(fonts/name),size,layout_engine=ImageFont.Layout.RAQM)
+        except Exception:return ImageFont.truetype(str(fonts/name),size)
+    # background: a soft diagonal from the reader's dark teal to the brand teal
+    bg=Image.new('RGB',(W,H),(23,49,54));glow=Image.new('L',(W,H),0)
+    ImageDraw.Draw(glow).ellipse((-300,-200,700,800),fill=255);glow=glow.filter(ImageFilter.GaussianBlur(160))
+    bg.paste(Image.new('RGB',(W,H),(37,102,115)),(0,0),glow.point(lambda v:int(v*.75)))
+    # the covers, fanned on the left
+    shown=[]
+    for raw in covers[:5]:
+        try:shown.append(Image.open(io.BytesIO(raw)).convert('RGB'))
+        except Exception:continue
+    if shown:
+        h=330;n=len(shown);angles=[-9,-4.5,0,4.5,9][(5-n)//2:(5-n)//2+n] if n>1 else [0]
+        step=78;cx=310;base=(H-h)//2+18
+        order=sorted(range(n),key=lambda i:-abs(i-(n-1)/2))  # the middle cover on top
+        for i in order:
+            src=shown[i];w=max(1,int(src.width*h/src.height));w=min(w,260)
+            card=Image.new('RGBA',(w+60,h+60),(0,0,0,0));sh=Image.new('RGBA',(w+60,h+60),(0,0,0,0))
+            ImageDraw.Draw(sh).rectangle((30,38,30+w,38+h),fill=(0,0,0,170));sh=sh.filter(ImageFilter.GaussianBlur(14))
+            card.alpha_composite(sh);card.paste(src.resize((w,h),Image.LANCZOS),(30,30))
+            card=card.rotate(-angles[i],resample=Image.BICUBIC,expand=True)
+            x=int(cx+(i-(n-1)/2)*step-card.width/2);y=int(base-30+abs(i-(n-1)/2)*10)
+            bg.paste(card,(x,y),card)
+    # the words, right-aligned (Persian first)
+    d=ImageDraw.Draw(bg);right=W-70;cream=(255,248,236);sand=(231,216,185);mist=(178,201,201)
+    def say(text,y,f,fill,rtl=True):
+        try:d.text((right,y),text,font=f,fill=fill,anchor='ra',direction='rtl' if rtl else None,language='fa' if rtl else None)
+        except Exception:d.text((right,y),text,font=f,fill=fill,anchor='ra')
+    top=118
+    if icon:
+        try:
+            ic=Image.open(io.BytesIO(icon)).convert('RGBA').resize((92,92),Image.LANCZOS)
+            m=Image.new('L',(92,92),0);ImageDraw.Draw(m).rounded_rectangle((0,0,91,91),22,fill=255)
+            bg.paste(ic,(right-92,top-12),m);top+=100
+        except Exception:pass
+    say('اینکلینگ',top,font('Vazirmatn-700.ttf',84),cream)
+    say('کتاب‌های خواندنی، در چند دقیقه',top+128,font('Vazirmatn-600.ttf',38),sand)
+    small=font('Vazirmatn-400.ttf',27)
+    say('خلاصه‌های خوش‌نوشت، برای خواندن و شنیدن',top+192,small,mist)
+    say('به زبان خودتان',top+234,small,mist)
+    say('Inkling · Books worth reading, in minutes',H-74,font('Inter-600.ttf',24),mist,rtl=False)
+    out=io.BytesIO();bg.save(out,'JPEG',quality=88,optimize=True,progressive=True);data=out.getvalue()
+    try:path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+    except OSError:pass
+    return data

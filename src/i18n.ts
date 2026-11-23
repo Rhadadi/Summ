@@ -59,7 +59,7 @@ const fa:Record<string,string>={
 'Psychological aspects':'جنبه\u200cهای روان\u200cشناختی',
 
 'For you':'برای شما',
-'Settings':'تنظیمات',
+'Settings':'تنظیمات','About Inkling':'دربارهٔ اینکلینگ',
 'Log in':'ورود',
 'Main':'ناوبری اصلی',
 'Open menu':'باز کردن منو',

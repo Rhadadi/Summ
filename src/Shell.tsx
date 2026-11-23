@@ -1,6 +1,6 @@
 import{forwardRef,useState,type ReactNode}from'react';
 import{Avatar,Divider,Drawer,IconButton,ListItemIcon,ListItemText,Menu,MenuItem}from'@mui/material';
-import{AddRounded,BookmarkBorderRounded,CategoryOutlined,EditNoteRounded,ExpandMoreRounded,HomeOutlined,LanguageRounded,PersonOutlineRounded,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined,CloudOffRounded,DownloadDoneRounded,EditNoteOutlined}from'@mui/icons-material';
+import{AddRounded,BookmarkBorderRounded,CategoryOutlined,EditNoteRounded,ExpandMoreRounded,HomeOutlined,LanguageRounded,PersonOutlineRounded,VisibilityOutlined,LibraryBooksOutlined,MenuBookOutlined,MenuRounded,SearchRounded,SettingsOutlined,CloudOffRounded,DownloadDoneRounded,EditNoteOutlined,InfoOutlined}from'@mui/icons-material';
 import{useOnline,useSaved}from'./offline';
 import{categoryCounts,categoryName}from'./categories';
 import{tr,rtl,num}from'./i18n';
@@ -42,6 +42,7 @@ function AccountMenu({lang,account,onAccount,onSettings,onLanguage,go}:{lang:str
    <MenuItem onClick={pick(()=>go('/notebook'))}><ListItemIcon><EditNoteOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Notebook')} secondary={L('Your notes, in your own words')}/></MenuItem>
    {saved.length>0&&<MenuItem onClick={pick(()=>go('/library/saved'))}><ListItemIcon><DownloadDoneRounded fontSize="small"/></ListItemIcon><ListItemText primary={L('Saved on this device')} secondary={num(lang,saved.length)+' '+L(saved.length===1?'book':'books')+' · '+L('read without internet')}/></MenuItem>}
    <MenuItem onClick={pick(onSettings)}><ListItemIcon><SettingsOutlined fontSize="small"/></ListItemIcon><ListItemText primary={L('Settings')} secondary={L('Fonts, reading, newsletter, requests')}/></MenuItem>
+   <MenuItem onClick={pick(()=>go('/about'))}><ListItemIcon><InfoOutlined fontSize="small"/></ListItemIcon><ListItemText>{L('About Inkling')}</ListItemText></MenuItem>
    <MenuItem onClick={pick(()=>onLanguage(lang==='fa'?'en':'fa'))}><ListItemIcon><LanguageRounded fontSize="small"/></ListItemIcon><ListItemText>{lang==='fa'?'English':'فارسی'}</ListItemText></MenuItem>
   </Menu>
  </>;
@@ -54,7 +55,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
  const shelves=books?categoryCounts(books):[];
  // The home page has no side panel on wide screens: its links live in a slim top bar and the picture gets the full width.
  // Every page a reader sees (home, library, categories, a book) has the same slim top bar; the editor's own pages keep the side panel.
- const topNav=route==='/'||route==='/notebook'||/^\/b\/[^/]+$/.test(route)||route==='/library'||route.startsWith('/library/'),here:string=route;
+ const topNav=route==='/'||route==='/notebook'||route==='/about'||/^\/b\/[^/]+$/.test(route)||route==='/library'||route.startsWith('/library/'),here:string=route;
  const go=(path:string)=>{setOpen(false);navigate(path);};
  const online=useOnline();
  const item=(path:string,label:string,icon:ReactNode,active:boolean)=><button className={'side-item'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{icon}<span>{L(label)}</span></button>;
@@ -66,6 +67,7 @@ const Shell=forwardRef<HTMLInputElement,Props>(function Shell({books,lang,onLang
   {canEdit&&<>{item('/workspace','Workspace',<LibraryBooksOutlined/>,route==='/workspace'||route.startsWith('/book/'))}
   {item('/saved','Saved passages',<BookmarkBorderRounded/>,route==='/saved')}
   <button className="side-item" onClick={()=>{setOpen(false);onAdd();}}><AddRounded/><span>Add a book</span></button></>}
+  {item('/about','About Inkling',<InfoOutlined/>,route==='/about')}
   {isEditor&&<button className="side-item" onClick={()=>{setOpen(false);onToggleVisitor();}}>{asVisitor?<EditNoteRounded/>:<VisibilityOutlined/>}<span>{L(asVisitor?'Back to editing':'View as visitor')}</span></button>}
  </nav>;
  const link=(path:string,label:string,active:boolean)=><button className={'tn-link'+(active?' on':'')} aria-current={active?'page':undefined} onClick={()=>go(path)}>{L(label)}</button>;

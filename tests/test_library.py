@@ -525,6 +525,27 @@ class SharePageTests(RolesTest):
         r=c.get('/b/'+book['id'],follow_redirects=False);self.assertEqual((r.status_code,r.headers['location']),(301,'/b/'+book['slug']))
         self.assertEqual(c.get('/b/no-such-book').status_code,404)
         r=c.get('/b/'+book['slug']);self.assertEqual(r.status_code,200);self.assertIn('og:title',r.text)
+class SitePageTests(RolesTest):
+    def test_every_app_address_is_a_real_page_with_a_preview(self):
+        import io
+        from unittest import mock
+        from PIL import Image
+        from server import app as appmod
+        c,_=self.owner()
+        book=c.post('/api/library',json={'doc':doc(title={'en':'Midlife: A Guide','fa':'میانسالی: راهنما'}),'visibility':'public'}).json()
+        cover=io.BytesIO();Image.new('RGB',(400,600),(30,90,200)).save(cover,'PNG');c.put(f"/api/library/{book['id']}/cover",content=cover.getvalue())
+        index='<!doctype html><html lang="en"><head><meta name="description" content="generic"/><title>Inkling</title><script type="module" src="./assets/a.js"></script></head><body></body></html>'
+        with mock.patch.object(appmod,'_index',return_value=index):
+            for path in ('/','/library/c/psychology','/notebook','/verify/a%40b.c/123456'):
+                r=c.get(path);self.assertEqual(r.status_code,200,path);self.assertIn('og:image" content="',r.text);self.assertIn('/api/site/share.jpg',r.text)
+                self.assertIn('src="/assets/a.js"',r.text);self.assertNotIn('generic',r.text);self.assertIn('<html lang="fa"',r.text)
+            r=c.get('/b/'+book['slug']+'/read/c:ch1');self.assertEqual(r.status_code,200);self.assertIn('میانسالی',r.text);self.assertIn('/share.jpg',r.text)
+            r=c.get('/b/'+book['id']+'/read/c:ch1',follow_redirects=False);self.assertEqual((r.status_code,r.headers['location']),(301,'/b/'+book['slug']+'/read/c:ch1'))
+        # missing files and API addresses stay missing; they never turn into the app's page
+        self.assertEqual(c.get('/assets/no-such-file.js').status_code,404)
+        self.assertEqual(c.get('/api/no-such-thing').status_code,404)
+        r=c.get('/api/site/share.jpg');self.assertEqual(r.status_code,200)
+        self.assertEqual(Image.open(io.BytesIO(r.content)).size,(1200,630))
 class ShareImageTests(RolesTest):
     def test_the_preview_picture_is_wide_and_holds_the_whole_cover(self):
         import io

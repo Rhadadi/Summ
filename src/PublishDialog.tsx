@@ -42,7 +42,7 @@ export default function PublishDialog({hasVoiceKey=false,onAccount=()=>{},book,d
  const charsOf=(e:Entry)=>Object.entries(e.data.summaries).filter(([id])=>include.has(id)).reduce((m,[,x])=>m+x.paragraphs.reduce((k,p)=>k+(p.image?0:p.text.length),0),0)+(e.data.report?.overview?.paragraphs.reduce((k,p)=>k+p.text.length,0)||0);
  const kinds=book.chapters.map((c,i)=>sectionKind(c,i,book.chapters));
  const hasOverview=entries.some(e=>!!e.data.report?.overview&&e.data.report.language===e.choice.language);
- const link=done?location.origin+location.pathname.replace(/index\.html$/,'')+'#/b/'+done.slug:'';
+ const link=done?location.origin+'/b/'+done.slug:'';
  useEffect(()=>{
   if(!done||status?.status!=='running')return;
   const t=setInterval(()=>narrationStatus(done.id,language).then(setStatus).catch(()=>{}),3000);return()=>clearInterval(t);

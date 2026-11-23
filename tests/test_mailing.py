@@ -15,7 +15,7 @@ class MailingTests(RolesTest):
         with patch.dict(os.environ,{'SUMM_OWNER_EMAIL':'owner@example.com'}):
             self.assertEqual(self.anon.post('/api/requests',json={'title':'When Nietzsche Wept','author':'Yalom','note':'<b>soon</b>','email':'fan@example.com'}).status_code,200)
         to,subject,text,html,headers=self.sent.await_args.args
-        self.assertEqual(to,'owner@example.com');self.assertIn('When Nietzsche Wept',subject);self.assertIn('fan@example.com',text);self.assertIn('/#/mailing',text)
+        self.assertEqual(to,'owner@example.com');self.assertIn('When Nietzsche Wept',subject);self.assertIn('fan@example.com',text);self.assertIn('/mailing',text);self.assertNotIn('/#/',text)
         self.assertIn('&lt;b&gt;soon',html);self.assertEqual(headers,{'Reply-To':'fan@example.com'})
     def test_no_owner_address_means_no_notice(self):
         with patch.dict(os.environ,{'SUMM_OWNER_EMAIL':''}):self.anon.post('/api/requests',json={'title':'Quiet'})

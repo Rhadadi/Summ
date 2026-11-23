@@ -29,9 +29,9 @@ export function visitorRoute(route:string,ctx:Ctx):string{
 // Leaving visitor view: go back to where the editor was, but only if the visitor is still on the page the switch opened.
 // If they moved on, stay where they are.
 export const leaveVisitor=(current:string,mark:{from:string;to:string}|null):string|null=>mark&&current===mark.to&&mark.from!==current?mark.from:null;
-// The reader's own hint for a chapter: #/b/slug/read/c:<chapterId>.
+// The reader's own hint for a chapter: /b/slug/read/c:<chapterId>.
 export const chapterHint=(section:string):string|null=>section.startsWith('c:')&&section.length>2?section.slice(2):null;
-// #/edit/:id[/tab[/chapterId]]
+// /edit/:id[/tab[/chapterId]]
 export function editorTarget(parts:string[]):{tab:EditorTab;chapter:string}{
  const tab=(editorTabs as readonly string[]).includes(parts[3]||'')?parts[3] as EditorTab:'details';
  return{tab,chapter:tab==='chapters'?parts[4]||'':''};

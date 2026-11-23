@@ -1,6 +1,7 @@
 """Sending the sign-up code. SMTP (for example a Gmail app password) or the Resend API, whichever the server is set up with."""
 from __future__ import annotations
 import os,smtplib,ssl
+from urllib.parse import quote
 from email.message import EmailMessage
 from email.utils import formataddr
 import httpx
@@ -10,7 +11,7 @@ def configured()->bool:return bool(os.getenv('SUMM_SMTP_HOST','').strip() or os.
 def _sender()->str:return os.getenv('SUMM_MAIL_FROM','').strip() or os.getenv('SUMM_SMTP_USER','').strip() or 'Inkling <noreply@localhost>'
 def public_url()->str:return os.getenv('SUMM_PUBLIC_URL','https://booksumm.duckdns.org').rstrip('/')
 def compose(email:str,code:str)->tuple[str,str,str]:
-    link=f'{public_url()}/#/verify/{email}/{code}'
+    link=f'{public_url()}/verify/{quote(email)}/{code}'
     subject=f'{code} is your Inkling code · کد ورود اینکلینگ'
     text=(f'Your Inkling confirmation code is {code}\n\nOr open this link to confirm your email and sign in:\n{link}\n\nIt works for 15 minutes. If you did not ask for it, ignore this message.\n\n'
           f'کد تأیید شما در اینکلینگ: {code}\n\nیا برای تأیید ایمیل و ورود، این پیوند را باز کنید:\n{link}\n\nاین کد ۱۵ دقیقه معتبر است. اگر شما درخواست نکرده‌اید، این پیام را نادیده بگیرید.\n')

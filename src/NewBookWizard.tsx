@@ -391,7 +391,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
     </>}
     {progress.length>0&&<ul className="nb-check nb-progress">{progress.map((x,i)=><li key={i}>{x.ok===null?<span className="nb-progress-word">In progress</span>:x.ok?<CheckCircleRounded fontSize="small"/>:<ErrorOutlineRounded fontSize="small" color="warning"/>}{x.text}</li>)}</ul>}
     {done&&<Alert severity="success" sx={{mt:2}}>Published. Change anything later in the book editor; to swap chapter summaries, use “Replace from a ZIP” there.
-     <div className="wizard-bar" style={{marginTop:8}}><Button size="small" variant="contained" onClick={()=>onOpen(done.slug)}>Open the book</Button><Button size="small" onClick={()=>onEdit(done.id)}>Book editor</Button><Button size="small" startIcon={<ContentCopyRounded/>} onClick={()=>navigator.clipboard?.writeText(location.origin+location.pathname+'#/b/'+done.slug)}>Copy link</Button></div></Alert>}
+     <div className="wizard-bar" style={{marginTop:8}}><Button size="small" variant="contained" onClick={()=>onOpen(done.slug)}>Open the book</Button><Button size="small" onClick={()=>onEdit(done.id)}>Book editor</Button><Button size="small" startIcon={<ContentCopyRounded/>} onClick={()=>navigator.clipboard?.writeText(location.origin+'/b/'+done.slug)}>Copy link</Button></div></Alert>}
    </section>}
    {error&&<Alert severity="error" sx={{mt:2}} onClose={()=>setError('')}>{error}</Alert>}
   </DialogContent>

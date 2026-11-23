@@ -27,7 +27,7 @@ export default function StudyTools({lang,paragraphs,book,chapter}:Props){
    <VoiceNote lang={lang} meta={{bookId:book.id,slug:book.slug,bookTitle:book.title,chapterId:chapter.id,chapterTitle:chapter.title,lang}} onTranscript={t=>{const v=current.current.trim();change(v?v+'\n\n'+t:t);}}>
     <textarea dir={text.trim()?'auto':lang==='fa'||lang==='ar'?'rtl':'ltr'} rows={4} value={text} onChange={e=>change(e.target.value)} aria-label={L('In your own words')} placeholder={L('The main idea of this chapter is…')}/>
    </VoiceNote>
-   <div className="study-foot"><span role="status">{state==='saving'?L('Saving…'):state==='saved'?L('Saved in your notebook'):''}</span><a href="#/notebook">{L('Open the notebook')}</a></div>
+   <div className="study-foot"><span role="status">{state==='saving'?L('Saving…'):state==='saved'?L('Saved in your notebook'):''}</span><a href="/notebook">{L('Open the notebook')}</a></div>
   </details>
  </section>;
 }

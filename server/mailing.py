@@ -31,7 +31,7 @@ async def notify_owner(request_id:int)->bool:
     rows=q('SELECT title,author,note,email,lang,(SELECT COUNT(*) FROM book_requests x WHERE lower(x.title)=lower(r.title)) FROM book_requests r WHERE id=?',(request_id,))
     if not owner or not rows or not mailer.configured():return False
     title,author,note,email,lang,same=rows[0];e=_html.escape
-    link=mailer.public_url()+'/#/mailing'
+    link=mailer.public_url()+'/mailing'
     lines=[('Title',title),('Author',author),('Note',note),('From',email or 'no address left'),('Page language','Persian' if lang=='fa' else 'English')]
     if same>1:lines.append(('Asked',f'{same} times in all'))
     subject=f'Book request: {title}'+(f' — {author}' if author else '')
@@ -65,9 +65,9 @@ async def set_request(request_id:int,status:str,book_id:str|None)->dict:
     return {'ok':True,'told':sent}
 def delete_request(request_id:int):q('DELETE FROM book_requests WHERE id=?',(request_id,))
 # ---- subscribers
-def _unsub_url(token:str)->str:return mailer.public_url()+'/#/mail/unsubscribe/'+token
+def _unsub_url(token:str)->str:return mailer.public_url()+'/mail/unsubscribe/'+token
 def _confirm_mail(email:str,token:str,lang:str)->tuple[str,str,str]:
-    fa=lang=='fa';link=mailer.public_url()+'/#/mail/confirm/'+token;e=_html.escape
+    fa=lang=='fa';link=mailer.public_url()+'/mail/confirm/'+token;e=_html.escape
     subject='تأیید عضویت در خبرنامهٔ اینکلینگ' if fa else 'Confirm your Inkling updates'
     lead='برای دریافت خبر هر کتاب تازه، عضویت خود را تأیید کنید.' if fa else 'One tap and you will hear about every new book as it arrives.'
     button='تأیید عضویت' if fa else 'Yes, keep me posted'
@@ -133,7 +133,7 @@ def _shell(fa:bool,title:str,preheader:str,body:str,unsubscribe:str|None)->str:
         f'<tr><td style="background:#256673;padding:22px 32px;text-align:center"><a href="{e(site)}" style="color:#ffffff;text-decoration:none;font:600 26px Georgia,\'Times New Roman\',serif;letter-spacing:.5px">{brand}</a><div style="color:#bfe0e6;font-size:12px;letter-spacing:.4px;margin-top:4px">{e(tag)}</div></td></tr>'
         f'<tr><td style="padding:32px 32px 8px">{body}</td></tr>'
         f'<tr><td style="padding:22px 32px 30px"><div style="border-top:1px solid #dfe5e6;padding-top:18px;font-size:12px;line-height:1.8;color:#6b777b;text-align:center">{e(why)}<br>'
-        f'<a href="{e(site)}/#/" style="color:#256673">{e(request)}</a>'+(f' · <a href="{e(unsubscribe)}" style="color:#6b777b">{e(leave)}</a>' if unsubscribe else '')+'</div></td></tr></table></td></tr></table></body></html>')
+        f'<a href="{e(site)}/" style="color:#256673">{e(request)}</a>'+(f' · <a href="{e(unsubscribe)}" style="color:#6b777b">{e(leave)}</a>' if unsubscribe else '')+'</div></td></tr></table></td></tr></table></body></html>')
 def _takeaways(doc:dict,lang:str)->list[str]:
     order=sorted(doc['versions'],key=lambda v:v['language']!=lang);out=[]
     for v in order:
@@ -155,7 +155,7 @@ def compose_book(book:dict,lang:str,unsubscribe:str|None,mode:str='new')->tuple[
     """The announcement: cover, title, a taste of the book, three ideas, one clear button. Persian reads right to left."""
     fa=lang=='fa';e=_html.escape;doc=book['doc'];site=mailer.public_url()
     full=(book.get('titles') or {}).get(lang) or book['title'];title=full.split(':')[0].strip() or full;author=book.get('author') or ''
-    url=f"{site}/#/b/{quote(book['slug'])}";blurb=_blurb_for(doc,lang,book.get('blurb',''));ideas=_takeaways(doc,lang)
+    url=f"{site}/b/{quote(book['slug'])}";blurb=_blurb_for(doc,lang,book.get('blurb',''));ideas=_takeaways(doc,lang)
     langs=book.get('languages') or [];audio=bool(q("SELECT 1 FROM narration WHERE book_id=? AND status='done'",(book['id'],)))
     eyebrow={'new':('تازه در کتابخانه','NEW IN THE LIBRARY'),'request':('کتابی که خواسته بودید آماده است','THE BOOK YOU ASKED FOR IS HERE')}[mode][0 if fa else 1]
     subject=('«'+title+'» حالا در اینکلینگ' if mode=='new' else '«'+title+'» که خواسته بودید، آماده است') if fa else (('New on Inkling: '+title) if mode=='new' else 'You asked for it: '+title+' is on Inkling')

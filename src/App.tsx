@@ -22,14 +22,27 @@ import{editorTarget,leaveVisitor,visitorRoute}from'./view-switch.ts';
 import{tr}from'./i18n';
 const HomeEditor=lazy(()=>import('./HomeEditor'));
 const NotebookPage=lazy(()=>import('./NotebookPage'));
+const AboutPage=lazy(()=>import('./AboutPage'));
 const SummaryZipTab=lazy(()=>import('./SummaryZipTab'));
 const ImportWizard=lazy(()=>import('./ImportWizard'));
 const ReviewDialog=lazy(()=>import('./ReviewDialog'));
 const NewBookWizard=lazy(()=>import('./NewBookWizard'));
 import type{Source}from'./new-book';
 const info_year=(_:Book)=>'';
-// Routes live after the #. A shared book link is a real path (/b/<slug>, so previews can see the book), read as its route.
-function routeValue(){try{return decodeURIComponent(location.hash.slice(1))||(/^\/b\/[^/]+$/.test(location.pathname)?decodeURIComponent(location.pathname):'/');}catch{return'/';}}
+// Routes are real paths (/library, /b/<slug>/read/c:<chapter> …), so a shared link shows its own preview. Links from
+// before, with the route after a # (#/b/<slug>), still open: the address is rewritten to the path once.
+function routeValue(){try{
+ if(location.hash.startsWith('#/'))history.replaceState(history.state,'',location.hash.slice(1));
+ return decodeURIComponent(location.pathname).replace(/\/index\.html$/,'/')||'/';}catch{return'/';}}
+/** A click on a link inside the app opens its page without reloading. */
+function internalPath(e:MouseEvent):string|null{
+ if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return null;
+ const a=(e.target as Element|null)?.closest?.('a[href]') as HTMLAnchorElement|null;
+ if(!a||(a.target&&a.target!=='_self')||a.hasAttribute('download'))return null;
+ const href=a.getAttribute('href')||'';if(!href.startsWith('/')||href.startsWith('//'))return null;
+ const u=new URL(a.href);if(u.origin!==location.origin||u.pathname.startsWith('/api/')||/\.[a-z0-9]{2,5}$/i.test(u.pathname))return null;
+ return decodeURIComponent(u.pathname)+u.search;
+}
 export default function App(){
  const[books,setBooks]=useState<Book[]>([]),[saved,setSaved]=useState<SavedPassage[]>([]),[settings,setSettings]=useState<Settings>(loadSettings),[draft,setDraft]=useState<Settings>(settings);
  const uiLang=settings.uiLanguage||'fa',L=(text:string)=>tr(uiLang,text);
@@ -62,7 +75,7 @@ export default function App(){
  const fileInput=useRef<HTMLInputElement>(null),searchInput=useRef<HTMLInputElement>(null),abort=useRef<AbortController|null>(null);
  const mobile=useMediaQuery('(max-width:899px)');
  // /  home · /library · /saved · /book/:id detail · /read/:id[/section] reader
- // The link in the confirmation email opens #/verify/<email>/<code>: confirm, sign in and go home.
+ // The link in the confirmation email opens /verify/<email>/<code>: confirm, sign in and go home.
  useEffect(()=>{const m=route.match(/^\/verify\/([^/]+)\/(\d{4,12})$/);if(!m)return;verifyEmail(decodeURIComponent(m[1]),m[2]).then(a=>{setAccount(a);setToast('Email confirmed. Welcome to Inkling.');navigate('/');}).catch(e=>{setToast(e instanceof Error?e.message:'That link did not work.');setAccountOpen(true);navigate('/');});},[route]);
  const parts=route.split('/'),isDetail=parts[1]==='book',isRead=parts[1]==='read',isReader=isDetail||isRead,isSaved=route==='/saved',isWorkspace=route==='/workspace',isPublishedEditor=parts[1]==='edit',isLibrary=parts[1]==='library',isPub=parts[1]==='b',pubSlug=parts[2]||'',pubRead=parts[3]==='read',pubSection=pubRead?decodeURIComponent(parts[4]||''):'';
  const readSection=isRead?decodeURIComponent(parts[3]||''):'';
@@ -89,7 +102,7 @@ export default function App(){
  }});},[settings.theme]);
  useEffect(()=>{
   let live=true;Promise.all([store.books(),store.passages()]).then(async([list,quotes])=>{if(!list.length&&!localStorage.getItem('summ-seeded')){await store.saveBook(demoBook);list=[demoBook];localStorage.setItem('summ-seeded','true');}if(live){setBooks(list);setSaved(quotes);setLoading(false);for(const b of list)store.cover(b.id).then(c=>{if(c&&live)setCovers(old=>({...old,[b.id]:URL.createObjectURL(c.blob)}));}).catch(()=>{});}}).catch(()=>{if(live){setError('Please allow browser site storage to save your library.');setLoading(false);}});
-  const change=()=>{previousRoute.current=currentRoute.current;currentRoute.current=routeValue();setRoute(currentRoute.current);setEvidence(null);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
+  const change=()=>{const next=routeValue();if(next===currentRoute.current)return;previousRoute.current=currentRoute.current;currentRoute.current=next;setRoute(next);setEvidence(null);window.scrollTo(0,0);};const shortcut=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();searchInput.current?.focus();}};
   window.addEventListener('hashchange',change);window.addEventListener('popstate',change);window.addEventListener('keydown',shortcut);
   return()=>{live=false;window.removeEventListener('hashchange',change);window.removeEventListener('popstate',change);window.removeEventListener('keydown',shortcut);};
  },[]);
@@ -97,8 +110,10 @@ export default function App(){
  useEffect(()=>{let live=true;config().then(c=>{if(live)setAppConfig(c);}).catch(()=>{if(live)setAppConfig(null);});me().then(a=>{if(live)setAccount(a);}).catch(()=>{});return()=>{live=false;};},[]);
  useEffect(()=>{let live=true;setSummary(null);setGenerationError('');abort.current?.abort();setGenerating(false);if(key)store.summary(key).then(s=>{if(live)setSummary(s||null);}).catch(()=>{});return()=>{live=false;abort.current?.abort();};},[key]);
  useEffect(()=>{let live=true;let objectUrl='';setSourceUrl('');if(active)store.file(active.id).then(b=>{if(b&&live){objectUrl=URL.createObjectURL(b);setSourceUrl(objectUrl);}}).catch(()=>{});return()=>{live=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};},[active?.id]);
- // On a /b/ path, leave it for the root so the next address is a plain #route again.
- const navigate=(path:string)=>{if(location.pathname!=='/'){history.pushState(null,'','/#'+path);window.dispatchEvent(new HashChangeEvent('hashchange'));}else location.hash=path;};
+ const navigate=(path:string)=>{let to=path.startsWith('/')?path:'/'+path;try{to=decodeURI(to);}catch{/* keep as is */}if(to!==decodeURIComponent(location.pathname))history.pushState(null,'',encodeURI(to));window.dispatchEvent(new PopStateEvent('popstate'));};
+ useEffect(()=>{const click=(e:MouseEvent)=>{const to=internalPath(e);if(to===null)return;e.preventDefault();navigate(to);};document.addEventListener('click',click);return()=>document.removeEventListener('click',click);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[]);
  useEffect(()=>{accountChanged();},[account]);
  const audioEnv={hasKey:!!account?.voice,defaultVoice:account?.voice?.option||'',onAccount:()=>setAccountOpen(true),onVoice:setAccount};
  const afterSave=()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});};
@@ -214,6 +229,7 @@ export default function App(){
   :isPub&&!pubRead?<PublishedBook owner={isEditor?{asVisitor,onToggle:toggleVisitor,editable:editableBooks.map(b=>b.id),audio:audioEnv}:undefined} onSaved={afterSave} listenOnOpen={parts[3]==='listen'} slug={pubSlug} mode="detail" section="" settings={settings} player={player} navigate={navigate} toast={setToast} onPreferences={preferences} published={published} home={home}/>
   :parts[1]==='mail'&&(parts[2]==='confirm'||parts[2]==='unsubscribe')&&parts[3]?<MailPage kind={parts[2]} token={parts[3]} lang={uiLang} navigate={navigate}/>
   :route==='/notebook'?<Suspense fallback={null}><NotebookPage lang={uiLang} navigate={navigate}/></Suspense>
+  :route==='/about'?<Suspense fallback={null}><AboutPage lang={uiLang} navigate={navigate}/></Suspense>
   :route==='/mailing'&&role==='owner'?<MailingAdmin books={editableBooks} onBack={()=>navigate('/')} toast={setToast}/>
   :isLibrary?<PublicLibrary lang={uiLang} query={query} onClear={()=>setQuery('')} listening={parts[2]==='listen'} category={parts[2]==='c'?decodeURIComponent(parts[3]||''):undefined} only={parts[2]==='saved'?savedOffline.map(b=>b.id):undefined} onCategory={id=>navigate(id?'/library/c/'+id:'/library')} books={published} loading={false} canEdit={canEdit} onOpen={b=>navigate('/b/'+b.slug+(parts[2]==='listen'?'/listen':''))} onWorkspace={()=>navigate('/workspace')}/>
   :isPublishedEditor&&canEdit?<PublishedEditor key={parts[2]||''} bookId={parts[2]||''} language={uiLang} initialTab={editorTarget(parts).tab} focusChapter={editorTarget(parts).chapter} backToBook={previousRoute.current.startsWith('/b/')} onBack={()=>navigate(previousRoute.current.startsWith('/b/')?previousRoute.current:'/workspace')} onViewPage={chapterId=>{const to=visitorRoute('/edit/'+parts[2]+(chapterId?'/chapters/'+chapterId:''),{published:[...editableBooks,...(published||[])],local:books});if(to==='/library'){setToast(L('This book is not public, so it has no page to view.'));return;}navigate(to);}} onSaved={()=>{refreshPublished();libraryMine().then(setEditableBooks).catch(()=>{});}} audioEnv={audioEnv} onAccount={()=>setAccountOpen(true)}/>

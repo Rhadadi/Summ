@@ -22,7 +22,7 @@ type Pick='cover'|'background'|null;
 const emptyPara=():PubPara=>({text:''});
 const copy=<T,>(v:T):T=>structuredClone(v);
 const titleFor=(names:Record<string,string>,lang:string)=>names[lang]||Object.values(names)[0]||'';
-// initialTab and focusChapter come from the URL (#/edit/:id/chapters/:chapterId), so Edit mode opens on the page the owner was reading.
+// initialTab and focusChapter come from the URL (/edit/:id/chapters/:chapterId), so Edit mode opens on the page the owner was reading.
 interface Props{bookId:string;language:string;onBack:()=>void;onSaved:()=>void;onAccount:()=>void;initialTab?:EditorTab;focusChapter?:string;backToBook?:boolean;onViewPage?:(chapterId?:string)=>void;audioEnv?:AudioEnv}
 export default function PublishedEditor({bookId,language,onBack,onSaved,onAccount,initialTab='details',focusChapter='',backToBook=false,onViewPage,audioEnv}:Props){
  const L=(text:string)=>tr(language,text);
