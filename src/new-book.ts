@@ -57,7 +57,7 @@ export function sourceFromZip(found:ZipSummary[],images:SummaryImage[],sourcePat
   if(missing>=2)importProblems.push('The Persian summary has '+lead.block.chapters.length+' chapter'+(lead.block.chapters.length===1?'':'s')+', but another version in the ZIP has '+longestOther+'. Add the missing Persian chapters and import the corrected ZIP.');
   else if(missing===1)warnings.push('Another version in the ZIP has one more chapter than the Persian summary. Check whether a Persian chapter is missing.');
  }
- if(lead.block.chapters.length===1)warnings.push('Only one chapter was found in the ZIP. Check its headings against the book before publishing.');
+ if(lead.block.chapters.length===1)warnings.push('Only one chapter was found in this summary. Check its headings against the book before publishing.');
  for(const f of selected){
   const id=f.lang+':'+f.type;if(seen.has(id)){warnings.push('A second '+f.lang+' '+f.type+' summary was skipped. Check that the intended version was imported.');continue;}seen.add(id);
   // The lead summary defines the contents. Other versions are matched by title, then by chapter number.

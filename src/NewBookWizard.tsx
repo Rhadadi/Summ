@@ -1,5 +1,5 @@
 import{useEffect,useMemo,useRef,useState,type ReactNode}from'react';
-import{Accordion,AccordionDetails,AccordionSummary,Alert,Button,ButtonBase,Checkbox,CircularProgress,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,IconButton,MenuItem,Radio,RadioGroup,Step,StepButton,Stepper,TextField,useMediaQuery}from'@mui/material';
+import{Accordion,AccordionDetails,AccordionSummary,Alert,Button,ButtonBase,Checkbox,Dialog,DialogActions,DialogContent,DialogTitle,FormControlLabel,IconButton,LinearProgress,MenuItem,Radio,RadioGroup,TextField,useMediaQuery}from'@mui/material';
 import{AutoAwesomeRounded,CheckCircleRounded,CloseRounded,ContentCopyRounded,ErrorOutlineRounded,ExpandMoreRounded,FolderZipOutlined,MenuBookRounded,OpenInNewRounded,RemoveCircleOutlineRounded}from'@mui/icons-material';
 import ArtPicker from'./ArtPicker';
 import ReviewDialog from'./ReviewDialog';
@@ -20,11 +20,12 @@ type TaskId='identify'|'details'|'reception'|'background'|'overview';
 type Task={state:'idle'|'running'|'done'|'failed'|'off';message?:string};
 type Voice=WizardVoice;
 const VOICES=['en','fa','de','es','fr','tr','zh','ar'];
-const STEPS=['Source','Chapters','Book details','Review'];
+const STEPS=['Source','Chapters','Details','Review'];
 const languageName=(code:string)=>languages.find(l=>l.code===code)?.label.replace(/.*· /,'').replace(/ \(.*/,'')||code;
 const paragraphCount=(count:number)=>count+' paragraph'+(count===1?'':'s');
 const nameFor=(code:string)=>({fa:'Persian',en:'English',de:'German',ar:'Arabic',es:'Spanish',fr:'French',tr:'Turkish',zh:'Chinese'} as Record<string,string>)[code]||'English';
 const blankProposal=():Proposal=>({title:'',originalTitle:'',author:'',info:{year:'',publisher:'',pages:null,description:'',categories:[]},overviews:{},review:null,reviewApproved:false});
+const freshTasks=():Record<TaskId,Task>=>({identify:{state:'idle'},details:{state:'idle'},reception:{state:'idle'},background:{state:'idle'},overview:{state:'idle'}});
 // The reason, said so the editor can act on it; a missing key is not a failure of the book.
 const reason=(e:unknown)=>e instanceof ApiError&&e.status===412?'Needs your Gemini key (Account).':e instanceof ApiError&&e.status===401?'Sign in again to use AI.':e instanceof Error?e.message:'Something went wrong.';
 
@@ -32,6 +33,7 @@ interface Props{hasKey:boolean;hasVoiceKey:boolean;initial?:Source|null;initialC
 export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCover=null,resumeDraftId=null,onWholeBook,onOtherSource,onClose,onPublished,onAccount,onOpen,onEdit}:Props){
  const phone=useMediaQuery('(max-width:699px)');
  const zipInput=useRef<HTMLInputElement>(null),bookInput=useRef<HTMLInputElement>(null),coverInput=useRef<HTMLInputElement>(null);
+ const stepHeading=useRef<HTMLHeadingElement>(null),previousStep=useRef(0);
  const[step,setStep]=useState(0),[source,setSource]=useState<Source|null>(initial),[fileName,setFileName]=useState(''),[reading,setReading]=useState(false),[error,setError]=useState('');
  // a whole book: the summary names it in its own language; the file's title is then the original one
  const[p,setP]=useState<Proposal>(()=>{if(!initial)return blankProposal();const named=initial.versions[0]?.bookTitle?.trim()||initial.book.title;
@@ -39,7 +41,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
  const[chapters,setChapters]=useState<ChapterChoice[]>(()=>initial?defaultChapters(initial):[]);
  const[wants,setWants]=useState({details:true,reception:false,background:false,overview:hasKey});
  const[voices,setVoices]=useState<Record<string,Voice>>({}),[visibility,setVisibility]=useState<'public'|'unlisted'>('public');
- const[tasks,setTasks]=useState<Record<TaskId,Task>>({identify:{state:'idle'},details:{state:'idle'},reception:{state:'idle'},background:{state:'idle'},overview:{state:'idle'}});
+ const[tasks,setTasks]=useState<Record<TaskId,Task>>(freshTasks);
  const[covers,setCovers]=useState<string[]>([]),[cover,setCover]=useState<{blob:Blob;url:string;from:string}|null>(null);
  const[coverChoice,setCoverChoice]=useState<'zip'|'saved'|'none'>(initial?.cover?'zip':'none');
  const[art,setArt]=useState<ArtResult[]>([]),[slide,setSlideMode]=useState<'art'|'cover'|'none'>('art'),[artPick,setArtPick]=useState<ArtResult|null>(null),[fit,setFit]=useState<'fill'|'whole'>('fill'),[picker,setPicker]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
@@ -55,8 +57,9 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
  const coverRef=useRef(cover);coverRef.current=cover;
  const[progress,setProgress]=useState<{text:string;ok:boolean|null}[]>([]),[publishing,setPublishing]=useState(false),[done,setDone]=useState<PubBook|null>(null);
  const lang=source?leadLanguage(source):'fa';
+ useEffect(()=>{if(previousStep.current!==step){previousStep.current=step;requestAnimationFrame(()=>stepHeading.current?.focus());}},[step]);
  const set=(patch:Partial<Proposal>)=>setP(x=>({...x,...patch}));
- const setIdentity=(patch:Partial<Pick<Proposal,'title'|'originalTitle'|'author'>>)=>{identifyRun.current++;detailsRun.current++;receptionRun.current++;backgroundRun.current++;setP(x=>({...x,...patch,review:null,reviewApproved:false}));mark('reception','idle');mark('background','idle');};
+ const setIdentity=(patch:Partial<Pick<Proposal,'title'|'originalTitle'|'author'>>)=>{identifyRun.current++;detailsRun.current++;receptionRun.current++;backgroundRun.current++;setP(x=>({...x,...patch,review:null,reviewApproved:false}));setTasks(t=>({...t,identify:{state:'idle'},details:{state:'idle'},reception:{state:'idle'},background:{state:'idle'}}));};
  const setInfo=(patch:Partial<Proposal['info']>)=>setP(x=>({...x,info:{...x.info,...patch}}));
  const mark=(id:TaskId,state:Task['state'],message?:string)=>setTasks(t=>({...t,[id]:{state,message}}));
  const live=useRef(true);useEffect(()=>()=>{live.current=false;},[]);
@@ -82,7 +85,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
   return()=>clearTimeout(timer);
  },[draftId,source,restoring,done,publishing,step,p,chapters,chapterEdits,wants,voices,visibility,slide,fit,artPick,coverChoice,singleChapterConfirmed,stagedId,stagedRev]);// eslint-disable-line react-hooks/exhaustive-deps
  async function resume(id:string){
-  invalidateAsync();setRestoring(true);setError('');
+  invalidateAsync();setTasks(freshTasks());setRestoring(true);setError('');
   try{
    const saved=await getWizardDraft<SavedWizardState>(id);
    if(!saved.hasSource)throw Error('This draft has no saved summary ZIP. Remove it or start with another file.');
@@ -110,7 +113,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
  }
  async function chooseAnother(){
   if(draftIdRef.current)try{await persist(snapshot());}catch(e){setError('Save this draft before choosing another file: '+reason(e));return;}
-  invalidateAsync();
+  invalidateAsync();setTasks(freshTasks());
   draftIdRef.current=null;revisionRef.current=undefined;setDraftId(null);setSource(null);setFileName('');setCover(old=>{if(old)URL.revokeObjectURL(old.url);return null;});setCovers([]);setSingleChapterConfirmed(false);setDraftStatus('');
  }
  useEffect(()=>{
@@ -168,7 +171,7 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
    draftIdRef.current=null;revisionRef.current=undefined;setDraftId(null);identityConfirmed.current=false;
    setSource(s);setFileName(file.name);setStep(0);setChapterEdits({});setSingleChapterConfirmed(false);setStagedId(null);setStagedRev(null);
    const selected=defaultChapters(s),title=s.book.title,proposal={...blankProposal(),title};
-   setChapters(selected);setP(proposal);setTasks({identify:{state:'idle'},details:{state:'idle'},reception:{state:'idle'},background:{state:'idle'},overview:{state:'idle'}});
+   setChapters(selected);setP(proposal);setTasks(freshTasks());
    setCover(old=>{if(old)URL.revokeObjectURL(old.url);return null;});setCoverChoice(s.cover?'zip':'none');
    if(s.cover)void useCover(new Blob([s.cover.data],{type:s.cover.type}),'the ZIP',false).catch(()=>{});
    let createdId:string|null=null;
@@ -230,20 +233,24 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
  const canNext=step===0?!!source&&!!p.title.trim():step===1?chapters.some(c=>c.include):true;
  function next(){if(step===0){identityConfirmed.current=true;startProposal();}if(step===1&&source){if(!hasOverview(source)){if(wants.overview&&tasks.overview.state==='idle')void overview();else if(!wants.overview)mark('overview','off');}else mark('overview','off','The ZIP has its own overview.');}setStep(step+1);setError('');}
 
- const status=(id:TaskId,label:string,run?:()=>void)=>{const t=tasks[id];if(t.state==='idle')return null;return <div className={'nb-task nb-'+t.state} role="status">
-  {t.state==='running'?<CircularProgress size={16}/>:t.state==='done'?<CheckCircleRounded fontSize="small"/>:t.state==='failed'?<ErrorOutlineRounded fontSize="small"/>:<RemoveCircleOutlineRounded fontSize="small"/>}
-  <span><strong>{label}</strong>{t.state==='running'?' · working…':t.message?' · '+t.message:t.state==='off'?' · not asked for':''}</span>
+ const status=(id:TaskId,label:string,run?:()=>void)=>{const t=tasks[id];if(t.state==='idle'||t.state==='running'||(t.state==='off'&&!t.message))return null;return <div className={'nb-task nb-'+t.state} role={t.state==='failed'?'alert':undefined}>
+  <span className="nb-task-copy"><strong>{label}</strong>{t.message?' · '+t.message:''}</span>
   {t.state==='failed'&&/Gemini key|Sign in/.test(t.message||'')&&<Button size="small" onClick={onAccount}>Account</Button>}
   {run&&(t.state==='failed'||t.state==='done'||t.state==='off')&&<Button size="small" onClick={run} disabled={!hasKey&&id!=='details'}>{t.state==='done'?'Again':'Try'}</Button>}</div>;};
  const ov=p.overviews[0]||source?.versions[0]?.report.overview?.paragraphs.map(x=>({text:x.text}))||[];
  const setOv=(next:PubPara[])=>set({overviews:{...p.overviews,0:next}});
  const dir=lang==='fa'||lang==='ar'?'rtl':'ltr';
  const previewBookChapter=composed?.doc.chapters.find(c=>c.id===previewChapter)||composed?.doc.chapters[0];
+ const activeTasks=(['identify','details','reception','background','overview'] as TaskId[]).filter(id=>tasks[id].state==='running');
+ const taskNames:Record<TaskId,string>={identify:'book identity',details:'book details and covers',reception:'reviews',background:'paintings',overview:'overview'};
+ const activity=reading?'Reading the summary file…':publishing?'Publishing the book…':activeTasks.length?'Looking up '+activeTasks.map(id=>taskNames[id]).join(', ')+'…':'';
 
  return <Dialog open onClose={close} fullScreen={phone} fullWidth maxWidth="md" scroll="paper" aria-labelledby="nb-title">
-  <DialogTitle id="nb-title" className="dialog-heading"><span>{done?'Published':'Add a book'}{p.title&&<> · <em dir="auto">{p.title.split(':')[0]}</em></>}</span>{draftStatus&&<small className="nb-save-state" role="status">{draftStatus}</small>}<IconButton aria-label="Close" disabled={busyClose} onClick={close}><CloseRounded/></IconButton></DialogTitle>
+  <DialogTitle id="nb-title" className="dialog-heading nb-dialog-title"><span>{done?'Published':'Add a book'}{p.title&&<> · <em dir="auto">{p.title.split(':')[0]}</em></>}</span>{draftStatus&&<small className="nb-save-state">{draftStatus}</small>}<IconButton aria-label="Close" disabled={busyClose} onClick={close}><CloseRounded/></IconButton></DialogTitle>
   <DialogContent className="wizard nb">
-   <Stepper nonLinear activeStep={step} className="wizard-steps">{STEPS.map((label,i)=><Step key={label} completed={i<step}><StepButton disabled={!source||publishing||!!done||i>step} onClick={()=>setStep(i)}>{label}</StepButton></Step>)}</Stepper>
+   <nav className="nb-step-nav" aria-label="Add a book steps"><ol>{STEPS.map((label,i)=><li key={label}><button type="button" aria-current={i===step?'step':undefined} disabled={!source||publishing||!!done||i>step} onClick={()=>setStep(i)}>{label}</button></li>)}</ol></nav>
+   <div className="nb-step-heading"><span>Step {step+1} of {STEPS.length}</span><h2 ref={stepHeading} tabIndex={-1}>{STEPS[step]}</h2></div>
+   <div className={'nb-activity'+(activity?' is-active':'')} aria-live="polite" aria-atomic="true"><span>{activity}</span>{activity&&<LinearProgress aria-label={activity}/>}</div>
    <input ref={zipInput} type="file" hidden accept=".zip,.md,.markdown" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void read(f);}}/>
    <input ref={bookInput} type="file" hidden accept=".pdf,.epub,.txt,.md,.html,.htm" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)onWholeBook(f);}}/>
    <input ref={coverInput} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void useCover(f,'your upload').catch(()=>setError('That image could not be read.'));}}/>
@@ -252,23 +259,23 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
     <p className="dialog-lead">Bring in your finished summary. You can check its chapters and wording before anyone sees it.</p>
     <div className="nb-choices">
      <ButtonBase className="upload-zone nb-primary-upload" disabled={reading||restoring} onClick={()=>zipInput.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)void read(f);}}>
-      <span className="upload-icon">{reading?<CircularProgress size={22}/>:<FolderZipOutlined/>}</span><strong>{reading?'Reading the summary…':'Upload a summary ZIP or Markdown file'}</strong><span>From Claude, ChatGPT, Gemini, or your own writing. Images in a ZIP come with the book.</span><small>Choose a file or drop it here. Your draft is saved as you work.</small></ButtonBase>
+      <span className="upload-icon"><FolderZipOutlined/></span><strong>{reading?'Reading the summary…':'Upload a summary ZIP or Markdown file'}</strong><span>From Claude, ChatGPT, Gemini, or your own writing. Images in a ZIP come with the book.</span><small>Choose a file or drop it here. Your draft is saved as you work.</small></ButtonBase>
     </div>
     <div className="nb-secondary"><span>Need to make a summary first?</span><Button size="small" startIcon={<MenuBookRounded/>} onClick={()=>bookInput.current?.click()}>Start from a whole book</Button><Button size="small" onClick={onOtherSource}>Use a link or pasted text</Button></div>
     {drafts.length>0&&<div className="nb-resume"><h3>Continue an unfinished book</h3>{drafts.map(d=><div className="nb-resume-row" key={d.id}><div><strong dir="auto">{d.title||'Untitled draft'}</strong><small>{d.hasSource?'Saved '+new Date(d.updated*1000).toLocaleDateString():'Source file missing'}</small></div><Button size="small" disabled={restoring||!d.hasSource} onClick={()=>void resume(d.id)}>Continue</Button><Button size="small" color="inherit" onClick={()=>void removeDraft(d.id)}>Delete</Button></div>)}</div>}
    </section>}
 
    {step===0&&source&&<section>
-    <Alert severity="success" sx={{mb:2}}>{fileName||'The book'}: {source.versions.length===1?'1 summary':source.versions.length+' summaries'} ({source.versions.map(v=>v.label+' · '+languageName(v.language)).join(', ')}), {source.book.chapters.length} {source.book.chapters.length===1?'chapter':'chapters'}{source.images.length?', '+source.images.length+' images':''}.</Alert>
-    {warnings.map((warning,i)=><Alert key={i} severity="warning" sx={{mb:1}}>{warning}</Alert>)}
-    {status('identify','Finding the book')}{status('details','Book details and covers')}
-    <p className="dialog-lead">Confirm the book before Inkling searches for reviews. For a Persian summary, the original title helps find the right book.</p>
+    <div className="nb-source-summary"><div><strong dir="auto">{fileName||'Summary file'}</strong><span>{source.versions.length===1?'1 summary':source.versions.length+' summaries'} · {source.versions.map(v=>languageName(v.language)).join(', ')} · {source.book.chapters.length} {source.book.chapters.length===1?'chapter':'chapters'}{source.images.length?' · '+source.images.length+' images':''}</span></div><Button size="small" onClick={()=>void chooseAnother()}>Replace file</Button></div>
+    {warnings.length>0&&<div className="nb-source-warning" role="alert"><strong>Check before publishing</strong><ul>{warnings.map((warning,i)=><li key={i}>{warning}</li>)}</ul></div>}
+    <p className="dialog-lead">Check the title and author. For Persian summaries, the original title helps find the right cover and reviews.</p>
     <div className="settings-grid">
      <TextField label={'Title · '+languageName(lang)} value={p.title} onChange={e=>setIdentity({title:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}} required/>
      <TextField label="Original title (for covers and reviews)" value={p.originalTitle} onChange={e=>setIdentity({originalTitle:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}}/>
      <TextField label="Author" value={p.author} onChange={e=>setIdentity({author:e.target.value})} slotProps={{htmlInput:{dir:'auto'}}}/>
      <TextField label="Year" value={p.info.year} onChange={e=>setInfo({year:e.target.value.replace(/\D/g,'').slice(0,4)})}/>
     </div>
+    <div className="nb-lookup-results">{hasKey&&status('identify','Book identity')}{status('details','Catalogue details')}</div>
     <div className="wizard-bar" style={{marginTop:8}}><span style={{flex:1}}/><Button size="small" disabled={!p.title.trim()&&!p.originalTitle.trim()} onClick={()=>details(p.originalTitle||p.title,p.author)}>Look up details and covers again</Button></div>
     <Accordion className="nb-optional"><AccordionSummary expandIcon={<ExpandMoreRounded/>}>Optional AI research and audio</AccordionSummary><AccordionDetails>
     <h4 className="pub-h">What should AI prepare?</h4>
@@ -285,12 +292,11 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
       <MenuItem value="elevenlabs" disabled={!hasVoiceKey}>{hasVoiceKey?'ElevenLabs · about '+Math.round((composed?.chars[l]||0)/1000)+'k characters':'ElevenLabs · add your key in Account'}</MenuItem></TextField></label>)}</div>
     <p className="settings-help">ElevenLabs is billed to your own plan, about $0.10 per 1,000 characters. Narration starts after publishing and takes a few minutes.</p>
     </AccordionDetails></Accordion>
-    <div className="wizard-bar" style={{marginTop:8}}><span style={{flex:1}}/><Button size="small" onClick={()=>void chooseAnother()}>Choose another file</Button></div>
    </section>}
 
    {step===1&&source&&<section>
     <p className="dialog-lead">Check what the ZIP brought in. Open a chapter to read or edit its summary before publishing.</p>
-    {warnings.map((x,i)=><Alert key={i} severity="warning" sx={{mb:1}}>{x}</Alert>)}
+    {warnings.length>0&&<div className="nb-source-warning" role="alert"><strong>Check the source</strong><ul>{warnings.map((warning,i)=><li key={i}>{warning}</li>)}</ul></div>}
     {composed?.problems.map((x,i)=><Alert key={i} severity="error" sx={{mb:1}}>{x}</Alert>)}
     <div className="wizard-bar"><strong>{chapters.filter(c=>c.include).length} of {chapters.length} {chapters.length===1?'chapter':'chapters'}</strong><Button size="small" onClick={()=>setChapters(cs=>cs.map(c=>({...c,include:true})))}>All</Button><Button size="small" onClick={()=>setChapters(cs=>cs.map(c=>({...c,include:c.group==='main'})))}>Main only</Button></div>
     <ol className="nb-chapters">{chapters.map((c,i)=>{const v=source.versions.find(x=>x.report.chapters[c.id]);const n=v?.report.chapters[c.id].paragraphs.length||0;
@@ -383,17 +389,17 @@ export default function NewBookWizard({hasKey,hasVoiceKey,initial=null,initialCo
      <h4 className="pub-h">Who can find it?</h4>
      <RadioGroup value={visibility} onChange={e=>setVisibility(e.target.value as typeof visibility)}><FormControlLabel value="public" control={<Radio/>} label="Listed in the library, open to everyone"/><FormControlLabel value="unlisted" control={<Radio/>} label="Not listed; only people with the link"/></RadioGroup>
     </>}
-    {progress.length>0&&<ul className="nb-check nb-progress">{progress.map((x,i)=><li key={i}>{x.ok===null?<CircularProgress size={14}/>:x.ok?<CheckCircleRounded fontSize="small"/>:<ErrorOutlineRounded fontSize="small" color="warning"/>}{x.text}</li>)}</ul>}
+    {progress.length>0&&<ul className="nb-check nb-progress">{progress.map((x,i)=><li key={i}>{x.ok===null?<span className="nb-progress-word">In progress</span>:x.ok?<CheckCircleRounded fontSize="small"/>:<ErrorOutlineRounded fontSize="small" color="warning"/>}{x.text}</li>)}</ul>}
     {done&&<Alert severity="success" sx={{mt:2}}>Published. Change anything later in the book editor; to swap chapter summaries, use “Replace from a ZIP” there.
      <div className="wizard-bar" style={{marginTop:8}}><Button size="small" variant="contained" onClick={()=>onOpen(done.slug)}>Open the book</Button><Button size="small" onClick={()=>onEdit(done.id)}>Book editor</Button><Button size="small" startIcon={<ContentCopyRounded/>} onClick={()=>navigator.clipboard?.writeText(location.origin+location.pathname+'#/b/'+done.slug)}>Copy link</Button></div></Alert>}
    </section>}
    {error&&<Alert severity="error" sx={{mt:2}} onClose={()=>setError('')}>{error}</Alert>}
   </DialogContent>
-  <DialogActions sx={{px:3,pb:2}}>
-   <Button onClick={close} disabled={busyClose}>{done?'Close':draftId?'Save & close':'Cancel'}</Button><span style={{flex:1}}/>
+  <DialogActions className="nb-actions" sx={{px:3,pb:2}}>
+   <Button onClick={close} disabled={busyClose}>{done?'Close':draftId?(phone?'Save':'Save & close'):'Cancel'}</Button><span style={{flex:1}}/>
    {step>0&&!done&&<Button disabled={publishing} onClick={()=>setStep(step-1)}>Back</Button>}
-   {step<3?<Button variant="contained" disabled={!canNext||restoring} onClick={next}>{step===0?'Confirm book and check chapters':step===1?'Next: book details':'Review book'}</Button>
-    :!done&&<Button variant="contained" disabled={publishing||!!composed?.problems.length||(source?.book.chapters.length===1&&!singleChapterConfirmed)} onClick={publish} startIcon={publishing?<CircularProgress size={16} color="inherit"/>:undefined}>{publishing?'Publishing…':stagedId?'Retry publishing':'Publish book'}</Button>}
+   {step<3?<Button variant="contained" disabled={!canNext||restoring} onClick={next}>{phone?(step===0?'Next: Chapters':step===1?'Next: Details':'Review book'):step===0?'Continue to chapters':step===1?'Continue to details':'Review book'}</Button>
+    :!done&&<Button variant="contained" disabled={publishing||!!composed?.problems.length||(source?.book.chapters.length===1&&!singleChapterConfirmed)} onClick={publish}>{publishing?'Publishing…':stagedId?'Retry publishing':'Publish book'}</Button>}
   </DialogActions>
   {picker&&<ArtPicker title={p.originalTitle||p.title} author={p.author} about={ov.map(x=>x.text).join(' ').slice(0,3800)} themes={p.review?.themes||[]} tags={p.info.categories} language={nameFor(lang)} initial={artPick} onAccount={onAccount} onClose={()=>setPicker(false)} onPick={a=>{setArtPick(a);setArt(list=>list.some(x=>x.file===a.file)?list:[a,...list]);setSlideMode('art');setPicker(false);}}/>}
   {reviewOpen&&source&&<ReviewDialog book={{...source.book,title:p.originalTitle||p.title,author:p.author||'Author not supplied'}} year={p.info.year} initial={p.review?{review:p.review,approved:p.reviewApproved}:null} language={lang} onClose={()=>setReviewOpen(false)} onAccount={onAccount} onSave={async v=>{set({review:v.review,reviewApproved:v.approved});mark('reception','done','Edited');setReviewOpen(false);}}/>}
@@ -411,10 +417,11 @@ function AskAi({text,language,onText,onAccount,hasKey,extra}:{text:string;langua
  }
  return <div className="nb-ask">
   <div className="editor-row-actions">
-   <Button size="small" startIcon={busy?<CircularProgress size={14}/>:<AutoAwesomeRounded/>} disabled={busy||!text.trim()||!hasKey} onClick={()=>setOpen(o=>!o)}>Ask AI</Button>
+   <Button size="small" startIcon={<AutoAwesomeRounded/>} disabled={busy||!text.trim()||!hasKey} onClick={()=>setOpen(o=>!o)}>Ask AI</Button>
    <Button size="small" disabled={busy||!text.trim()||!hasKey} onClick={()=>run('polish')}>Polish</Button>
    {undo!==null&&<Button size="small" onClick={()=>{onText(undo);setUndo(null);}}>Undo</Button>}{extra}
   </div>
+  {busy&&<div className="nb-ask-working" role="status">Preparing a suggestion…<LinearProgress aria-label="Preparing a writing suggestion"/></div>}
   {open&&<form className="nb-ask-form" onSubmit={e=>{e.preventDefault();if(ask.trim())void run('revise');}}><TextField size="small" fullWidth autoFocus label="What should change?" placeholder="Shorter, warmer, for a general reader, mention the method…" value={ask} onChange={e=>setAsk(e.target.value)} slotProps={{htmlInput:{maxLength:600,dir:'auto'}}}/><Button type="submit" variant="contained" size="small" disabled={busy||!ask.trim()}>Rewrite</Button></form>}
   {suggestion&&<div className="nb-ai-suggestion"><strong>Suggested wording</strong><p dir="auto">{suggestion.text}</p>{suggestion.from!==text&&<small>The original text changed. Ask AI again for an up-to-date suggestion.</small>}<div><Button size="small" variant="contained" disabled={suggestion.from!==text} onClick={()=>{setUndo(text);onText(suggestion.text);setSuggestion(null);}}>Use this wording</Button><Button size="small" onClick={()=>setSuggestion(null)}>Keep mine</Button></div></div>}
   {error&&<small className="nb-ask-error" role="alert">{error}</small>}
